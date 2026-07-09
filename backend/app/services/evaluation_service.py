@@ -17,6 +17,7 @@ Prompt 日志各自独立短事务写入，保证即便后续失败也留痕。
 from __future__ import annotations
 
 import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -36,6 +37,54 @@ logger = get_logger(__name__)
 # 任务提交线程池：接收 POST 后立即返回，分析在后台跑。
 # max_workers=5 表示最多 5 个分析任务并行（文档建议值）。
 _task_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="analysis")
+
+# ──────────────── 取消（协作式） ────────────────
+# LLM 调用本身无法被强制打断，取消采用协作式：cancel 接口置内存标志并立即返回，
+# pipeline 在每两个 LLM 调用之间检查 check_cancel()——识别后、五维度评分前、
+# 总结前、保存前——命中即抛 _TaskCancelled 提前收尾，DB 状态置 cancelled。
+_cancel_flags: set[int] = set()
+_cancel_lock = threading.Lock()
+
+
+class _TaskCancelled(Exception):
+    """任务被用户取消的内部信号。"""
+
+
+def request_cancel(task_id: int) -> dict[str, Any]:
+    """请求取消任务，立即返回不等待后台线程真正停下。
+
+    返回 {"task_id", "status", "cancelled": bool}。
+    - 任务不存在 → ValueError（API 转 404）
+    - 已终态（completed/failed/cancelled）→ cancelled=False，原状态返回
+    - pending/analyzing → 置内存标志 + 立即把 DB 改 cancelled，cancelled=True
+    """
+    with connection_scope() as conn:
+        row = repo.get_task_progress(conn, task_id)
+        if row is None:
+            raise ValueError("任务不存在")
+        if row["status"] in {"completed", "failed", "cancelled"}:
+            return {"task_id": task_id, "status": row["status"], "cancelled": False}
+        with _cancel_lock:
+            _cancel_flags.add(task_id)
+        repo.update_ai_task(
+            conn, task_id, status="cancelled",
+            current_stage="cancelled", stage_message="分析已取消",
+        )
+    logger.info("任务 %s 收到取消请求", task_id)
+    return {"task_id": task_id, "status": "cancelled", "cancelled": True}
+
+
+def check_cancel(task_id: int) -> None:
+    """LLM 调用之间的取消检查点：已取消则抛 _TaskCancelled 中断 pipeline。"""
+    with _cancel_lock:
+        hit = task_id in _cancel_flags
+    if hit:
+        raise _TaskCancelled
+
+
+def _clear_cancel_flag(task_id: int) -> None:
+    with _cancel_lock:
+        _cancel_flags.discard(task_id)
 
 
 def _log_prompt(
@@ -153,6 +202,10 @@ def _score_one_dimension(
         )
     expected = len(batch["metrics"])
     logger.info("维度「%s」开始评分（%d 项指标）", batch["dim_name"], expected)
+    logger.info(
+        "维度「%s」评分 prompt：\n[SYSTEM]\n%s\n[USER]\n%s",
+        batch["dim_name"], rp.system, rp.user,
+    )
     t0 = time.monotonic()
     resp = chat(
         rp.system, rp.user, model=rp.model,
@@ -180,20 +233,25 @@ def _score_one_dimension(
 def score_all_metrics(
     street_name: str,
     metric_tree: list[dict[str, Any]],
-    facts_text: str,
+    facts: "retriever.StreetFacts",
     task_id: int,
 ) -> dict[int, dict[str, Any]]:
     """5 个一级维度并发评分，返回 {metric_id: {"score", "reason"}}。
 
+    每个维度只拿与其相关的裁剪 facts（tag 驱动），节省 token；
     每完成一个维度即更新进度（计数式：20 + N*13），文案「已完成 N/5 维度评分」。
     """
     code_to_id = {m["metric_code"]: m["metric_id"] for m in metric_tree}
     batches = pb.group_metrics_by_dimension(metric_tree)
-    facts = facts_text.strip() or "（暂无结构化事实数据，请基于该街区的公开常识进行合理评估。）"
+    fallback = "（暂无结构化事实数据，请基于该街区的公开常识进行合理评估。）"
     total = len(batches)
     result: dict[int, dict[str, Any]] = {}
     done = 0
     failed_dims: list[str] = []
+
+    def _facts_for(batch: dict[str, Any]) -> str:
+        """按维度裁剪 facts；空则给兜底文案。"""
+        return facts.to_prompt_facts_for(batch.get("dim_code")).strip() or fallback
 
     logger.info(
         "任务 %s 开始并发评分：%d 个一级维度 → %s",
@@ -202,7 +260,7 @@ def score_all_metrics(
 
     with ThreadPoolExecutor(max_workers=total, thread_name_prefix="score") as pool:
         future_to_dim = {
-            pool.submit(_score_one_dimension, street_name, b, facts, task_id): b["dim_name"]
+            pool.submit(_score_one_dimension, street_name, b, _facts_for(b), task_id): b["dim_name"]
             for b in batches
         }
         for future in as_completed(future_to_dim):
@@ -340,6 +398,7 @@ def _run_pipeline(
             repo.update_ai_task(conn, task_id, status="analyzing")
 
         # ① 识别（文字 / 图片分支，返回结构一致）
+        check_cancel(task_id)
         progress.set_stage(task_id, progress.STAGE_RECOGNIZE)
         if image_path:
             recog = recognize_street_from_image(image_path, city_hint, task_id)
@@ -352,6 +411,7 @@ def _run_pipeline(
         )
 
         # 建街巷 + 评价表头 + 识别结果（短事务）
+        check_cancel(task_id)
         with connection_scope() as conn:
             street_id = repo.get_or_create_street(
                 conn, street_name, recog.get("city"), recog.get("district")
@@ -376,24 +436,41 @@ def _run_pipeline(
             )
             metric_tree = repo.fetch_metric_tree(conn)
 
-        # ② 画像事实（POI 召回 → 结构化摘要，无 POI 时为空走兜底）
+        # ② 画像事实（POI 召回 → 按维度裁剪，无 POI 时各维度走兜底）
         progress.set_stage(task_id, progress.STAGE_PROFILE)
-        facts_text = profile_facts.to_prompt_facts()
+        if profile_facts.has_data:
+            prof = profile_facts.profile or {}
+            logger.info(
+                "任务 %s 命中 POI 画像：街区=%s，POI 总数=%s，标签=%s",
+                task_id, street_name, prof.get("poi_count"),
+                profile_facts.poi_summary,
+            )
+            logger.info(
+                "任务 %s 画像 facts（总览，实际按维度裁剪后下发）：\n%s",
+                task_id, profile_facts.to_prompt_facts(),
+            )
+        else:
+            logger.info(
+                "任务 %s 未命中 POI 画像，评分将走「暂无结构化事实」兜底", task_id
+            )
 
-        # ③ 并发评分（内部逐维度更新进度）
-        scored = score_all_metrics(street_name, metric_tree, facts_text, task_id)
+        # ③ 并发评分（内部逐维度按 dim_code 裁剪 facts + 更新进度）
+        check_cancel(task_id)
+        scored = score_all_metrics(street_name, metric_tree, profile_facts, task_id)
         metric_scores = {mid: v["score"] for mid, v in scored.items()}
 
         # ④ 聚合
         aggregated = scoring_service.aggregate(metric_tree, metric_scores)
 
         # ⑤ 报告
+        check_cancel(task_id)
         progress.set_stage(task_id, progress.STAGE_REPORT)
         summary = generate_report(
             street_name, aggregated["total_score"], aggregated["dimension_scores"], task_id
         )
 
         # 入库（一个事务：明细 + 维度聚合 + 回写表头）
+        check_cancel(task_id)
         with connection_scope() as conn:
             repo.bulk_insert_metric_scores(
                 conn,
@@ -422,6 +499,20 @@ def _run_pipeline(
             "任务 %s 完成：街区=%s，综合分=%s，总耗时 %.1fs",
             task_id, street_name, aggregated["total_score"], time.monotonic() - t_start,
         )
+    except _TaskCancelled:
+        # 协作式取消：DB 状态已由 request_cancel 置为 cancelled，这里只收尾。
+        logger.info(
+            "任务 %s 已取消，提前结束（总耗时 %.1fs）",
+            task_id, time.monotonic() - t_start,
+        )
+        with connection_scope() as conn:
+            if evaluation_id is not None:
+                repo.mark_evaluation_failed(conn, evaluation_id)
+            # 兜底确保终态（request_cancel 已写过，这里幂等覆盖文案）
+            repo.update_ai_task(
+                conn, task_id, status="cancelled",
+                current_stage="cancelled", stage_message="分析已取消",
+            )
     except Exception as exc:  # noqa: BLE001 - 后台任务统一兜底，写明失败原因
         logger.exception(
             "任务 %s 失败（%s: %s），总耗时 %.1fs",
@@ -434,6 +525,8 @@ def _run_pipeline(
                 conn, task_id, status="failed",
                 stage_message="分析失败", error_message=str(exc)[:500],
             )
+    finally:
+        _clear_cancel_flag(task_id)
 
 
 def list_history(limit: int = 50) -> list[dict[str, Any]]:
@@ -463,10 +556,27 @@ def list_history(limit: int = 50) -> list[dict[str, Any]]:
                 "status": r.get("status") or "completed",
                 "summary": short or None,
                 "image_url": r.get("image_url"),
+                "input_type": r.get("input_type"),
                 "created_at": created.isoformat() if created is not None else None,
             }
         )
     return items
+
+
+def delete_evaluation(evaluation_id: int) -> bool:
+    """物理删除一条评价及其全部关联数据。返回是否删除成功(False=不存在)。"""
+    with connection_scope() as conn:
+        affected = repo.delete_evaluation(conn, evaluation_id)
+    return affected > 0
+
+
+def delete_evaluations(evaluation_ids: list[int]) -> int:
+    """批量物理删除评价，返回成功删除的条数（同一事务）。"""
+    ids = [int(i) for i in evaluation_ids]
+    if not ids:
+        return 0
+    with connection_scope() as conn:
+        return repo.delete_evaluations(conn, ids)
 
 
 def get_result(evaluation_id: int) -> dict[str, Any] | None:
@@ -503,6 +613,8 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
     dim_name = name_map["dim"]
     sub_name = name_map["sub"]
     sub_dim = name_map["sub_parent"]
+    dim_weight = name_map["dim_weight"]
+    sub_weight = name_map["sub_weight"]
 
     # ── 按显示配置过滤字段 ──
     # 一级维度分被雷达图 / 一级拆解 / 二三级明细共同依赖（分组与标签），任一开启即保留
@@ -511,7 +623,12 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
     )
     dimension_scores = (
         [
-            {"dim_id": r["ref_id"], "dim_name": dim_name.get(r["ref_id"], ""), "score": float(r["score"])}
+            {
+                "dim_id": r["ref_id"],
+                "dim_name": dim_name.get(r["ref_id"], ""),
+                "score": float(r["score"]),
+                "weight": dim_weight.get(r["ref_id"]),
+            }
             for r in dim_rows
         ]
         if need_dimensions
@@ -525,6 +642,7 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
                 "sub_name": sub_name.get(r["ref_id"], ""),
                 "dim_id": sub_dim.get(r["ref_id"], 0),
                 "score": float(r["score"]),
+                "weight": sub_weight.get(r["ref_id"]),
             }
             for r in sub_rows
         ]
@@ -543,6 +661,9 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
                 "dim_id": r["dim_id"],
                 "score": int(r["score"]),
                 "reason": (r["score_reason"] if show_reason else None),
+                "weight": (
+                    float(r["metric_weight"]) if r["metric_weight"] is not None else None
+                ),
             }
             for r in metric_rows
         ]

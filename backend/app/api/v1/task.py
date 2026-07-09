@@ -15,10 +15,11 @@ from sse_starlette.sse import EventSourceResponse
 from app.db import repository as repo
 from app.db.session import connection_scope
 from app.schemas.evaluation import TaskProgressOut
+from app.services import evaluation_service
 
 router = APIRouter(prefix="/task", tags=["task"])
 
-_TERMINAL = {"completed", "failed"}
+_TERMINAL = {"completed", "failed", "cancelled"}
 
 
 def _load(task_id: int) -> dict | None:
@@ -33,6 +34,18 @@ def get_task(task_id: int) -> TaskProgressOut:
     if row is None:
         raise HTTPException(status_code=404, detail="任务不存在")
     return TaskProgressOut(**row)
+
+
+@router.post("/{task_id}/cancel")
+def cancel_task(task_id: int) -> dict:
+    """请求取消任务，立即返回（协作式取消，不等待后台线程停下）。
+
+    返回 {"task_id", "status", "cancelled"}：cancelled=False 表示任务已是终态。
+    """
+    try:
+        return evaluation_service.request_cancel(task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{task_id}/progress")

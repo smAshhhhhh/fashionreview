@@ -15,6 +15,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from app.core.config import get_settings
 from app.schemas.evaluation import (
     AnalyzeAccepted,
+    BatchDeleteRequest,
     EvaluationResult,
     HistoryItemOut,
     TextAnalyzeRequest,
@@ -95,3 +96,19 @@ def get_result(evaluation_id: int) -> EvaluationResult:
     if result is None:
         raise HTTPException(status_code=404, detail="评价记录不存在")
     return EvaluationResult(**result)
+
+
+@router.post("/results/batch-delete")
+def batch_delete_results(req: BatchDeleteRequest) -> dict[str, int]:
+    """批量物理删除评价，返回成功删除的条数。"""
+    deleted = evaluation_service.delete_evaluations(req.evaluation_ids)
+    return {"deleted": deleted}
+
+
+@router.delete("/result/{evaluation_id}")
+def delete_result(evaluation_id: int) -> dict[str, str]:
+    """物理删除一条评价及其关联数据（明细/维度分/AI任务）。"""
+    ok = evaluation_service.delete_evaluation(evaluation_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="评价记录不存在")
+    return {"status": "deleted"}

@@ -16,55 +16,36 @@ import {
 
 /* ──────────────────────────────────────────────
  * Prompt 管理页 /resources/prompts
- * 手风琴分组（recognize / score / report）+ 行内编辑器 + 版本历史 / 回滚。
- * 视觉对齐设计稿；数据全部接真实 /prompts API（不照搬设计稿占位值）。
- * 设计稿自定义 spacing/font token 已翻译为标准 Tailwind 值。
+ * 左：按阶段（recognize / score / report）分组的模板列表。
+ * 右：所选模板的编辑器（名称/模型/温度/System/User）+ 独立的版本历史面板（回滚）。
+ * 布局对齐「维度指标管理」页；数据全部接真实 /prompts API。
  * ────────────────────────────────────────────── */
 
-type StageMeta = {
-  label: string;
-  icon: string;
-  desc: string;
-  /** 标识条 / 图标 / 计数 chip 配色 */
-  iconClass: string;
-  countClass: string;
-};
-
-const STAGE_META: Record<string, StageMeta> = {
-  recognize: {
-    label: "街巷识别 (recognize)",
-    icon: "location_on",
-    desc: "针对街头时尚图像的基础位置与环境语义识别",
-    iconClass: "text-primary",
-    countClass: "bg-primary/10 text-primary",
-  },
-  score: {
-    label: "维度评分 (score)",
-    icon: "star",
-    desc: "对空间美学、商业业态等核心维度进行量化评估",
-    iconClass: "text-tertiary",
-    countClass: "bg-tertiary/10 text-tertiary",
-  },
-  report: {
-    label: "报告生成 (report)",
-    icon: "description",
-    desc: "自动化生成时尚趋势简报与深度分析文档",
-    iconClass: "text-[#9333ea]",
-    countClass: "bg-purple-100 text-purple-700",
-  },
+const STAGE_LABEL: Record<string, string> = {
+  recognize: "街巷识别",
+  score: "维度评分",
+  report: "报告生成",
 };
 const STAGE_ORDER = ["recognize", "score", "report"];
 
 export default function PromptsPage() {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const reload = async () => {
+  const reload = async (keepId?: number) => {
     const data = await listPrompts();
     setTemplates(data);
+    if (data.length === 0) return;
+    const pick =
+      keepId != null && data.some((t) => t.id === keepId)
+        ? keepId
+        : selectedId != null && data.some((t) => t.id === selectedId)
+          ? selectedId
+          : data[0].id;
+    setSelectedId(pick);
   };
 
   useEffect(() => {
@@ -72,7 +53,9 @@ export default function PromptsPage() {
     (async () => {
       try {
         const data = await listPrompts();
-        if (!cancelled) setTemplates(data);
+        if (cancelled) return;
+        setTemplates(data);
+        if (data.length > 0) setSelectedId(data[0].id);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "加载模板失败");
       } finally {
@@ -94,116 +77,113 @@ export default function PromptsPage() {
     return map;
   }, [templates]);
 
-  const toggleGroup = (stage: string) =>
-    setCollapsed((c) => ({ ...c, [stage]: !c[stage] }));
-
-  const renderGroups = () => {
-    if (loading) return <LoadingSkeleton />;
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center gap-3 py-24 text-on-surface-variant">
-          <span className="material-symbols-outlined text-5xl text-error">error</span>
-          <p className="text-[15px]">{error}</p>
-        </div>
-      );
-    }
-    return STAGE_ORDER.map((stage) => {
-      const meta = STAGE_META[stage];
-      const items = grouped.get(stage) ?? [];
-      const isCollapsed = collapsed[stage] ?? false;
-      return (
-        <div
-          key={stage}
-          className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm"
-        >
-          {/* 组头 */}
-          <button
-            type="button"
-            onClick={() => toggleGroup(stage)}
-            className="w-full flex items-center justify-between p-4 hover:bg-surface-container-low/50 transition-colors text-left"
-          >
-            <div className="flex items-center gap-3">
-              <span className={`material-symbols-outlined ${meta.iconClass}`}>
-                {meta.icon}
-              </span>
-              <div>
-                <h3 className="text-[17px] font-bold text-on-surface">{meta.label}</h3>
-                <p className="text-[13px] text-on-surface-variant">{meta.desc}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-              <span
-                className={`px-3 py-1 rounded-full text-[15px] font-semibold ${meta.countClass}`}
-              >
-                {items.length} 模版
-              </span>
-              <span
-                className="material-symbols-outlined transition-transform duration-300"
-                style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}
-              >
-                expand_more
-              </span>
-            </div>
-          </button>
-
-          {/* 组内容 */}
-          {!isCollapsed && (
-            <div className="border-t border-outline-variant/30">
-              {items.length === 0 ? (
-                <div className="py-12 text-center space-y-3 bg-surface-container-low/20">
-                  <span className="material-symbols-outlined text-outline/30 text-5xl">
-                    inventory_2
-                  </span>
-                  <p className="text-[15px] text-on-surface-variant">
-                    暂无可用活跃模版
-                  </p>
-                </div>
-              ) : (
-                items.map((t) => (
-                  <PromptItem
-                    key={t.id}
-                    template={t}
-                    editing={editingId === t.id}
-                    onEdit={() =>
-                      setEditingId((cur) => (cur === t.id ? null : t.id))
-                    }
-                    onSaved={async () => {
-                      await reload();
-                      setEditingId(null);
-                    }}
-                    onRolledBack={reload}
-                  />
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      );
-    });
-  };
+  const selected = templates.find((t) => t.id === selectedId) ?? null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-white text-[#0f1419]">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
-        {/* 顶部应用栏 */}
-        <header className="flex justify-between items-center w-full px-6 h-16 bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-40 border-b border-outline-variant/30">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/resources"
-              className="flex items-center gap-2 text-primary font-bold hover:opacity-70 transition-opacity"
-            >
-              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-              <span className="text-[15px] font-semibold">返回资源中心</span>
-            </Link>
-            <div className="h-4 w-px bg-outline-variant mx-2" />
-            <h2 className="text-[18px] font-bold text-on-surface">Prompt 管理</h2>
-          </div>
+        {/* 顶部栏 */}
+        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+          <Link href="/resources" className="flex items-center text-primary-container">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </Link>
+          <h2 className="text-xl font-bold text-[#0f1419]">Prompt 管理</h2>
         </header>
 
-        <section className="p-6 max-w-[1200px] mx-auto w-full flex-1 pb-28 lg:pb-12">
-          <div className="space-y-6">{renderGroups()}</div>
+        <section className="p-4 lg:p-6 max-w-7xl mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
+          {(error || notice) && (
+            <div
+              className={`flex items-start gap-3 rounded-2xl border p-4 ${
+                error
+                  ? "border-error/30 bg-error/5 text-error"
+                  : "border-primary-container/30 bg-primary-container/5 text-[#536471]"
+              }`}
+            >
+              <span className="material-symbols-outlined">
+                {error ? "error" : "check_circle"}
+              </span>
+              <p className="text-[13px] leading-relaxed">{error ?? notice}</p>
+            </div>
+          )}
+
+          {loading ? (
+            <LoadingSkeleton />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+              {/* 左：模板列表 */}
+              <div className="space-y-6 lg:sticky lg:top-20 self-start">
+                {STAGE_ORDER.map((stage) => {
+                  const items = grouped.get(stage) ?? [];
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={stage} className="space-y-2">
+                      <h3 className="text-[13px] font-bold text-[#536471] uppercase px-1">
+                        {STAGE_LABEL[stage] ?? stage}
+                      </h3>
+                      {items.map((t) => {
+                        const isSel = t.id === selectedId;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedId(t.id)}
+                            className={`w-full text-left rounded-2xl border p-3 transition-colors ${
+                              isSel
+                                ? "border-primary-container bg-surface-container-low"
+                                : "border-[#eff3f4] hover:bg-[#f7f9f9]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[14px] font-bold text-[#0f1419] truncate">
+                                {t.name}
+                              </span>
+                              <span className="shrink-0 text-[11px] font-semibold text-[#536471] tabular-nums">
+                                v{t.version}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#536471]">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  t.enabled === 1 ? "bg-primary-container" : "bg-surface-container-highest"
+                                }`}
+                              />
+                              {t.enabled === 1 ? "已启用" : "已停用"}
+                              {t.dim_code && <span className="ml-1 font-mono">· {t.dim_code}</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 右：编辑器 + 版本历史 */}
+              {selected ? (
+                <PromptEditor
+                  key={selected.id}
+                  template={selected}
+                  onSaved={async () => {
+                    await reload(selected.id);
+                    setNotice("已保存新版本。");
+                  }}
+                  onRolledBack={async () => {
+                    await reload(selected.id);
+                    setNotice("已回滚到所选版本。");
+                  }}
+                  onToggled={() => reload(selected.id)}
+                  onError={setError}
+                  onClearNotice={() => setNotice(null)}
+                />
+              ) : (
+                <div className="grid place-items-center rounded-2xl border border-[#eff3f4] min-h-100 text-[#536471]">
+                  <p className="text-[15px]">请选择左侧模板进行编辑。</p>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       </main>
 
@@ -212,117 +192,25 @@ export default function PromptsPage() {
   );
 }
 
-/* ──────────────── 单条模板（行头 + 行内编辑器） ──────────────── */
+/* ──────────────── 右侧：编辑器 ──────────────── */
 
-function PromptItem({
-  template,
-  editing,
-  onEdit,
-  onSaved,
-  onRolledBack,
-}: {
-  template: PromptTemplate;
-  editing: boolean;
-  onEdit: () => void;
-  onSaved: () => Promise<void>;
-  onRolledBack: () => Promise<void>;
-}) {
-  return (
-    <div className="p-4 hover:bg-surface-bright transition-all border-b border-outline-variant/30 last:border-b-0">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 flex-wrap min-w-0">
-          <h4 className="text-[15px] font-bold text-on-surface">{template.name}</h4>
-          <span className="text-[12px] px-2 py-0.5 bg-surface-container text-on-surface-variant rounded tabular-nums tracking-tight">
-            v{template.version}
-          </span>
-          <div className="flex items-center gap-1 text-on-surface-variant text-[13px]">
-            <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-            {template.model || "默认模型"}
-          </div>
-          <div className="flex items-center gap-1 text-on-surface-variant text-[13px]">
-            <span className="material-symbols-outlined text-[16px]">thermostat</span>
-            Temp: {template.temperature != null ? template.temperature : "默认 (0.3)"}
-          </div>
-          {template.dim_code && (
-            <span className="text-[10px] px-2 py-0.5 bg-tertiary/10 text-tertiary rounded font-mono">
-              {template.dim_code}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-6 shrink-0">
-          <EnabledToggle template={template} onChanged={onRolledBack} />
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-primary text-[15px] font-bold flex items-center gap-1 hover:opacity-70 transition-opacity"
-          >
-            <span className="material-symbols-outlined text-[18px]">
-              {editing ? "close" : "edit"}
-            </span>
-            {editing ? "收起" : "编辑"}
-          </button>
-        </div>
-      </div>
-
-      {editing && (
-        <PromptEditor
-          template={template}
-          onCancel={onEdit}
-          onSaved={onSaved}
-          onRolledBack={onRolledBack}
-        />
-      )}
-    </div>
-  );
-}
-
-/* 启用开关：即时 PUT，仅切 enabled */
-function EnabledToggle({
-  template,
-  onChanged,
-}: {
-  template: PromptTemplate;
-  onChanged: () => Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-  const checked = template.enabled === 1;
-
-  const handle = async () => {
-    setBusy(true);
-    try {
-      await updatePrompt(template.id, { enabled: checked ? 0 : 1 });
-      await onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input
-        type="checkbox"
-        className="sr-only peer"
-        checked={checked}
-        disabled={busy}
-        onChange={handle}
-      />
-      <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary peer-focus:outline-none after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
-    </label>
-  );
-}
-
-/* ──────────────── 行内编辑器 ──────────────── */
+const inputClass =
+  "w-full bg-white border border-[#eff3f4] rounded-xl px-3 py-2 text-[15px] focus:border-primary-container focus:outline-none transition-colors";
 
 function PromptEditor({
   template,
-  onCancel,
   onSaved,
   onRolledBack,
+  onToggled,
+  onError,
+  onClearNotice,
 }: {
   template: PromptTemplate;
-  onCancel: () => void;
   onSaved: () => Promise<void>;
   onRolledBack: () => Promise<void>;
+  onToggled: () => Promise<void>;
+  onError: (msg: string | null) => void;
+  onClearNotice: () => void;
 }) {
   const [name, setName] = useState(template.name);
   const [systemPrompt, setSystemPrompt] = useState(template.system_prompt ?? "");
@@ -333,7 +221,7 @@ function PromptEditor({
   );
   const [changeNote, setChangeNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [enabledBusy, setEnabledBusy] = useState(false);
 
   const placeholders = useMemo(
     () =>
@@ -344,11 +232,25 @@ function PromptEditor({
     [template.placeholders],
   );
 
+  const toggleEnabled = async () => {
+    setEnabledBusy(true);
+    onError(null);
+    try {
+      await updatePrompt(template.id, { enabled: template.enabled === 1 ? 0 : 1 });
+      await onToggled();
+    } catch (e: unknown) {
+      onError(e instanceof Error ? e.message : "切换启用状态失败");
+    } finally {
+      setEnabledBusy(false);
+    }
+  };
+
   const handleSave = async () => {
-    setSaveError(null);
+    onError(null);
+    onClearNotice();
     const tempNum = temperature.trim() === "" ? null : Number(temperature);
     if (tempNum != null && (Number.isNaN(tempNum) || tempNum < 0 || tempNum > 2)) {
-      setSaveError("采样温度需为 0~2 之间的数字");
+      onError("采样温度需为 0~2 之间的数字");
       return;
     }
     const body: PromptTemplateUpdate = {
@@ -364,66 +266,78 @@ function PromptEditor({
       await updatePrompt(template.id, body);
       await onSaved();
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : "保存失败");
+      onError(e instanceof Error ? e.message : "保存失败");
     } finally {
       setSaving(false);
     }
   };
 
-  const inputClass =
-    "w-full bg-white border border-outline-variant/30 rounded-lg px-3 py-2 text-[15px] focus:ring-primary focus:border-primary focus:outline-none";
-
   return (
-    <div className="mt-4 bg-surface-container-low/40 rounded-xl p-6 border border-outline-variant/30">
+    <div className="min-w-0">
+      {/* 头部：名称 + 阶段/版本 + 启用开关 */}
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8 border-b border-[#eff3f4] pb-6">
+        <div className="min-w-0">
+          <p className="text-[13px] text-[#536471] mb-1">
+            {STAGE_LABEL[template.stage] ?? template.stage} · 当前 v{template.version}
+          </p>
+          <h3 className="text-[28px] leading-8 font-black tracking-tight text-[#0f1419] truncate">
+            {template.name}
+          </h3>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer shrink-0 select-none">
+          <span className="text-[13px] font-semibold text-[#536471]">
+            {template.enabled === 1 ? "已启用" : "已停用"}
+          </span>
+          <span className="relative inline-flex items-center">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={template.enabled === 1}
+              disabled={enabledBusy}
+              onChange={toggleEnabled}
+            />
+            <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary-container after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+          </span>
+        </label>
+      </div>
+
       {/* 可用占位符 */}
-      <div className="mb-4 p-4 bg-white rounded-lg border border-outline-variant/30">
-        <p className="text-[15px] text-primary font-bold mb-2">
-          可用占位符 (Available Placeholders):
-        </p>
-        {placeholders.length > 0 ? (
+      {placeholders.length > 0 && (
+        <div className="mb-6">
+          <p className="text-[13px] font-semibold text-[#536471] mb-2">可用占位符</p>
           <div className="flex flex-wrap gap-2">
             {placeholders.map((p) => (
               <code
                 key={p}
-                className="text-[12px] bg-surface-container-lowest px-2 py-1 rounded-md border border-outline-variant/30 tabular-nums tracking-tight"
+                className="text-[12px] bg-surface-container-low text-[#0f1419] px-2 py-1 rounded-full border border-[#eff3f4]"
               >
                 {p}
               </code>
             ))}
           </div>
-        ) : (
-          <p className="text-[13px] text-on-surface-variant">该模板未声明占位符</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 名称 / 模型 / 温度 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="space-y-3">
-          <label className="block text-[15px] font-semibold text-on-surface-variant">
-            模版名称
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-          />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="space-y-1.5">
+          <label className="block text-[13px] font-semibold text-[#536471] px-1">模版名称</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
         </div>
-        <div className="space-y-3">
-          <label className="block text-[15px] font-semibold text-on-surface-variant">
+        <div className="space-y-1.5">
+          <label className="block text-[13px] font-semibold text-[#536471] px-1">
             模型（留空用默认）
           </label>
           <input
-            type="text"
             value={model}
             onChange={(e) => setModel(e.target.value)}
             placeholder="如 gpt-4o"
             className={inputClass}
           />
         </div>
-        <div className="space-y-3">
-          <label className="block text-[15px] font-semibold text-on-surface-variant">
-            采样温度 (0~2，留空用默认)
+        <div className="space-y-1.5">
+          <label className="block text-[13px] font-semibold text-[#536471] px-1">
+            采样温度 0~2（留空用默认）
           </label>
           <input
             type="number"
@@ -439,10 +353,10 @@ function PromptEditor({
       </div>
 
       {/* System / User / 更新日志 */}
-      <div className="space-y-6 mb-6">
+      <div className="space-y-5 mb-6">
         <div>
-          <label className="block text-[15px] font-semibold text-on-surface-variant mb-2">
-            System Prompt (系统提示词)
+          <label className="block text-[13px] font-semibold text-[#536471] mb-2 px-1">
+            System Prompt（系统提示词）
           </label>
           <textarea
             rows={4}
@@ -452,8 +366,8 @@ function PromptEditor({
           />
         </div>
         <div>
-          <label className="block text-[15px] font-semibold text-on-surface-variant mb-2">
-            User Template (用户模版)
+          <label className="block text-[13px] font-semibold text-[#536471] mb-2 px-1">
+            User Template（用户模版）
           </label>
           <textarea
             rows={6}
@@ -463,38 +377,25 @@ function PromptEditor({
           />
         </div>
         <div>
-          <label className="block text-[15px] font-semibold text-on-surface-variant mb-2">
+          <label className="block text-[13px] font-semibold text-[#536471] mb-2 px-1">
             更新日志（选填，记入版本历史）
           </label>
           <textarea
             rows={2}
             value={changeNote}
             onChange={(e) => setChangeNote(e.target.value)}
-            placeholder="请简要说明此次更新的内容..."
+            placeholder="简要说明此次更新的内容…"
             className={`${inputClass} resize-y`}
           />
         </div>
       </div>
 
-      {/* 版本历史 */}
-      <HistoryPanel templateId={template.id} onRolledBack={onRolledBack} />
-
-      {saveError && <p className="text-[15px] text-error mt-4">{saveError}</p>}
-
-      {/* 操作 */}
-      <div className="mt-6 pt-4 border-t border-outline-variant/30 flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-3 rounded-lg text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
-        >
-          取消
-        </button>
+      <div className="flex justify-end mb-8">
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-3 bg-primary text-on-primary rounded-lg text-[15px] font-bold shadow-md hover:shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+          className="flex items-center gap-2 rounded-full bg-primary-container px-6 py-2 text-[15px] font-bold text-on-primary-fixed shadow-sm hover:opacity-90 disabled:opacity-50 transition-all active:scale-95"
         >
           {saving && (
             <span className="material-symbols-outlined animate-spin text-[18px]">
@@ -504,6 +405,9 @@ function PromptEditor({
           保存新版本
         </button>
       </div>
+
+      {/* 版本历史（独立面板） */}
+      <HistoryPanel templateId={template.id} onRolledBack={onRolledBack} onError={onError} />
     </div>
   );
 }
@@ -513,23 +417,23 @@ function PromptEditor({
 function HistoryPanel({
   templateId,
   onRolledBack,
+  onError,
 }: {
   templateId: number;
   onRolledBack: () => Promise<void>;
+  onError: (msg: string | null) => void;
 }) {
   const [history, setHistory] = useState<PromptTemplateHistory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
   const [rollingBack, setRollingBack] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    setError(null);
     try {
       setHistory(await listPromptHistory(templateId));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "加载历史失败");
+      onError(e instanceof Error ? e.message : "加载历史失败");
     } finally {
       setLoading(false);
     }
@@ -542,7 +446,7 @@ function HistoryPanel({
         const data = await listPromptHistory(templateId);
         if (!cancelled) setHistory(data);
       } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "加载历史失败");
+        if (!cancelled) onError(e instanceof Error ? e.message : "加载历史失败");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -550,6 +454,7 @@ function HistoryPanel({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId]);
 
   const executeRollback = async () => {
@@ -561,44 +466,41 @@ function HistoryPanel({
       await onRolledBack();
       await load();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "回滚失败");
+      onError(e instanceof Error ? e.message : "回滚失败");
     } finally {
       setRollingBack(false);
     }
   };
 
   return (
-    <div className="border-t border-outline-variant/30 pt-6">
-      <h5 className="text-[15px] text-on-surface font-bold flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-[20px]">history</span>
-        版本历史记录
-      </h5>
+    <div className="border border-[#eff3f4] rounded-2xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-[#eff3f4]">
+        <h5 className="text-[15px] font-bold text-[#0f1419]">版本历史</h5>
+      </div>
 
       {loading ? (
-        <p className="text-[13px] text-on-surface-variant">正在加载历史版本…</p>
-      ) : error ? (
-        <p className="text-[13px] text-error">{error}</p>
+        <p className="px-5 py-6 text-[13px] text-[#536471]">正在加载历史版本…</p>
       ) : history.length === 0 ? (
-        <p className="text-[13px] text-on-surface-variant">暂无历史版本</p>
+        <p className="px-5 py-6 text-[13px] text-[#536471]">暂无历史版本</p>
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-[#eff3f4]">
           {history.map((h) => (
             <div
               key={h.id}
-              className="flex items-center justify-between gap-4 p-4 hover:bg-surface-container-low transition-colors rounded-lg border border-transparent"
+              className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-[#f7f9f9] transition-colors"
             >
-              <div className="flex items-center gap-6 min-w-0">
-                <span className="font-bold text-on-surface-variant tabular-nums tracking-tight shrink-0">
+              <div className="flex items-center gap-4 min-w-0">
+                <span className="font-bold text-[#536471] tabular-nums shrink-0">
                   v{h.version}
                 </span>
-                <span className="text-[15px] text-on-surface truncate">
+                <span className="text-[14px] text-[#0f1419] truncate">
                   {h.change_note || "（无变更说明）"}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setPendingVersion(h.version)}
-                className="text-primary hover:underline text-[15px] font-semibold px-4 py-1 rounded-full border border-primary/30 hover:bg-primary/5 transition-all shrink-0"
+                className="shrink-0 text-primary-container text-[14px] font-semibold px-4 py-1 rounded-full border border-primary-container/30 hover:bg-primary-container/5 transition-colors"
               >
                 回滚
               </button>
@@ -610,25 +512,25 @@ function HistoryPanel({
       {/* 回滚确认 Modal */}
       {pendingVersion != null && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-3"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-100 flex items-center justify-center p-3"
           onClick={() => !rollingBack && setPendingVersion(null)}
         >
           <div
-            className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl border border-outline-variant/30"
+            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#eff3f4]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h4 className="text-[20px] font-bold mb-3">确认回滚版本？</h4>
-            <p className="text-[15px] text-on-surface-variant mb-6">
-              确定要回滚到版本{" "}
-              <span className="font-bold text-primary">v{pendingVersion}</span>{" "}
-              吗？该版本内容会作为一个新版本写回，当前未保存的编辑将被丢弃。
+            <h4 className="text-xl font-bold mb-3">确认回滚版本？</h4>
+            <p className="text-[15px] text-[#536471] mb-6">
+              回滚到版本{" "}
+              <span className="font-bold text-primary-container">v{pendingVersion}</span>{" "}
+              后，该版本内容会作为新版本写回，当前未保存的编辑将被丢弃。
             </p>
             <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setPendingVersion(null)}
                 disabled={rollingBack}
-                className="px-4 py-3 rounded-lg text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
+                className="px-4 py-3 rounded-full text-[15px] font-bold text-[#536471] hover:bg-surface-container transition-colors disabled:opacity-50"
               >
                 取消
               </button>
@@ -636,7 +538,7 @@ function HistoryPanel({
                 type="button"
                 onClick={executeRollback}
                 disabled={rollingBack}
-                className="px-6 py-3 rounded-lg text-[15px] font-bold bg-primary text-on-primary shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-3 rounded-full text-[15px] font-bold bg-primary-container text-on-primary-fixed shadow-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {rollingBack && (
                   <span className="material-symbols-outlined animate-spin text-[18px]">
@@ -657,22 +559,16 @@ function HistoryPanel({
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-6">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className="bg-white/50 rounded-xl border border-outline-variant/20 p-4 animate-pulse"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-surface-container-highest/50 rounded-full" />
-            <div className="space-y-2 flex-1">
-              <div className="h-3 bg-surface-container-highest/50 rounded w-1/4" />
-              <div className="h-2 bg-surface-container-highest/50 rounded w-1/2" />
-            </div>
-            <div className="w-20 h-8 bg-surface-container-highest/50 rounded-full" />
+    <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="rounded-2xl border border-[#eff3f4] p-4 animate-pulse">
+            <div className="h-3 bg-surface-container-high rounded w-2/3 mb-2" />
+            <div className="h-2 bg-surface-container-high rounded w-1/3" />
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      <div className="rounded-2xl border border-[#eff3f4] min-h-100 animate-pulse" />
     </div>
   );
 }

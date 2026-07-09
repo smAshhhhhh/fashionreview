@@ -30,7 +30,7 @@ export interface AnalyzeAccepted {
 /** 任务进度（SSE / 轮询同构） */
 export interface TaskProgress {
   task_id: number;
-  status: "pending" | "analyzing" | "completed" | "failed";
+  status: "pending" | "analyzing" | "completed" | "failed" | "cancelled";
   progress: number;
   current_stage: string | null;
   stage_message: string | null;
@@ -89,6 +89,26 @@ export async function fetchTaskProgress(taskId: number): Promise<TaskProgress> {
   return res.json();
 }
 
+/** 取消分析任务结果。 */
+export interface CancelTaskResult {
+  task_id: number;
+  status: string;
+  /** true=本次请求成功取消；false=任务已是终态，无需取消 */
+  cancelled: boolean;
+}
+
+/** 请求取消正在分析的任务，立即返回（协作式取消）。 */
+export async function cancelTask(taskId: number): Promise<CancelTaskResult> {
+  const res = await fetch(`${API_BASE}/task/${taskId}/cancel`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    if (res.status === 404) throw new Error("任务不存在");
+    throw new Error(`取消任务失败 (${res.status})`);
+  }
+  return res.json();
+}
+
 /** 按 evaluation_id 查询评价结果（分制 1.0~5.0）。 */
 export async function getEvaluationResult(
   evaluationId: number,
@@ -106,6 +126,31 @@ export async function listHistory(limit = 50): Promise<HistoryItem[]> {
   const res = await fetch(`${API_BASE}/analyze/history?limit=${limit}`);
   if (!res.ok) throw new Error(`查询历史记录失败 (${res.status})`);
   return res.json();
+}
+
+/** 物理删除一条评价记录（含关联明细/维度分/AI任务）。 */
+export async function deleteEvaluation(evaluationId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/analyze/result/${evaluationId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    if (res.status === 404) throw new Error("评价记录不存在");
+    throw new Error(`删除失败 (${res.status})`);
+  }
+}
+
+/** 批量物理删除评价记录，返回成功删除的条数。 */
+export async function batchDeleteEvaluations(
+  evaluationIds: number[],
+): Promise<number> {
+  const res = await fetch(`${API_BASE}/analyze/results/batch-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ evaluation_ids: evaluationIds }),
+  });
+  if (!res.ok) throw new Error(`批量删除失败 (${res.status})`);
+  const data = await res.json();
+  return data.deleted ?? 0;
 }
 
 /* ──────────────── Prompt 模板管理 ──────────────── */
@@ -416,4 +461,134 @@ export async function deleteMetricTemplate(id: number): Promise<void> {
     }
     throw new Error(detail);
   }
+}
+
+/* ──────────────── 资源中心：POI / 街巷画像 ──────────────── */
+
+export interface ResourceStreet {
+  street_id: number;
+  street_name: string;
+  city: string | null;
+  district: string | null;
+  poi_total: number;
+  amap_count: number;
+  dianping_count: number;
+  has_profile: number;
+  profile_update_time: string | null;
+}
+
+export interface PoiImportResult {
+  street: { id: number; name: string; city: string | null; district: string | null };
+  detected_format: string;
+  source: string;
+  total_rows: number;
+  inserted: number;
+  updated: number;
+  skipped: number;
+  field_coverage: Record<string, number>;
+  sample_rows: Record<string, unknown>[];
+  warnings: string[];
+}
+
+export interface PoiListResult {
+  total: number;
+  items: Record<string, unknown>[];
+}
+
+export interface StreetProfileDetail {
+  street: { id: number; name: string; city: string | null; district: string | null };
+  has_profile: boolean;
+  poi_total: number;
+  amap_count: number;
+  dianping_count: number;
+  profile: Record<string, unknown> | null;
+  extra_stats: Record<string, unknown>;
+  facts_preview: string;
+}
+
+export interface ProfileJobStatus {
+  job_id: string;
+  street_id: number;
+  status: "running" | "completed" | "failed";
+  error: string | null;
+}
+
+export async function listResourceStreets(): Promise<ResourceStreet[]> {
+  const res = await fetch(`${API_BASE}/resource/streets`);
+  if (!res.ok) throw new Error(`查询街区资源失败 (${res.status})`);
+  return res.json();
+}
+
+export async function importPoiFile(
+  file: File,
+  street: { street_name: string; city?: string; district?: string },
+  clearExisting = false,
+): Promise<PoiImportResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("street_name", street.street_name);
+  if (street.city) fd.append("city", street.city);
+  if (street.district) fd.append("district", street.district);
+  fd.append("clear_existing", String(clearExisting));
+  const res = await fetch(`${API_BASE}/resource/poi/import`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`导入 POI 失败 (${res.status})：${detail}`);
+  }
+  return res.json();
+}
+
+export async function listPoiRows(params: {
+  streetId?: number;
+  source?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PoiListResult> {
+  const qs = new URLSearchParams();
+  if (params.streetId != null) qs.set("street_id", String(params.streetId));
+  if (params.source) qs.set("source", params.source);
+  qs.set("limit", String(params.limit ?? 50));
+  qs.set("offset", String(params.offset ?? 0));
+  const res = await fetch(`${API_BASE}/resource/poi?${qs}`);
+  if (!res.ok) throw new Error(`查询 POI 明细失败 (${res.status})`);
+  return res.json();
+}
+
+export async function deletePoiByStreet(
+  streetId: number,
+  source = "all",
+): Promise<{ deleted: number }> {
+  const res = await fetch(
+    `${API_BASE}/resource/poi/by-street/${streetId}?source=${encodeURIComponent(source)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error(`删除 POI 失败 (${res.status})`);
+  return res.json();
+}
+
+export async function getStreetProfile(
+  streetId: number,
+): Promise<StreetProfileDetail> {
+  const res = await fetch(`${API_BASE}/resource/profiles/${streetId}`);
+  if (!res.ok) throw new Error(`查询街巷画像失败 (${res.status})`);
+  return res.json();
+}
+
+export async function startRebuildStreetProfile(
+  streetId: number,
+): Promise<ProfileJobStatus> {
+  const res = await fetch(`${API_BASE}/resource/profiles/${streetId}/rebuild`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`启动画像生成失败 (${res.status})`);
+  return res.json();
+}
+
+export async function fetchProfileJob(jobId: string): Promise<ProfileJobStatus> {
+  const res = await fetch(`${API_BASE}/resource/profile-jobs/${jobId}`);
+  if (!res.ok) throw new Error(`查询画像任务失败 (${res.status})`);
+  return res.json();
 }

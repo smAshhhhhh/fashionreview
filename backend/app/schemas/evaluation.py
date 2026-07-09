@@ -14,6 +14,12 @@ class TextAnalyzeRequest(BaseModel):
     city: str | None = Field(None, description="可选，城市，辅助消歧")
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除评价请求。"""
+
+    evaluation_ids: list[int] = Field(..., min_length=1, description="待删除的 evaluation_id 列表")
+
+
 # ──────────────── LLM 评分中间结构 ────────────────
 
 class MetricScoreItem(BaseModel):
@@ -33,6 +39,7 @@ class DimensionScoreOut(BaseModel):
     dim_id: int
     dim_name: str
     score: float
+    weight: float | None = None
 
 
 class SubDimensionScoreOut(BaseModel):
@@ -40,6 +47,7 @@ class SubDimensionScoreOut(BaseModel):
     sub_name: str
     dim_id: int
     score: float
+    weight: float | None = None
 
 
 class MetricScoreOut(BaseModel):
@@ -50,6 +58,7 @@ class MetricScoreOut(BaseModel):
     dim_id: int
     score: int
     reason: str | None = None
+    weight: float | None = None
 
 
 class AnalyzeAccepted(BaseModel):
@@ -98,6 +107,7 @@ class HistoryItemOut(BaseModel):
     status: str
     summary: str | None = None
     image_url: str | None = None  # 上传原图相对路径，文字任务为 None
+    input_type: str | None = None  # text / image，供历史页筛选
     created_at: str | None = None
 
 

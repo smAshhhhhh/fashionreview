@@ -22,15 +22,31 @@ LABEL_CN: dict[str, str] = {
     "designer_store": "设计师/买手店",
     "luxury_store": "奢侈品/旗舰",
     "gallery": "画廊艺术",
+    "gallery_culture": "画廊/文化",
     "bookstore": "书店",
     "nightlife": "酒吧夜生活",
     "vintage": "古着复古",
     "restaurant": "餐厅",
+    "western_dining": "西式餐饮",
+    "internet_famous": "网红/打卡",
+}
+
+# 维度 → 关心的标签（标签即 fashion_tags / poi_highlights 的 key）。
+# tag 驱动：新增维度只需在此加一行，build_relevant_facts 拼装逻辑零改动。
+_DIM_TAGS: dict[str, list[str]] = {
+    "BUSINESS": ["western_dining", "boutique_cafe", "chain_cafe",
+                 "designer_store", "luxury_store"],
+    "VITALITY": ["internet_famous", "nightlife", "boutique_cafe"],
+    "INFLUENCE": ["internet_famous", "designer_store", "luxury_store"],
+    "CULTURE": ["gallery_culture", "bookstore", "vintage"],
+    # 空间美学的 proxy：设计感/文化业态侧面反映街区调性，仍给少量
+    "SPACE": ["gallery_culture", "designer_store"],
 }
 
 
 def _cn(label: str) -> str:
-    return LABEL_CN.get(label, label)
+    base = label.removesuffix("_count").removesuffix("_pct")
+    return LABEL_CN.get(base, base)
 
 
 def _parse_extra(raw: Any) -> dict[str, Any]:
@@ -61,66 +77,82 @@ class StreetFacts:
     profile: dict[str, Any] | None = None
     has_data: bool = False
 
-    def to_prompt_facts(self) -> str:
-        """序列化成结构化标签格式喂给 {facts}。
+    def _tag_count(self, tag: str) -> int:
+        """从 poi_summary 取某标签计数（兼容带/不带 _count 后缀的 key）。"""
+        s = self.poi_summary or {}
+        if tag in s:
+            return int(s[tag] or 0)
+        if f"{tag}_count" in s:
+            return int(s[f"{tag}_count"] or 0)
+        return 0
 
-        用 [SECTION] key:value 而非自然语言句子——跨模型（Qwen/DeepSeek/
-        Claude/GPT）结构一致，prompt 更稳。无数据返回 ""（交给下游兜底）。
+    def _street_profile_block(self) -> str:
+        """精简总画像段：所有维度共用，保底不空。紧凑 key:value。"""
+        prof = self.profile or {}
+        parts: list[str] = []
+        if prof.get("poi_count") is not None:
+            parts.append(f"{prof['poi_count']} POIs")
+        if prof.get("avg_rating") is not None:
+            parts.append(f"avg rating {prof['avg_rating']}")
+        if (cr := _pct(prof.get("chain_ratio"))) is not None:
+            parts.append(f"chain {cr}")
+        if prof.get("avg_price") is not None:
+            parts.append(f"人均 {round(float(prof['avg_price']))}元")
+        return "[STREET_PROFILE]\n" + ("  ".join(parts) if parts else "（基础画像数据不足）")
+
+    def build_relevant_facts(self, tags: list[str], *, highlight_limit: int = 3) -> str:
+        """按标签拼该维度相关事实：标签计数 + 代表品牌(≤limit) + 派生特征。
+
+        只挑 tags 列出的标签；计数为 0 的跳过。无任何相关事实时返回 ""。
+        """
+        lines: list[str] = []
+        for tag in tags:
+            count = self._tag_count(tag)
+            if count <= 0:
+                continue
+            names = (self.poi_highlights or {}).get(tag, [])[:highlight_limit]
+            if names:
+                lines.append(f"{_cn(tag)}:{count}（代表：{'、'.join(names)}）")
+            else:
+                lines.append(f"{_cn(tag)}:{count}")
+
+        # 1~2 条派生特征：连锁占比高/低，侧面反映街区调性
+        prof = self.profile or {}
+        cr = prof.get("chain_ratio")
+        if cr is not None:
+            crf = float(cr)
+            if crf <= 0.25:
+                lines.append("独立店比例高")
+            elif crf >= 0.5:
+                lines.append("连锁品牌主导")
+
+        if not lines:
+            return ""
+        return "[RELEVANT_FACTS]\n" + "  ".join(lines)
+
+    def to_prompt_facts_for(self, dim_code: str | None) -> str:
+        """按维度产出定制 facts：总画像段 + 该维度相关事实段。
+
+        未知维度/空 tag 仍返回总画像段（不留空）。无数据返回 ""（走兜底）。
         """
         if not self.has_data:
             return ""
+        blocks = [self._street_profile_block()]
+        relevant = self.build_relevant_facts(_DIM_TAGS.get(dim_code or "", []))
+        if relevant:
+            blocks.append(relevant)
+        return "\n".join(blocks)
 
-        prof = self.profile or {}
-        lines: list[str] = ["[POI_SUMMARY]"]
-        for label, count in sorted(
-            self.poi_summary.items(), key=lambda kv: kv[1], reverse=True
-        ):
-            lines.append(f"{_cn(label)}:{count}")
-        # 关键比例指标同段附上
-        metrics: list[str] = []
-        if (cr := _pct(prof.get("chain_ratio"))) is not None:
-            metrics.append(f"连锁占比:{cr}")
-        if (hr := _pct(prof.get("high_rating_ratio"))) is not None:
-            metrics.append(f"高评分占比:{hr}")
-        if prof.get("avg_rating") is not None:
-            metrics.append(f"平均评分:{prof['avg_rating']}")
-        if prof.get("avg_price") is not None:
-            metrics.append(f"人均:{round(float(prof['avg_price']))}元")
-        if metrics:
-            lines.append("  ".join(metrics))
-
-        if self.poi_highlights:
-            lines.append("")
-            lines.append("[POI_HIGHLIGHTS]")
-            for label, names in self.poi_highlights.items():
-                lines.append(f"{_cn(label)}: {'、'.join(names)}")
-
-        lines.append("")
-        lines.append("[STREET_PROFILE]")
-        lines.append(build_profile_text(self.poi_summary, self.poi_highlights, prof))
-        return "\n".join(lines)
-
-
-def build_profile_text(
-    poi_summary: dict[str, int],
-    poi_highlights: dict[str, list[str]],
-    profile: dict[str, Any],
-) -> str:
-    """由稳定事实临时生成一句话画像定位（不调 LLM）。"""
-    poi_count = profile.get("poi_count") or 0
-    chain_ratio = profile.get("chain_ratio")
-    # 业态倾向：取计数最高的前两类
-    top = sorted(poi_summary.items(), key=lambda kv: kv[1], reverse=True)[:2]
-    top_desc = "、".join(_cn(l) for l, _ in top) if top else "综合业态"
-
-    if chain_ratio is not None and float(chain_ratio) >= 0.5:
-        tone = "以连锁与大众零售为主的成熟商业街区"
-    elif chain_ratio is not None and float(chain_ratio) <= 0.25:
-        tone = "以独立主理人小店为主、连锁稀少的高调性街区"
-    else:
-        tone = "独立小店与连锁品牌并存的街区"
-
-    return f"收录商户 {poi_count} 家，{tone}，业态集中于{top_desc}。"
+    def to_prompt_facts(self) -> str:
+        """总画像 + 全部标签的相关事实（无参，供资源中心预览 / 向后兼容）。"""
+        if not self.has_data:
+            return ""
+        all_tags = list(LABEL_CN.keys())
+        blocks = [self._street_profile_block()]
+        relevant = self.build_relevant_facts(all_tags)
+        if relevant:
+            blocks.append(relevant)
+        return "\n".join(blocks)
 
 
 class StreetKnowledgeRetriever(Protocol):
@@ -138,7 +170,7 @@ class StructuredRetriever:
             return StreetFacts()
         extra = _parse_extra(prof.get("extra_stats"))
         return StreetFacts(
-            poi_summary=extra.get("poi_summary", {}),
+            poi_summary=extra.get("fashion_tags", extra.get("poi_summary", {})),
             poi_highlights=extra.get("poi_highlights", {}),
             profile=prof,
             has_data=True,

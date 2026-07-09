@@ -43,8 +43,10 @@ class Settings(BaseSettings):
     # LLM（通义千问 / 阿里云百炼，OpenAI 兼容模式）
     llm_api_key: str = ""
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    llm_model: str = "qwen3.7-plus"
-    llm_timeout: int = 60
+    llm_model: str = "qwen3.6-plus-2026-04-02"
+    # 单次 LLM 调用超时（秒）。评分阶段一次输出 15 项指标，qwen 生成可达
+    # 80~120s，故放宽到 180s，避免正常请求被 60s 掐断后反复重试甚至失败。
+    llm_timeout: int = 180
 
     # 图片上传落盘目录（相对后端工作目录）。对外仅暴露相对路径 /static/uploads/<uuid>.ext
     upload_dir: str = "static/uploads"

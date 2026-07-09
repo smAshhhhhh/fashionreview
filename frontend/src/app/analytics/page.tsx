@@ -6,10 +6,8 @@ import Sidebar from "../components/Sidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
 import HeaderCard from "../components/HeaderCard";
 import RadarChart from "../components/RadarChart";
-import DimensionScores from "../components/DimensionScores";
-import SubDimensionScores from "../components/SubDimensionScores";
-import MetricScores from "../components/MetricScores";
-import AIInsight from "../components/AIInsight";
+import MetricBreakdown from "../components/MetricBreakdown";
+import ReportSummary from "../components/ReportSummary";
 import { LAST_EVAL_KEY } from "../components/ActiveTaskGuard";
 import { getEvaluationResult } from "../../lib/api";
 import type { EvaluationResult } from "../types";
@@ -19,8 +17,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar activeHref="/analytics" />
-      <main className="lg:ml-64 min-h-screen">
-        <div className="pt-12 pb-12 px-4 max-w-5xl mx-auto">{children}</div>
+      {/* mock 为纯白主内容区，故内容容器强制白底 */}
+      <main className="lg:ml-64 min-h-screen bg-white text-[#0f1419]">
+        <div className="py-8 px-4 md:px-8 max-w-247.5 mx-auto">{children}</div>
       </main>
       <MobileBottomNav activeHref="/analytics" />
     </>
@@ -76,12 +75,12 @@ function ResultView({ data }: { data: EvaluationResult }) {
   const show = (key: string) => enabled.has(key);
 
   const showRadar = show("radar_chart");
-  const showBreak = show("dimension_break");
-  // 雷达图与一级拆解共用一行栅格，两者都关时整行不渲染
-  const showVisualRow = showRadar || showBreak;
+  const showReport = show("ai_summary");
+  // 雷达 / 综合评价共用「中段」，任一开启才渲染该段
+  const showMidRow = showRadar || showReport;
 
   return (
-    <>
+    <div className="space-y-8">
       <HeaderCard
         streetName={data.street}
         totalScore={data.total_score}
@@ -89,26 +88,24 @@ function ResultView({ data }: { data: EvaluationResult }) {
         showScore={show("total_score")}
       />
 
-      {showVisualRow && (
-        <div
-          className={`grid grid-cols-1 gap-4 mb-4 ${
-            showRadar && showBreak ? "md:grid-cols-2" : ""
-          }`}
-        >
-          {showRadar && <RadarChart dimensions={data.dimension_scores} />}
-          {showBreak && <DimensionScores dimensions={data.dimension_scores} />}
-        </div>
+      {/* 中段：雷达图（左） + 综合评价（右），对齐 mock 的 12 栏并排 */}
+      {showMidRow && (
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-x-20 gap-y-8 pb-6 border-b border-[#eff3f4]">
+          {showRadar && (
+            <div className="lg:col-span-5 flex items-center justify-center">
+              <RadarChart dimensions={data.dimension_scores} />
+            </div>
+          )}
+          {showReport && (
+            <div className={showRadar ? "lg:col-span-7" : "lg:col-span-12"}>
+              <ReportSummary summary={data.summary} />
+            </div>
+          )}
+        </section>
       )}
 
-      {show("sub_dimension") && (
-        <SubDimensionScores
-          dimensions={data.dimension_scores}
-          subDimensions={data.sub_dimension_scores}
-        />
-      )}
-
-      {show("metric_score") && (
-        <MetricScores
+      {(show("sub_dimension") || show("metric_score")) && (
+        <MetricBreakdown
           dimensions={data.dimension_scores}
           subDimensions={data.sub_dimension_scores}
           metrics={data.metric_scores}
@@ -116,21 +113,19 @@ function ResultView({ data }: { data: EvaluationResult }) {
         />
       )}
 
-      {show("ai_summary") && <AIInsight summary={data.summary} />}
-
       {show("similar_streets") && (
         /* TODO: 相似街道推荐。待 street_similarity 表产出数据后接入，
             目前评价链未生成相似街巷，先以占位提示保留区块。 */
-        <div className="mb-6">
-          <h3 className="text-sm font-semibold text-on-surface-variant mb-3 px-1 uppercase tracking-widest">
+        <section>
+          <h3 className="text-sm font-bold text-[#536471] mb-3 uppercase tracking-widest">
             相似审美节点
           </h3>
-          <div className="rounded-2xl border border-dashed border-outline-variant p-6 text-center text-sm text-on-surface-variant">
+          <div className="border border-dashed border-[#eff3f4] p-6 text-center text-sm text-[#536471]">
             相似街道推荐即将上线（待接入 street_similarity 数据）
           </div>
-        </div>
+        </section>
       )}
-    </>
+    </div>
   );
 }
 

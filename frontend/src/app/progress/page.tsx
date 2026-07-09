@@ -8,6 +8,7 @@ import ProgressStep from "../components/ProgressStep";
 import { ACTIVE_TASK_KEY } from "../components/ActiveTaskGuard";
 import type { ProgressStage, ProgressStatus } from "../types";
 import {
+  cancelTask,
   fetchTaskProgress,
   progressStreamUrl,
   type TaskProgress,
@@ -60,6 +61,11 @@ function AnalysisProgressInner() {
   const [activeMessage, setActiveMessage] = useState<string | null>(null);
   // 错误信息（failed 或网络异常）
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // 取消态：cancelling=已点取消等待后端确认；cancelled=任务已终止
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
+  // 取消二次确认弹窗
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // 用于测量「当前阶段」节点位置，计算居中偏移
   const trackRef = useRef<HTMLDivElement>(null);
@@ -101,6 +107,12 @@ function AnalysisProgressInner() {
       if (data.status === "failed") {
         clearActive();
         setErrorMsg(data.error_message || "分析失败，请重试");
+        return true;
+      }
+      if (data.status === "cancelled") {
+        clearActive();
+        setCancelled(true);
+        setCancelling(false);
         return true;
       }
       return false;
@@ -150,6 +162,25 @@ function AnalysisProgressInner() {
     return "pending";
   };
 
+  // 取消分析：二次确认后调后端取消接口（不等结果），直接返回主页。
+  // 后端置 cancelled 是即时的；页面已离开，无需在此等待 SSE。
+  const handleCancelConfirmed = () => {
+    setShowCancelConfirm(false);
+    if (!hasValidTask) {
+      router.push("/");
+      return;
+    }
+    setCancelling(true);
+    try {
+      localStorage.removeItem(ACTIVE_TASK_KEY);
+    } catch {
+      /* storage 不可用，忽略 */
+    }
+    // 触发取消但不阻塞跳转；失败也不影响用户离开
+    cancelTask(taskId).catch(() => {});
+    router.push("/");
+  };
+
   // 无效 taskId（渲染期派生）与运行时错误合并为统一错误态展示
   const displayError = !hasValidTask
     ? "缺少有效的任务 ID，请返回重新发起分析"
@@ -163,11 +194,30 @@ function AnalysisProgressInner() {
         <div className="w-full max-w-200 px-4 flex flex-col py-12">
           {/* 顶部标题（左对齐） */}
           <div className="mb-10">
-            <h2 className="text-3xl font-extrabold text-on-surface">
-              正在分析「{title}」
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-3xl font-extrabold text-on-surface">
+                {cancelled ? `已取消分析「${title}」` : `正在分析「${title}」`}
+              </h2>
+              {/* 取消入口：仅分析进行中展示，icon 紧跟标题 */}
+              {!displayError && !cancelled && hasValidTask && (
+                <button
+                  type="button"
+                  onClick={() => setShowCancelConfirm(true)}
+                  disabled={cancelling}
+                  aria-label="取消分析"
+                  title="取消分析"
+                  className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-error transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[22px]">
+                    {cancelling ? "progress_activity" : "close"}
+                  </span>
+                </button>
+              )}
+            </div>
             <p className="text-base text-on-surface-variant mt-2">
-              系统正在多维度评估该街区的时尚度，请稍候
+              {cancelled
+                ? "本次分析已停止，你可以重新发起。"
+                : "系统正在多维度评估该街区的时尚度，请稍候"}
             </p>
           </div>
 
@@ -185,6 +235,24 @@ function AnalysisProgressInner() {
                 className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
               >
                 返回重试
+              </button>
+            </div>
+          ) : cancelled ? (
+            /* 已取消态 */
+            <div className="flex flex-col items-start gap-4 rounded-2xl border border-outline-variant/40 bg-surface-container/40 p-6">
+              <div className="flex items-center gap-2 text-on-surface-variant">
+                <span className="material-symbols-outlined">cancel</span>
+                <span className="font-bold">分析已取消</span>
+              </div>
+              <p className="text-sm text-on-surface-variant">
+                后台任务已停止，未生成评价结果。
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+              >
+                重新发起分析
               </button>
             </div>
           ) : (
@@ -228,6 +296,43 @@ function AnalysisProgressInner() {
           )}
         </div>
       </main>
+
+      {/* 取消二次确认弹窗 */}
+      {showCancelConfirm && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowCancelConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-surface-container-lowest p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 text-on-surface">
+              <span className="material-symbols-outlined text-error">cancel</span>
+              <h3 className="text-lg font-bold">取消本次分析？</h3>
+            </div>
+            <p className="mt-3 text-sm text-on-surface-variant">
+              取消后当前分析将停止，不会生成评价结果。确定要返回首页吗？
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(false)}
+                className="rounded-full px-5 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                继续分析
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelConfirmed}
+                className="rounded-full bg-error px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+              >
+                取消并返回
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MobileBottomNav activeHref="/" />
     </>

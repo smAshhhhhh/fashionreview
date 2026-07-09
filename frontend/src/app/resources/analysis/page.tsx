@@ -14,45 +14,36 @@ import {
  * 分析管理页 /resources/analysis
  * 全局统一配置：按分组手风琴罗列分析中心各内容区块，逐块启用/隐藏开关（即时 PUT）。
  * 控制 /analytics 结果页展示哪些内容（综合分、雷达图、各级维度得分、得分依据、AI画像等）。
- * 视觉对齐 Prompt 管理页；数据全部接真实 /analytics-config API。
+ * 视觉对齐扁平 Twitter/X 风格；数据全部接真实 /analytics-config API。
  * ────────────────────────────────────────────── */
 
 type GroupMeta = {
   label: string;
   icon: string;
   desc: string;
-  iconClass: string;
-  countClass: string;
 };
 
+// 统一走单一主色（primary-container），不再按分组用多种花哨配色
 const GROUP_META: Record<string, GroupMeta> = {
   overview: {
-    label: "概览头部 (overview)",
+    label: "概览头部",
     icon: "dashboard",
     desc: "结果页顶部的街景原图、综合评分与星级",
-    iconClass: "text-primary",
-    countClass: "bg-primary/10 text-primary",
   },
   visual: {
-    label: "可视化 (visual)",
+    label: "可视化",
     icon: "radar",
     desc: "维度雷达图与一级维度拆解图",
-    iconClass: "text-tertiary",
-    countClass: "bg-tertiary/10 text-tertiary",
   },
   detail: {
-    label: "评分明细 (detail)",
+    label: "评分明细",
     icon: "format_list_numbered",
     desc: "二级维度、三级指标逐项得分与 AI 评分依据",
-    iconClass: "text-[#9333ea]",
-    countClass: "bg-purple-100 text-purple-700",
   },
   report: {
-    label: "报告与推荐 (report)",
+    label: "报告与推荐",
     icon: "description",
     desc: "AI 街道画像与相似街区推荐",
-    iconClass: "text-secondary",
-    countClass: "bg-primary/10 text-secondary",
   },
 };
 const GROUP_ORDER = ["overview", "visual", "detail", "report"];
@@ -103,7 +94,7 @@ export default function AnalysisConfigPage() {
     if (loading) return <LoadingSkeleton />;
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center gap-3 py-24 text-on-surface-variant">
+        <div className="flex flex-col items-center justify-center gap-3 py-24 text-[#536471]">
           <span className="material-symbols-outlined text-5xl text-error">error</span>
           <p className="text-[15px]">{error}</p>
         </div>
@@ -118,31 +109,29 @@ export default function AnalysisConfigPage() {
       return (
         <div
           key={group}
-          className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm"
+          className="bg-white rounded-2xl border border-[#eff3f4] overflow-hidden"
         >
           {/* 组头 */}
           <button
             type="button"
             onClick={() => toggleGroup(group)}
-            className="w-full flex items-center justify-between p-4 hover:bg-surface-container-low/50 transition-colors text-left"
+            className="w-full flex items-center justify-between p-4 hover:bg-[#f7f9f9] transition-colors text-left"
           >
             <div className="flex items-center gap-3">
-              <span className={`material-symbols-outlined ${meta.iconClass}`}>
-                {meta.icon}
+              <span className="w-10 h-10 rounded-full bg-primary-container/10 grid place-items-center text-primary-container shrink-0">
+                <span className="material-symbols-outlined">{meta.icon}</span>
               </span>
               <div>
-                <h3 className="text-[17px] font-bold text-on-surface">{meta.label}</h3>
-                <p className="text-[13px] text-on-surface-variant">{meta.desc}</p>
+                <h3 className="text-[17px] font-bold text-[#0f1419]">{meta.label}</h3>
+                <p className="text-[13px] text-[#536471]">{meta.desc}</p>
               </div>
             </div>
             <div className="flex items-center gap-6">
-              <span
-                className={`px-3 py-1 rounded-full text-[15px] font-semibold ${meta.countClass}`}
-              >
+              <span className="px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-[#536471]">
                 {activeCount}/{items.length} 启用
               </span>
               <span
-                className="material-symbols-outlined transition-transform duration-300"
+                className="material-symbols-outlined text-[#536471] transition-transform duration-300"
                 style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}
               >
                 expand_more
@@ -152,7 +141,7 @@ export default function AnalysisConfigPage() {
 
           {/* 组内容 */}
           {!isCollapsed && (
-            <div className="border-t border-outline-variant/30">
+            <div className="border-t border-[#eff3f4] divide-y divide-[#eff3f4]">
               {items.map((c) => (
                 <BlockItem
                   key={c.block_key}
@@ -169,31 +158,25 @@ export default function AnalysisConfigPage() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-white text-[#0f1419]">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
-        {/* 顶部应用栏 */}
-        <header className="flex justify-between items-center w-full px-6 h-16 bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-40 border-b border-outline-variant/30">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/resources"
-              className="flex items-center gap-2 text-primary font-bold hover:opacity-70 transition-opacity"
-            >
-              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-              <span className="text-[15px] font-semibold">返回资源中心</span>
-            </Link>
-            <div className="h-4 w-px bg-outline-variant mx-2" />
-            <h2 className="text-[18px] font-bold text-on-surface">分析管理</h2>
-          </div>
+        {/* 顶部栏 */}
+        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+          <Link href="/resources" className="flex items-center text-primary-container">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </Link>
+          <h2 className="text-xl font-bold text-[#0f1419]">分析管理</h2>
         </header>
 
-        <section className="p-6 max-w-[1200px] mx-auto w-full flex-1 pb-28 lg:pb-12">
-          <div className="mb-6 flex items-start gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low/40 p-4">
-            <span className="material-symbols-outlined text-primary">info</span>
-            <p className="text-[13px] leading-relaxed text-on-surface-variant">
+        <section className="p-4 lg:p-6 max-w-300 mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
+          {/* 说明条 */}
+          <div className="flex items-start gap-3 rounded-2xl border border-[#eff3f4] bg-surface-container-low p-4">
+            <span className="material-symbols-outlined text-primary-container">info</span>
+            <p className="text-[13px] leading-relaxed text-[#536471]">
               这里的开关控制
-              <Link href="/analytics" className="text-primary font-semibold mx-1 hover:underline">
+              <Link href="/analytics" className="text-primary-container font-semibold mx-1 hover:underline">
                 分析中心
               </Link>
               结果页展示哪些内容区块。关闭后该区块对所有评价结果统一隐藏；「得分依据」依赖「三级指标得分」开启才会出现。
@@ -238,28 +221,12 @@ function BlockItem({
   };
 
   return (
-    <div className="p-4 hover:bg-surface-bright transition-all border-b border-outline-variant/30 last:border-b-0">
+    <div className="p-4 hover:bg-[#f7f9f9] transition-colors">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h4 className="text-[15px] font-bold text-on-surface">{config.name}</h4>
-            <span className="text-[10px] px-2 py-0.5 bg-surface-container text-on-surface-variant rounded font-mono">
-              {config.block_key}
-            </span>
-            <span
-              className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                checked
-                  ? "bg-green-100/50 text-green-700"
-                  : "bg-surface-container text-on-surface-variant"
-              }`}
-            >
-              {checked ? "展示中" : "已隐藏"}
-            </span>
-          </div>
+          <h4 className="text-[15px] font-bold text-[#0f1419]">{config.name}</h4>
           {config.description && (
-            <p className="text-[13px] text-on-surface-variant mt-1">
-              {config.description}
-            </p>
+            <p className="text-[13px] text-[#536471] mt-1">{config.description}</p>
           )}
         </div>
         <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -270,7 +237,7 @@ function BlockItem({
             disabled={busy}
             onChange={handle}
           />
-          <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary peer-focus:outline-none after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+          <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary-container peer-focus:outline-none after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
         </label>
       </div>
     </div>
@@ -285,15 +252,15 @@ function LoadingSkeleton() {
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="bg-white/50 rounded-xl border border-outline-variant/20 p-4 animate-pulse"
+          className="rounded-2xl border border-[#eff3f4] p-4 animate-pulse"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-surface-container-highest/50 rounded-full" />
+            <div className="w-10 h-10 bg-surface-container-high rounded-full" />
             <div className="space-y-2 flex-1">
-              <div className="h-3 bg-surface-container-highest/50 rounded w-1/4" />
-              <div className="h-2 bg-surface-container-highest/50 rounded w-1/2" />
+              <div className="h-3 bg-surface-container-high rounded w-1/4" />
+              <div className="h-2 bg-surface-container-high rounded w-1/2" />
             </div>
-            <div className="w-20 h-8 bg-surface-container-highest/50 rounded-full" />
+            <div className="w-20 h-8 bg-surface-container-high rounded-full" />
           </div>
         </div>
       ))}

@@ -66,20 +66,31 @@ def fetch_dimension_name_map(
     历史评价的 metric_score 指向具体模板的维度行，切换/编辑模板不影响这些行，
     所以这里不按模板过滤，保证任意历史评价都能查到当时的维度名与父子关系。
 
-    返回 {"dim": {dim_id: name}, "sub": {sub_id: name}, "sub_parent": {sub_id: dim_id}}。
+    返回 {"dim": {dim_id: name}, "sub": {sub_id: name}, "sub_parent": {sub_id: dim_id},
+          "dim_weight": {dim_id: weight}, "sub_weight": {sub_id: weight}}。
     """
     dim_map: dict[int, str] = {}
     sub_map: dict[int, str] = {}
     sub_parent: dict[int, int] = {}
+    dim_weight: dict[int, float] = {}
+    sub_weight: dict[int, float] = {}
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
-        cur.execute("SELECT id, name FROM fashion_dimension")
+        cur.execute("SELECT id, name, weight FROM fashion_dimension")
         for r in cur.fetchall():
             dim_map[r["id"]] = r["name"]
-        cur.execute("SELECT id, name, dimension_id FROM fashion_sub_dimension")
+            dim_weight[r["id"]] = float(r["weight"]) if r["weight"] is not None else None
+        cur.execute("SELECT id, name, weight, dimension_id FROM fashion_sub_dimension")
         for r in cur.fetchall():
             sub_map[r["id"]] = r["name"]
             sub_parent[r["id"]] = r["dimension_id"]
-    return {"dim": dim_map, "sub": sub_map, "sub_parent": sub_parent}
+            sub_weight[r["id"]] = float(r["weight"]) if r["weight"] is not None else None
+    return {
+        "dim": dim_map,
+        "sub": sub_map,
+        "sub_parent": sub_parent,
+        "dim_weight": dim_weight,
+        "sub_weight": sub_weight,
+    }
 
 
 # ──────────────────────────────────────────────
@@ -366,6 +377,46 @@ def get_street_profile(
         return cur.fetchone()
 
 
+def get_street_by_id(
+    conn: pymysql.connections.Connection, street_id: int
+) -> dict[str, Any] | None:
+    """按 id 取街巷档案。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute("SELECT * FROM street WHERE id = %s LIMIT 1", (street_id,))
+        return cur.fetchone()
+
+
+def list_resource_streets(conn: pymysql.connections.Connection) -> list[dict[str, Any]]:
+    """资源中心街区列表：带事实层与画像层统计。"""
+    sql = """
+        SELECT
+            s.id AS street_id,
+            s.street_name,
+            s.city,
+            s.district,
+            COUNT(p.id) AS poi_total,
+            SUM(CASE WHEN p.source = 'amap' THEN 1 ELSE 0 END) AS amap_count,
+            SUM(CASE WHEN p.source = 'dianping' THEN 1 ELSE 0 END) AS dianping_count,
+            sp.id IS NOT NULL AS has_profile,
+            sp.update_time AS profile_update_time
+        FROM street s
+        LEFT JOIN street_poi p ON p.street_id = s.id
+        LEFT JOIN street_profile sp ON sp.street_id = s.id
+        GROUP BY s.id, s.street_name, s.city, s.district, sp.id, sp.update_time
+        HAVING poi_total > 0 OR has_profile = 1
+        ORDER BY s.city, s.street_name
+    """
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    for r in rows:
+        r["poi_total"] = int(r.get("poi_total") or 0)
+        r["amap_count"] = int(r.get("amap_count") or 0)
+        r["dianping_count"] = int(r.get("dianping_count") or 0)
+        r["has_profile"] = int(r.get("has_profile") or 0)
+    return rows
+
+
 # ──────────────────────────────────────────────
 # POI 事实层 / 画像聚合
 # ──────────────────────────────────────────────
@@ -386,6 +437,69 @@ def list_pois_by_street(
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute("SELECT * FROM street_poi WHERE street_id = %s", (street_id,))
         return cur.fetchall()
+
+
+def list_pois(
+    conn: pymysql.connections.Connection,
+    *,
+    street_id: int | None = None,
+    source: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """资源中心 POI 明细分页。"""
+    where: list[str] = []
+    params: list[Any] = []
+    if street_id is not None:
+        where.append("p.street_id = %s")
+        params.append(street_id)
+    if source and source != "all":
+        where.append("p.source = %s")
+        params.append(source)
+    where_sql = "WHERE " + " AND ".join(where) if where else ""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(f"SELECT COUNT(*) AS c FROM street_poi p {where_sql}", params)
+        total = int(cur.fetchone()["c"])
+        cur.execute(
+            f"""
+            SELECT p.*, s.street_name, s.city, s.district
+            FROM street_poi p
+            LEFT JOIN street s ON s.id = p.street_id
+            {where_sql}
+            ORDER BY p.id DESC
+            LIMIT %s OFFSET %s
+            """,
+            (*params, limit, offset),
+        )
+        rows = cur.fetchall()
+    return {"total": total, "items": rows}
+
+
+def delete_pois_by_street(
+    conn: pymysql.connections.Connection, street_id: int, source: str | None = None
+) -> int:
+    """删除某街区某来源的 POI；source 为 None/all 时删除该街全部 POI。"""
+    with conn.cursor() as cur:
+        if source and source != "all":
+            return cur.execute(
+                "DELETE FROM street_poi WHERE street_id = %s AND source = %s",
+                (street_id, source),
+            )
+        return cur.execute("DELETE FROM street_poi WHERE street_id = %s", (street_id,))
+
+
+def street_poi_exists(
+    conn: pymysql.connections.Connection, street_id: int, external_id: str | None
+) -> bool:
+    """按 (external_id, street_id) 判断 POI 是否已存在；external_id 为空视为不存在。"""
+    if not external_id:
+        return False
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM street_poi WHERE external_id = %s AND street_id = %s LIMIT 1",
+            (external_id, street_id),
+        )
+        return cur.fetchone() is not None
 
 
 def upsert_street_poi(
@@ -534,7 +648,8 @@ def list_evaluations(
             s.street_name   AS street_name,
             s.city          AS city,
             s.district      AS district,
-            t.image_url     AS image_url
+            t.image_url     AS image_url,
+            t.input_type    AS input_type
         FROM street_evaluation e
         JOIN street s ON e.street_id = s.id
         LEFT JOIN ai_analysis_task t ON t.evaluation_id = e.id
@@ -545,6 +660,49 @@ def list_evaluations(
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute(sql, (status, limit))
         return cur.fetchall()
+
+
+def delete_evaluation(
+    conn: pymysql.connections.Connection, evaluation_id: int
+) -> int:
+    """物理删除一条评价及其全部关联数据。返回删除的 street_evaluation 行数(0=不存在)。
+
+    级联关系(见 schema)：
+    - street_metric_score / street_dimension_score → eval 有 ON DELETE CASCADE，
+      删 street_evaluation 时自动清除(metric_score 的 evidence 子表再级联)。
+    - ai_analysis_task.evaluation_id 无外键约束，需手动删；其 ai_analysis_result
+      有 ON DELETE CASCADE 随 task 删，ai_prompt_log.task_id 无外键需按 task 手删。
+    """
+    with conn.cursor() as cur:
+        # 先取该评价关联的任务，删其 prompt 日志（无外键不会自动级联）
+        cur.execute(
+            "SELECT id FROM ai_analysis_task WHERE evaluation_id = %s",
+            (evaluation_id,),
+        )
+        task_ids = [row[0] for row in cur.fetchall()]
+        for tid in task_ids:
+            cur.execute("DELETE FROM ai_prompt_log WHERE task_id = %s", (tid,))
+        # 删任务（ai_analysis_result 随 task ON DELETE CASCADE）
+        cur.execute(
+            "DELETE FROM ai_analysis_task WHERE evaluation_id = %s", (evaluation_id,)
+        )
+        # 删评价主表（metric_score / dimension_score 随 eval ON DELETE CASCADE）
+        return cur.execute(
+            "DELETE FROM street_evaluation WHERE id = %s", (evaluation_id,)
+        )
+
+
+def delete_evaluations(
+    conn: pymysql.connections.Connection, evaluation_ids: list[int]
+) -> int:
+    """批量物理删除评价。返回成功删除的 street_evaluation 行数。
+
+    复用单条 delete_evaluation 的级联逻辑，逐条删（同一事务，整体提交/回滚）。
+    """
+    deleted = 0
+    for eid in evaluation_ids:
+        deleted += delete_evaluation(conn, eid)
+    return deleted
 
 
 def get_task_image_url(
@@ -601,7 +759,7 @@ def fetch_metric_scores(
     sql = """
         SELECT
             ms.metric_id, ms.score, ms.score_reason, ms.source_type,
-            m.name AS metric_name, m.code AS metric_code,
+            m.name AS metric_name, m.code AS metric_code, m.weight AS metric_weight,
             s.id AS sub_id, s.name AS sub_name,
             d.id AS dim_id, d.name AS dim_name
         FROM street_metric_score ms

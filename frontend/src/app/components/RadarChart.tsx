@@ -1,8 +1,9 @@
 import type { DimensionScoreResult } from "../types";
 
 /**
- * 维度雷达图。吃后端一级维度分（5 分制），按维度数均分轴角度。
- * 标签位置根据每根轴的角度自动计算，支持任意维度数（当前后端为 5 维）。
+ * 维度雷达图（完全对齐 mock 外观）：网格 #eff3f4、数据面 rgba(29,155,240,0.1)、
+ * 描边 #1d9bf0、标签 #536471。无卡片外壳，直接作为报告中段左栏。
+ * 吃后端一级维度分（5 分制），按维度数均分轴角度，支持任意维度数。
  */
 export default function RadarChart({
   dimensions,
@@ -15,16 +16,13 @@ export default function RadarChart({
   const n = dimensions.length;
 
   const rad = (deg: number) => (deg * Math.PI) / 180;
-  // 从正上方(-90°)开始，顺时针均分
   const angleAt = (i: number) => -90 + (360 / n) * i;
 
-  // 各轴端点（栅格）
   const axes = dimensions.map((_, i) => ({
     x: cx + r * Math.cos(rad(angleAt(i))),
     y: cy + r * Math.sin(rad(angleAt(i))),
   }));
 
-  // 数据多边形：score/5 归一化
   const dataPoints = dimensions.map((d, i) => {
     const ratio = Math.max(0, Math.min(1, d.score / 5));
     return {
@@ -34,7 +32,6 @@ export default function RadarChart({
   });
   const polygonPoints = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
 
-  // 顶点分数标签：在顶点基础上沿轴向外推一点，避免压在多边形描边上
   const valuePoints = dimensions.map((d, i) => {
     const deg = angleAt(i);
     const ratio = Math.max(0, Math.min(1, d.score / 5));
@@ -46,26 +43,20 @@ export default function RadarChart({
     };
   });
 
-  // 标签锚点：略超出最外圈，按角度推到轴外侧
   const labelPoints = dimensions.map((d, i) => {
     const deg = angleAt(i);
-    const lr = r + 8;
+    const lr = r + 9;
     const x = cx + lr * Math.cos(rad(deg));
     const y = cy + lr * Math.sin(rad(deg));
-    // 根据 x 相对中心决定文本对齐，避免标签压到图形
     const anchor: "middle" | "start" | "end" =
       Math.abs(x - cx) < 4 ? "middle" : x < cx ? "end" : "start";
     return { x, y, anchor, name: d.dim_name };
   });
 
   return (
-    <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 flex flex-col items-center justify-center min-h-75">
-      <h3 className="text-sm font-semibold text-on-surface self-start mb-6">
-        街道 DNA 指纹
-      </h3>
-      <div className="relative w-full aspect-square max-w-65 flex items-center justify-center">
+    <div className="flex items-center justify-center w-full">
+      <div className="relative w-full max-w-100 aspect-square">
         <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100">
-          {/* 栅格圈 */}
           {[40, 30, 20, 10].map((gr) => (
             <circle
               key={gr}
@@ -73,11 +64,10 @@ export default function RadarChart({
               cy="50"
               r={gr}
               fill="none"
-              stroke="#EFF3F4"
-              strokeWidth="0.5"
+              stroke="#eff3f4"
+              strokeWidth="0.6"
             />
           ))}
-          {/* 轴线 */}
           {axes.map((p, i) => (
             <line
               key={i}
@@ -85,24 +75,21 @@ export default function RadarChart({
               y1="50"
               x2={p.x}
               y2={p.y}
-              stroke="#EFF3F4"
-              strokeWidth="0.5"
+              stroke="#eff3f4"
+              strokeWidth="0.6"
             />
           ))}
-          {/* 数据多边形 */}
           {n > 0 && (
             <polygon
               points={polygonPoints}
-              fill="rgba(0, 98, 157, 0.2)"
-              stroke="#00629d"
+              fill="rgba(29, 155, 240, 0.1)"
+              stroke="#1d9bf0"
               strokeWidth="1.5"
             />
           )}
-          {/* 顶点圆点 */}
           {dataPoints.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r="1.4" fill="#00629d" />
+            <circle key={i} cx={p.x} cy={p.y} r="1.3" fill="#1d9bf0" />
           ))}
-          {/* 顶点分数 */}
           {valuePoints.map((vp, i) => (
             <text
               key={i}
@@ -112,12 +99,11 @@ export default function RadarChart({
               dominantBaseline="middle"
               fontSize="4"
               fontWeight="700"
-              fill="#00629d"
+              fill="#1d9bf0"
             >
               {vp.value}
             </text>
           ))}
-          {/* 轴标签（随维度名动态渲染） */}
           {labelPoints.map((lp, i) => (
             <text
               key={i}
@@ -126,8 +112,8 @@ export default function RadarChart({
               textAnchor={lp.anchor}
               dominantBaseline="middle"
               fontSize="4.5"
-              fill="currentColor"
-              className="text-on-surface-variant"
+              fontWeight="500"
+              fill="#536471"
             >
               {lp.name}
             </text>

@@ -29,6 +29,8 @@ export interface DimensionScoreResult {
   dim_name: string;
   /** 1.0~5.0 */
   score: number;
+  /** 维度权重 0~1，后端下发；旧记录可能为空 */
+  weight?: number | null;
 }
 
 /** 二级维度聚合分 */
@@ -37,6 +39,8 @@ export interface SubDimensionScoreResult {
   sub_name: string;
   dim_id: number;
   score: number;
+  /** 二级维度权重 0~1 */
+  weight?: number | null;
 }
 
 /** 三级指标得分（含 AI 评分理由） */
@@ -49,6 +53,8 @@ export interface MetricScoreResult {
   /** 整数 1~5 */
   score: number;
   reason: string | null;
+  /** 三级指标权重 0~1 */
+  weight?: number | null;
 }
 
 /** 评价结果查询响应 */
@@ -81,6 +87,8 @@ export interface HistoryItem {
   summary: string | null;
   /** 上传原图相对路径，文字发起的点评为 null */
   image_url?: string | null;
+  /** 输入类型：text / image，供历史页筛选 */
+  input_type?: string | null;
   /** ISO 时间字符串 */
   created_at: string | null;
 }
