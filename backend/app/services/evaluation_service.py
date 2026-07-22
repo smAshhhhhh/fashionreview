@@ -143,7 +143,12 @@ def recognize_street(content: str, city_hint: str | None, task_id: int) -> dict[
             conn, "recognize",
             variables={"content": content, "city_hint": hint},
         )
-    resp = chat(rp.system, rp.user, model=rp.model, temperature=rp.temperature if rp.temperature is not None else 0.3)
+    # 识别街名对时效/地名准确度敏感，全局联网开启时对该阶段强制联网
+    resp = chat(
+        rp.system, rp.user, model=rp.model,
+        temperature=rp.temperature if rp.temperature is not None else 0.3,
+        forced_search=True,
+    )
     _log_prompt(task_id, "recognize", resp.prompt_text, resp.text, resp.model, resp.token_usage)
     data = resp.parse_json()
     return _assert_recognized({

@@ -47,6 +47,20 @@ def _get_client() -> OpenAI:
     )
 
 
+def _search_extra_body(forced: bool) -> dict[str, Any]:
+    """按全局开关构造联网搜索的 extra_body（百炼私有参数，非标准 OpenAI）。
+
+    总开关关闭时返回空 dict（完全不透传）；开启时 forced=True 强制每次联网，
+    forced=False 由模型自行决定是否搜索。
+    """
+    if not get_settings().llm_enable_search:
+        return {}
+    return {
+        "enable_search": True,
+        "search_options": {"forced_search": forced},
+    }
+
+
 def chat(
     system_prompt: str,
     user_prompt: str,
@@ -54,11 +68,14 @@ def chat(
     json_mode: bool = True,
     temperature: float = 0.3,
     model: str | None = None,
+    forced_search: bool = False,
 ) -> LLMResponse:
     """发起一次对话调用。
 
     :param json_mode: True 时要求模型返回 JSON 对象（response_format）。
     :param model: 覆盖默认模型；None 时用配置中的 llm_model。
+    :param forced_search: 仅在全局 llm_enable_search 开启时生效——True 强制该次联网，
+        False 由模型自行决定是否搜索。
     """
     settings = get_settings()
     client = _get_client()
@@ -74,6 +91,9 @@ def chat(
     }
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
+    extra_body = _search_extra_body(forced_search)
+    if extra_body:
+        kwargs["extra_body"] = extra_body
 
     resp = client.chat.completions.create(**kwargs)
     text = resp.choices[0].message.content or ""
