@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python3 -c \"from app.api.v1 import evaluation; from app.services import evaluation_service as s; from app.db import repository as r; print\\('OK', hasattr\\(s,'delete_evaluations'\\), hasattr\\(r,'delete_evaluations'\\)\\)\")",
-      "Bash(python -m py_compile app/db/repository.py app/services/evaluation_service.py app/schemas/evaluation.py)",
-      "Bash(python -c \"from app.schemas.evaluation import DimensionScoreOut, SubDimensionScoreOut, MetricScoreOut; d=DimensionScoreOut\\(dim_id=1,dim_name='空间美学',score=3.6,weight=0.2\\); m=MetricScoreOut\\(metric_id=1,metric_code='X',metric_name='y',sub_id=1,dim_id=1,score=4,weight=0.3333\\); print\\(d.model_dump\\(\\)\\); print\\(m.model_dump\\(\\)\\)\")"
-    ]
-  }
-}
