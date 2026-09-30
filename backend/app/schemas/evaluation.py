@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -76,6 +78,9 @@ class TaskProgressOut(BaseModel):
     progress: int = 0
     current_stage: str | None = None
     stage_message: str | None = None
+    # 阶段结构化明细。评分阶段为 {"all": [...], "done": [{"name","ok"}...], "total": N}，
+    # done 的顺序即真实完成顺序。老任务 / 非评分阶段为 None，前端需按 null 降级。
+    stage_detail: dict[str, Any] | None = None
     evaluation_id: int | None = None
     error_message: str | None = None
     text_input: str | None = None  # 用户提交的原始街道名，供进度页标题展示

@@ -28,12 +28,41 @@ export interface AnalyzeAccepted {
 }
 
 /** 任务进度（SSE / 轮询同构） */
+/** 评分阶段的一个已完成维度。 */
+export interface ScoredDimension {
+  /** 真实一级维度名，如「商业业态」 */
+  name: string;
+  /** false = 该维度评分失败、已兜底补中位分（后端 failed_dims） */
+  ok: boolean;
+}
+
+/**
+ * 评分阶段的结构化明细（后端 stage_detail）。
+ *
+ * done 的顺序是**真实完成顺序**，并发下与 all 的顺序无关 —— all 按 dim_sort 排，
+ * 而 5 个维度由 ThreadPoolExecutor 全并发、as_completed 谁先回谁先进 done。
+ * 所以 done[i] 的含义是「第 i+1 个完成的维度」，不是「第 i+1 个维度」。
+ */
+export interface ScoringDetail {
+  /** 全部一级维度名，按 dim_sort 固定顺序 */
+  all: string[];
+  /** 已完成的维度，按完成先后累加 */
+  done: ScoredDimension[];
+  /** 维度总数（当前 seed 为 5，但不要写死） */
+  total: number;
+}
+
 export interface TaskProgress {
   task_id: number;
   status: "pending" | "analyzing" | "completed" | "failed" | "cancelled";
   progress: number;
   current_stage: string | null;
   stage_message: string | null;
+  /**
+   * 阶段结构化明细。评分阶段为 ScoringDetail；其余阶段、老任务、
+   * 以及尚未执行 stage_detail 列迁移的库均为 null，前端必须按 null 降级。
+   */
+  stage_detail: ScoringDetail | null;
   evaluation_id: number | null;
   error_message: string | null;
   /** 用户提交的原始街道名，供进度页标题展示（刷新/守卫重定向后据此恢复） */

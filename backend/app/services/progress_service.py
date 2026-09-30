@@ -2,9 +2,15 @@
 
 进度节点（计数式并发评分）：
   识别 10 → 画像 20 → 评分中 20+N*13（N 为已完成维度数，5 维共 ~65）→ 报告 95 → 完成 100
+
+注意两类写入的时机相反：STAGE_* 常量在工作「开始前」写（10 = 识别刚开始），
+而评分的 update_progress 在每个维度「完成后」写（33 = 已完成 1 个）。前端若只按
+progress 阈值反推节点状态必然错位一格，故评分阶段额外下发 stage_detail 结构化名单。
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from app.db import repository as repo
 from app.db.session import connection_scope
@@ -25,8 +31,14 @@ def update_progress(
     progress: int,
     stage: str,
     message: str,
+    stage_detail: dict[str, Any] | None = None,
 ) -> None:
-    """更新任务进度。独立连接独立提交，失败静默（进度更新不应影响主流程）。"""
+    """更新任务进度。独立连接独立提交，失败静默（进度更新不应影响主流程）。
+
+    :param stage_detail: 阶段结构化明细。评分阶段传
+        {"all": [维度名...], "done": [{"name", "ok"}...], "total": N}，
+        其中 done 的顺序即真实完成顺序（并发下不等于 all 的顺序）。
+    """
     try:
         with connection_scope() as conn:
             repo.update_ai_task(
@@ -35,6 +47,7 @@ def update_progress(
                 progress=progress,
                 current_stage=stage,
                 stage_message=message,
+                stage_detail=stage_detail,
             )
     except Exception:  # noqa: BLE001 - 进度写入失败不影响分析
         pass

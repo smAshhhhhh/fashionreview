@@ -6,33 +6,100 @@ import Sidebar from "../components/Sidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
 import ProgressStep from "../components/ProgressStep";
 import { ACTIVE_TASK_KEY } from "../components/ActiveTaskGuard";
-import type { ProgressStage, ProgressStatus } from "../types";
+import type { ProgressStage, ProgressStatus, ProgressTone } from "../types";
 import {
   cancelTask,
   fetchTaskProgress,
   progressStreamUrl,
+  type ScoringDetail,
   type TaskProgress,
 } from "../../lib/api";
 
 /* ──── 时间线骨架（progress 阈值对齐后端 progress_service 真实节点）──── */
 // 后端进度为计数式并发评分：识别10 → 画像20 → 评分33/46/59/72/85 → 报告95 → 完成100。
-// detail 为缺省文案，运行时 active 段会被 SSE 的 stage_message 覆盖。
+//
+// 每段写三套标题：节点会在 pending / active / done 下各渲染一次。评分段的标题在
+// 运行时被 stage_detail 里的真实维度名改写，这里的「第 N 维度」只是降级兜底
+// （老任务、或库还没执行 stage_detail 列迁移时）。
+//
+// 「第 N 维度」中的 N 是**完成名次**，不是维度编号：5 个维度由 ThreadPoolExecutor
+// 全并发、as_completed 谁先回谁先计数，所以第 2 个完成的完全可能是 dim_sort 里的第 5 个。
+const SCORING_TOTAL_FALLBACK = 5;
+
 const STAGES: ProgressStage[] = [
-  { stage: "recognize", progress: 10, title: "正在识别街巷", detail: "定位地理坐标与街道轮廓" },
-  { stage: "profile", progress: 20, title: "正在获取街巷画像", detail: "汇总街区事实数据" },
-  { stage: "scoring", progress: 33, title: "已完成 1/5 维度评分", detail: "多维度并发评分中" },
-  { stage: "scoring", progress: 46, title: "已完成 2/5 维度评分", detail: "多维度并发评分中" },
-  { stage: "scoring", progress: 59, title: "已完成 3/5 维度评分", detail: "多维度并发评分中" },
-  { stage: "scoring", progress: 72, title: "已完成 4/5 维度评分", detail: "多维度并发评分中" },
-  { stage: "scoring", progress: 85, title: "已完成 5/5 维度评分", detail: "多维度并发评分中" },
-  { stage: "report", progress: 95, title: "正在生成评价报告", detail: "综合各维度得分撰写画像" },
-  { stage: "done", progress: 100, title: "分析完成", detail: "正在跳转到分析结果…" },
+  {
+    stage: "recognize",
+    progress: 10,
+    titles: { pending: "识别街巷", active: "正在识别街巷", done: "街巷识别完成" },
+    detail: "定位地理坐标与街道轮廓",
+  },
+  {
+    stage: "profile",
+    progress: 20,
+    titles: { pending: "获取街巷画像", active: "正在获取街巷画像", done: "街巷画像完成" },
+    detail: "汇总街区事实数据",
+  },
+  ...Array.from({ length: SCORING_TOTAL_FALLBACK }, (_, i) => i + 1).map((n) => ({
+    stage: "scoring",
+    progress: 20 + n * 13,
+    titles: {
+      pending: `第 ${n} 维度`,
+      active: `正在评分 · 第 ${n} 维度`,
+      done: `第 ${n} 维度评分完成`,
+    },
+    detail: "多维度并发评分中",
+    rank: n,
+  })),
+  {
+    stage: "report",
+    progress: 95,
+    titles: { pending: "生成评价报告", active: "正在生成评价报告", done: "评价报告完成" },
+    detail: "综合各维度得分撰写画像",
+  },
+  {
+    stage: "done",
+    progress: 100,
+    titles: { pending: "输出分析结果", active: "正在整理分析结果", done: "分析完成" },
+    detail: "正在跳转到分析结果…",
+  },
 ];
 
 const VIEWPORT_HEIGHT = 520; // 时间线可视区高度（px）
+const FIRST_SCORING_INDEX = STAGES.findIndex((s) => s.stage === "scoring");
+const SCORING_NODE_COUNT = STAGES.filter((s) => s.stage === "scoring").length;
 
-/** 根据后端 progress 百分比，反推应点亮到第几段（最后一个 progress<=当前值的段）。 */
-function indexFromProgress(p: number): number {
+/** 已完成的维度数：优先用后端权威名单，缺失时按 20+N*13 反推。 */
+function doneCountOf(detail: ScoringDetail | null, p: number): number {
+  if (detail) return Math.min(detail.done.length, SCORING_NODE_COUNT);
+  const inferred = Math.floor((p - 20) / 13);
+  return Math.min(Math.max(inferred, 0), SCORING_NODE_COUNT);
+}
+
+/**
+ * 定位「正在进行」的节点。
+ *
+ * 阶段归属以 current_stage 为准（后端权威），只有评分段内部的推进量取自
+ * stage_detail.done.length —— 后端是每完成一个维度才写一帧，所以 done.length
+ * 就是已完成数，第 done.length+1 个节点才是在跑的那个。
+ *
+ * 不再单纯按 progress 阈值反推：那样会把「已完成 3 个」的 59% 错标成第 3 个节点
+ * active，于是节点一边转 sync 一边宣布自己已完成，且上方打勾数比文案少一个。
+ */
+function activeIndexFrom(
+  stage: string | null,
+  detail: ScoringDetail | null,
+  p: number,
+): number {
+  if (stage === "done") return STAGES.length - 1;
+  if (stage === "scoring") {
+    const done = doneCountOf(detail, p);
+    // 5 个都完成但后端还没写 report 那一帧：让报告节点先亮，避免最后一个
+    // 评分节点既显示真实维度名又在转圈
+    return Math.min(FIRST_SCORING_INDEX + done, STAGES.length - 1);
+  }
+  const byStage = STAGES.findIndex((s) => s.stage === stage);
+  if (byStage >= 0) return byStage;
+  // 首帧前 current_stage 为 null，或后端新增了前端不认识的阶段：退回阈值反推
   let idx = 0;
   for (let i = 0; i < STAGES.length; i++) {
     if (p >= STAGES[i].progress) idx = i;
@@ -55,8 +122,12 @@ function AnalysisProgressInner() {
   // taskId 无效是渲染期即可判定的派生状态，不放进 effect（避免 effect 内同步 setState）
   const hasValidTask = Number.isFinite(taskId);
 
-  // 当前点亮到第几段（由后端 progress 反推）
+  // 当前「正在进行」的节点（阶段由 current_stage 定位，评分段内部由 stage_detail 推进）
   const [currentIndex, setCurrentIndex] = useState(0);
+  // 后端语义阶段，决定阶段归属（progress 阈值只作降级兜底）
+  const [stage, setStage] = useState<string | null>(null);
+  // 评分阶段的结构化名单：done 按真实完成顺序累加，是维度名与打勾数的唯一权威来源
+  const [scoring, setScoring] = useState<ScoringDetail | null>(null);
   // active 段的实时文案（来自 SSE stage_message）
   const [activeMessage, setActiveMessage] = useState<string | null>(null);
   // 错误信息（failed 或网络异常）
@@ -82,8 +153,14 @@ function AnalysisProgressInner() {
     // 快照与 SSE 帧共用的处理逻辑：反推阶段、覆盖文案、终态收尾。
     // 返回 true 表示已进入终态（completed/failed），调用方据此决定是否还需连 SSE。
     const applyProgress = (data: TaskProgress): boolean => {
-      setCurrentIndex(indexFromProgress(data.progress));
-      if (data.stage_message) setActiveMessage(data.stage_message);
+      const detail = data.stage_detail ?? null;
+      setStage(data.current_stage);
+      setCurrentIndex(activeIndexFrom(data.current_stage, detail, data.progress));
+      // 只在评分阶段接受名单：其余阶段后端不写这一列，若沿用旧值，报告阶段会
+      // 把评分名单继续渲染进节点标题
+      if (data.current_stage === "scoring") setScoring(detail);
+      // 始终跟随本帧：后端某帧不带 message 时清空，避免上一阶段文案残留在新 active 节点上
+      setActiveMessage(data.stage_message ?? null);
       // 后端回传的原始输入即街道名，作为标题权威来源（覆盖 URL q 占位）
       if (data.text_input) setStreetName(data.text_input);
 
@@ -98,6 +175,11 @@ function AnalysisProgressInner() {
 
       if (data.status === "completed") {
         clearActive();
+        // 后端在同一条 UPDATE 里写 status=completed 与 current_stage=done，
+        // 这里显式兜底把时间线推到末节点，否则跳转前的 800ms 里最后一个节点
+        // 仍在转 sync
+        setStage("done");
+        setCurrentIndex(STAGES.length - 1);
         const eid = data.evaluation_id;
         setTimeout(() => {
           router.push(eid ? `/analytics?eid=${eid}` : "/analytics");
@@ -156,10 +238,58 @@ function AnalysisProgressInner() {
     setOffsetY(VIEWPORT_HEIGHT / 2 - stepCenter);
   }, [currentIndex]);
 
+  const isDone = stage === "done";
+
   const statusOf = (index: number): ProgressStatus => {
+    // 完成态：全部节点收敛为 done（否则最后一段会在跳转前的 800ms 里转着 sync）
+    if (isDone) return "done";
     if (index < currentIndex) return "done";
     if (index === currentIndex) return "active";
     return "pending";
+  };
+
+  /**
+   * 解析一个节点最终渲染的标题、副文案与色调。
+   *
+   * 评分节点是唯一需要改写的：它的标题在 done 时换成 stage_detail 里第 rank 个
+   * 完成的**真实维度名**，这样「已完成」只会出现在真正完成的节点上，且顺序就是
+   * 后端的实际完成顺序。active 时仍用「第 N 维度」占位 —— 那一个还没回来，
+   * 后端也不知道会是谁先回。
+   */
+  const resolveNode = (
+    s: ProgressStage,
+    status: ProgressStatus,
+  ): { title: string; detail: string; tone: ProgressTone } => {
+    const fallback = {
+      title: s.titles[status],
+      // 实时文案只贴给它真正描述的那个阶段：评分名单会让 active 先于 current_stage
+      // 迈进下一节点，此时无条件覆盖会出现「正在生成评价报告 / 已完成 5/5 维度评分」
+      detail:
+        status === "active" && activeMessage && s.stage === stage
+          ? activeMessage
+          : s.detail,
+      tone: "normal" as ProgressTone,
+    };
+    if (s.stage !== "scoring" || s.rank === undefined) return fallback;
+
+    const finished = scoring?.done[s.rank - 1];
+    if (status === "done" && finished) {
+      return {
+        title: finished.name,
+        detail: finished.ok ? "评分完成" : "评分失败，已补中位分",
+        tone: finished.ok ? "normal" : "warn",
+      };
+    }
+    if (status === "active" && scoring) {
+      // 把仍在跑的维度真名列出来（全部维度减去已完成的）。并发中无法预知
+      // 下一个回来的是谁，所以标题保持「第 N 维度」占位，真名放副文案。
+      const doneNames = new Set(scoring.done.map((d) => d.name));
+      const running = scoring.all.filter((n) => !doneNames.has(n));
+      if (running.length > 0) {
+        return { ...fallback, detail: `并发中：${running.join("、")}` };
+      }
+    }
+    return fallback;
   };
 
   // 取消分析：二次确认后调后端取消接口（不等结果），直接返回主页。
@@ -276,21 +406,26 @@ function AnalysisProgressInner() {
                   transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
               >
-                {STAGES.map((s, i) => (
-                  <div
-                    key={`${s.stage}-${i}`}
-                    ref={(el) => {
-                      stepRefs.current[i] = el;
-                    }}
-                  >
-                    <ProgressStep
-                      title={s.title}
-                      detail={i === currentIndex && activeMessage ? activeMessage : s.detail}
-                      status={statusOf(i)}
-                      isLast={i === STAGES.length - 1}
-                    />
-                  </div>
-                ))}
+                {STAGES.map((s, i) => {
+                  const status = statusOf(i);
+                  const node = resolveNode(s, status);
+                  return (
+                    <div
+                      key={`${s.stage}-${i}`}
+                      ref={(el) => {
+                        stepRefs.current[i] = el;
+                      }}
+                    >
+                      <ProgressStep
+                        title={node.title}
+                        detail={node.detail}
+                        status={status}
+                        tone={node.tone}
+                        isLast={i === STAGES.length - 1}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
