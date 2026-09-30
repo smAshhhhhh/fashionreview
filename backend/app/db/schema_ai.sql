@@ -89,6 +89,7 @@ CREATE TABLE ai_analysis_task (
     progress      INT          NOT NULL DEFAULT 0 COMMENT '进度百分比 0~100',
     current_stage VARCHAR(100) NULL COMMENT '当前阶段标识，如 space_score',
     stage_message VARCHAR(500) NULL COMMENT '当前阶段文案，前端展示',
+    stage_detail  JSON         NULL COMMENT '阶段结构化明细（评分阶段：维度完成名单 all/done/total）',
     error_message VARCHAR(500) NULL COMMENT '失败原因',
     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

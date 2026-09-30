@@ -9,16 +9,25 @@ export interface NavItem {
 /** 分析进度阶段状态 */
 export type ProgressStatus = "done" | "active" | "pending";
 
+/** 节点色调：warn 用于「已完成但结果需注意」（如维度评分失败已兜底中位分） */
+export type ProgressTone = "normal" | "warn";
+
 /** 分析进度阶段 */
 export interface ProgressStage {
   /** 后端阶段标识，如 recognize / profile / scoring / report / done */
   stage: string;
   /** 进度百分比 0~100，对齐后端 progress_service 节点 */
   progress: number;
-  /** 标题文案 */
-  title: string;
-  /** 副标题/详情文案 */
+  /**
+   * 三态标题：同一节点会在 pending / active / done 下各渲染一次，必须分别写。
+   * 只给一份会出现「未开始的节点灰着写已完成」「转着 sync 图标却宣布自己完成了」。
+   * 评分节点的标题在运行时按 stage_detail 改写为真实维度名，此处仅作降级兜底。
+   */
+  titles: Record<ProgressStatus, string>;
+  /** 副标题/详情文案（active 段会被 SSE 的 stage_message 覆盖） */
   detail: string;
+  /** 评分节点的完成名次（1-based）；非评分节点为 undefined */
+  rank?: number;
 }
 
 /* ──── 评价结果（对齐后端 /analyze/result/{id}，分制 1.0~5.0）──── */

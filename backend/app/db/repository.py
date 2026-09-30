@@ -848,6 +848,7 @@ def update_ai_task(
     progress: int | None = None,
     current_stage: str | None = None,
     stage_message: str | None = None,
+    stage_detail: dict[str, Any] | None = None,
     error_message: str | None = None,
 ) -> None:
     sets: list[str] = []
@@ -867,6 +868,9 @@ def update_ai_task(
     if stage_message is not None:
         sets.append("stage_message = %s")
         params.append(stage_message)
+    if stage_detail is not None:
+        sets.append("stage_detail = %s")
+        params.append(json.dumps(stage_detail, ensure_ascii=False))
     if error_message is not None:
         sets.append("error_message = %s")
         params.append(error_message)
@@ -879,6 +883,24 @@ def update_ai_task(
         )
 
 
+def _parse_stage_detail(raw: Any) -> dict[str, Any] | None:
+    """stage_detail 可能是 dict（驱动已解码 JSON 列）或 str，统一成 dict。
+
+    必须在此收口：SSE 端点对本函数返回的裸 dict 直接 json.dumps（api/v1/task.py），
+    而轮询端点走 pydantic —— 若把 str 原样传出，SSE 会双重编码成字符串，
+    前端只在 SSE 路径拿到字符串而在轮询路径拿到对象。
+    """
+    if raw is None or isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (str, bytes)):
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
 def get_task_progress(
     conn: pymysql.connections.Connection, task_id: int
 ) -> dict[str, Any] | None:
@@ -886,11 +908,14 @@ def get_task_progress(
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute(
             "SELECT id AS task_id, status, progress, current_stage, "
-            "stage_message, evaluation_id, error_message, text_input "
+            "stage_message, stage_detail, evaluation_id, error_message, text_input "
             "FROM ai_analysis_task WHERE id = %s",
             (task_id,),
         )
-        return cur.fetchone()
+        row = cur.fetchone()
+    if row is not None:
+        row["stage_detail"] = _parse_stage_detail(row.get("stage_detail"))
+    return row
 
 
 def create_ai_result(

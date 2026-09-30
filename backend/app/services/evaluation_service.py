@@ -245,6 +245,11 @@ def score_all_metrics(
 
     每个维度只拿与其相关的裁剪 facts（tag 驱动），节省 token；
     每完成一个维度即更新进度（计数式：20 + N*13），文案「已完成 N/5 维度评分」。
+
+    同时下发 stage_detail 结构化名单：done 数组按真实完成顺序累加（并发下不等于
+    batches 的 dim_sort 顺序），失败的维度记 ok=False。前端据此显示「第 N 个完成的
+    是谁」并把兜底维度与真正成功的区分开 —— 单靠 stage_message 那句文案只带得出
+    最新一个，且 SSE 每秒才推一帧、同秒内完成的两个维度会丢掉中间帧。
     """
     code_to_id = {m["metric_code"]: m["metric_id"] for m in metric_tree}
     batches = pb.group_metrics_by_dimension(metric_tree)
@@ -253,6 +258,9 @@ def score_all_metrics(
     result: dict[int, dict[str, Any]] = {}
     done = 0
     failed_dims: list[str] = []
+    # 按完成顺序累加的名单，随每帧进度下发给前端
+    done_list: list[dict[str, Any]] = []
+    all_names = [b["dim_name"] for b in batches]
 
     def _facts_for(batch: dict[str, Any]) -> str:
         """按维度裁剪 facts；空则给兜底文案。"""
@@ -260,7 +268,15 @@ def score_all_metrics(
 
     logger.info(
         "任务 %s 开始并发评分：%d 个一级维度 → %s",
-        task_id, total, "、".join(b["dim_name"] for b in batches),
+        task_id, total, "、".join(all_names),
+    )
+
+    # 评分起始帧：让前端在第一个维度回来之前就能显示全部维度名并进入 scoring 阶段
+    # （否则从画像 20 到首个维度完成之间没有任何 scoring 信号）
+    progress.update_progress(
+        task_id, progress.SCORE_BASE, "scoring",
+        f"正在并发评分 {total} 个维度",
+        stage_detail={"all": all_names, "done": [], "total": total},
     )
 
     with ThreadPoolExecutor(max_workers=total, thread_name_prefix="score") as pool:
@@ -270,11 +286,13 @@ def score_all_metrics(
         }
         for future in as_completed(future_to_dim):
             dim_name = future_to_dim[future]
+            ok = True
             try:
                 scores = future.result()
             except Exception as exc:  # noqa: BLE001 - 单维度失败不拖垮整体，缺失项后面兜底补 3
                 # 关键：把被吞的异常完整打出来（含 traceback），并落一条 error 日志，
                 # 否则该维度既无 prompt 日志也无评分，表现为「随机少一个维度」。
+                ok = False
                 failed_dims.append(dim_name)
                 logger.exception(
                     "维度「%s」评分失败（%s: %s）——该维度全部指标将兜底补中位分",
@@ -295,9 +313,15 @@ def score_all_metrics(
                 s = _clamp_score(item.get("score"))
                 result[mid] = {"score": s, "reason": (item.get("reason") or "")[:500]}
             done += 1
+            done_list.append({"name": dim_name, "ok": ok})
             progress.update_progress(
                 task_id, progress.score_progress(done, total),
                 "scoring", f"已完成 {done}/{total} 维度评分（最新：{dim_name}）",
+                stage_detail={
+                    "all": all_names,
+                    "done": list(done_list),
+                    "total": total,
+                },
             )
 
     if failed_dims:

@@ -1,9 +1,15 @@
-import type { ProgressStatus } from "../types";
+import type { ProgressStatus, ProgressTone } from "../types";
 
 interface ProgressStepProps {
   title: string;
   detail: string;
   status: ProgressStatus;
+  /**
+   * done 节点的色调。warn = 完成了但结果需注意（维度评分失败、已兜底中位分）。
+   * 用琥珀 tertiary 而非红 error：该维度确实产出了分数，只是兜底值，不是流程失败。
+   * 仅对 done 生效 —— 状态机保持三态，不因此变成四态。
+   */
+  tone?: ProgressTone;
   /** 是否最后一项（不画连接线） */
   isLast?: boolean;
 }
@@ -13,10 +19,12 @@ export default function ProgressStep({
   title,
   detail,
   status,
+  tone = "normal",
   isLast = false,
 }: ProgressStepProps) {
   const isActive = status === "active";
   const isPending = status === "pending";
+  const isWarn = status === "done" && tone === "warn";
 
   return (
     <div
@@ -31,12 +39,16 @@ export default function ProgressStep({
 
       {/* 节点图标 */}
       {status === "done" && (
-        <div className="z-10 mt-1 shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+        <div
+          className={`z-10 mt-1 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+            isWarn ? "bg-tertiary/10 text-tertiary" : "bg-primary/10 text-primary"
+          }`}
+        >
           <span
             className="material-symbols-outlined text-[20px]"
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
-            check_circle
+            {isWarn ? "error" : "check_circle"}
           </span>
         </div>
       )}
@@ -66,16 +78,22 @@ export default function ProgressStep({
           <>
             <span
               className={`text-sm font-bold ${
-                status === "done" ? "text-on-surface-variant/80" : ""
+                isWarn
+                  ? "text-tertiary"
+                  : status === "done"
+                    ? "text-on-surface-variant/80"
+                    : ""
               }`}
             >
               {title}
             </span>
             <span
               className={`text-xs ${
-                status === "done"
-                  ? "text-on-surface-variant/60"
-                  : "text-on-surface-variant"
+                isWarn
+                  ? "text-tertiary/80"
+                  : status === "done"
+                    ? "text-on-surface-variant/60"
+                    : "text-on-surface-variant"
               }`}
             >
               {detail}
