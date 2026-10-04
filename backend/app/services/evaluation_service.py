@@ -4,6 +4,8 @@
 
   文本输入
     → ① 街巷识别（LLM）           落 ai_analysis_task / ai_analysis_result
+    → ①.5 图片属性匹配（仅照片）   照片与人工标注库比向量，Top-1 的图片属性
+                                  落 evaluation_image_match / _attribute
     → ② 取画像事实               读 street_profile（无则为空，后续接 POI/RAG）
     → ③ 分 5 批指标评分（LLM）     每批一个一级维度，产出 75 个整数 1~5
     → ④ 入库 + 逐层聚合           street_metric_score → street_dimension_score
@@ -22,6 +24,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import repository as repo
 from app.db.session import connection_scope
@@ -30,6 +33,7 @@ from app.services import progress_service as progress
 from app.services import prompt_builder as pb
 from app.services import scoring_service
 from app.services import retriever
+from app.services.annotation import matcher
 from app.services.llm_client import chat, chat_vision
 
 logger = get_logger(__name__)
@@ -48,6 +52,15 @@ _cancel_lock = threading.Lock()
 
 class _TaskCancelled(Exception):
     """任务被用户取消的内部信号。"""
+
+
+class StreetNotRecognized(Exception):
+    """识别置信度过低：模型正常作答「认不出」，不是系统故障。
+
+    仍然终止本次点评（任务置 failed、前端提示换图），但它属于**预期结果**而非
+    错误，故 _run_pipeline 对其单独处理：记 WARNING 且不打堆栈。用 ERROR +
+    traceback 表达一个正常的业务判定会掩盖真正的故障。
+    """
 
 
 def request_cancel(task_id: int) -> dict[str, Any]:
@@ -122,8 +135,11 @@ _RECOGNIZE_IMAGE_USER = (
 def _assert_recognized(recog: dict[str, Any]) -> dict[str, Any]:
     """识别结果置信度兜底（文字 / 图片两条路径统一）。
 
-    confidence 低于 0.5 视为识别失败，抛错进 _run_pipeline 的 failed 兜底；
+    confidence 低于 0.5 视为识别失败，抛 StreetNotRecognized 终止本次点评；
     confidence 为 None 时放行（模型未返回置信度，不误杀）。
+
+    抛专属异常而非 ValueError，是为了让 _run_pipeline 能把「模型认不出」与真正的
+    故障区分开 —— 前者是预期结果，日志记 WARNING 不打堆栈。
     """
     c = recog.get("confidence")
     if c is not None:
@@ -132,7 +148,9 @@ def _assert_recognized(recog: dict[str, Any]) -> dict[str, Any]:
         except (TypeError, ValueError):
             return recog  # 置信度非数值，无法判定，放行
         if score < 0.5:
-            raise ValueError("无法识别街道，请换一张更清晰、含街道标识的照片或改用文字输入")
+            raise StreetNotRecognized(
+                "无法识别街道，请换一张更清晰、含街道标识的照片或改用文字输入"
+            )
     return recog
 
 
@@ -180,6 +198,87 @@ def recognize_street_from_image(
         "confidence": data.get("confidence"),
         "raw": resp.text,
     })
+
+
+# ──────────────── ①.5 图片属性匹配（仅照片点评） ────────────────
+
+def match_image_attributes(
+    task_id: int,
+    evaluation_id: int,
+    image_path: str,
+    metric_tree: list[dict[str, Any]],
+) -> None:
+    """把上传照片与人工标注库比对，取 Top-1 的图片属性赋给本次点评。
+
+    全程 try/except 只记 warning：**匹配失败绝不能让整次点评失败**。属性是增量
+    信息，拿不到就退化成接入本功能之前的行为（与 _log_prompt / update_progress
+    失败静默的取舍一致）。
+
+    本版不设阈值，无条件取 Top-1；相似度与 Top-N 候选都落库并打进日志 —— UI 上
+    不展示相似度，日志与 evaluation_image_match 表是判断匹配质量的主要抓手。
+    """
+    try:
+        # 属性指标名全部属于 SPACE（空间美学）维度，限定后再建映射，
+        # 避免与其他维度的同名指标误撞
+        name_to_metric_id = {
+            row["metric_name"]: row["metric_id"]
+            for row in metric_tree
+            if row.get("dim_code") == "SPACE"
+        }
+
+        with connection_scope() as conn:
+            match = matcher.match_image(conn, image_path)
+            if match is None:
+                logger.info("任务 %s 标注库无可比向量，跳过图片属性匹配", task_id)
+                return
+
+            attrs = repo.get_annotation_attributes(conn, match.annotation_id)
+            rows: list[dict[str, Any]] = []
+            unmatched_names: list[str] = []
+            for a in attrs:
+                metric_name = a.get("metric_name")
+                metric_id = name_to_metric_id.get(metric_name) if metric_name else None
+                if metric_name and metric_id is None:
+                    unmatched_names.append(metric_name)
+                rows.append(
+                    {
+                        "metric_id": metric_id,
+                        "metric_name": metric_name,
+                        "grade_word": a.get("grade_word"),
+                        "raw_text": a["raw_text"],
+                    }
+                )
+
+            repo.create_evaluation_image_match(
+                conn,
+                evaluation_id,
+                annotation_id=match.annotation_id,
+                similarity=match.similarity,
+                candidates=match.candidates,
+                embedding_model=match.model,
+                attr_count=len(rows),
+            )
+            repo.bulk_insert_evaluation_image_attributes(conn, evaluation_id, rows)
+
+        top5 = "、".join(
+            f"{c['file_name']}({c['similarity']})" for c in match.candidates
+        )
+        logger.info(
+            "任务 %s 命中标注图 %s，similarity=%.5f，属性 %d 条，Top-%d=[%s]",
+            task_id, match.file_name, match.similarity, len(rows),
+            len(match.candidates), top5,
+        )
+        if unmatched_names:
+            logger.warning(
+                "任务 %s 有 %d 个属性指标名在当前模板的空间美学维度中找不到对应指标"
+                "（%s），这些属性已入库但前端不会渲染",
+                task_id, len(unmatched_names), "、".join(sorted(set(unmatched_names))),
+            )
+    except Exception as exc:  # noqa: BLE001 - 匹配失败不拖垮整条点评
+        logger.warning(
+            "任务 %s 图片属性匹配失败（%s: %s），本次点评不带图片属性",
+            task_id, type(exc).__name__, exc, exc_info=True,
+        )
 
 
 # ──────────────── ③ 分批评分（并发） ────────────────
@@ -465,6 +564,12 @@ def _run_pipeline(
             )
             metric_tree = repo.fetch_metric_tree(conn)
 
+        # ①.5 图片属性匹配（仅照片点评；文字点评整段跳过）
+        if image_path:
+            check_cancel(task_id)
+            progress.set_stage(task_id, progress.STAGE_MATCH_IMAGE)
+            match_image_attributes(task_id, evaluation_id, image_path, metric_tree)
+
         # ② 画像事实（POI 召回 → 按维度裁剪，无 POI 时各维度走兜底）
         progress.set_stage(task_id, progress.STAGE_PROFILE)
         if profile_facts.has_data:
@@ -542,6 +647,20 @@ def _run_pipeline(
                 conn, task_id, status="cancelled",
                 current_stage="cancelled", stage_message="分析已取消",
             )
+    except StreetNotRecognized as exc:
+        # 模型正常作答「认不出」，属预期结果而非故障：记 WARNING 且不打堆栈。
+        # 任务仍置 failed、前端仍提示换图，行为与之前一致。
+        logger.warning(
+            "任务 %s 未能识别街道，已终止（总耗时 %.1fs）：%s",
+            task_id, time.monotonic() - t_start, exc,
+        )
+        with connection_scope() as conn:
+            if evaluation_id is not None:
+                repo.mark_evaluation_failed(conn, evaluation_id)
+            repo.update_ai_task(
+                conn, task_id, status="failed",
+                stage_message="未能识别街道", error_message=str(exc)[:500],
+            )
     except Exception as exc:  # noqa: BLE001 - 后台任务统一兜底，写明失败原因
         logger.exception(
             "任务 %s 失败（%s: %s），总耗时 %.1fs",
@@ -615,6 +734,7 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
     关闭的区块对应字段直接清空/不下发，并在 enabled_blocks 里告知前端哪些区块可渲染。
     维度聚合分（dimension_scores / sub_dimension_scores）是明细分组的结构依赖，
     只要相关区块任一开启就保留；纯展示性区块（雷达图/拆解）由前端按 enabled_blocks 决定渲染。
+    image_attributes（图片属性标签）挂在三级指标行上，故额外依赖 metric_score 区块。
     """
     with connection_scope() as conn:
         evaluation = repo.get_evaluation(conn, evaluation_id)
@@ -634,6 +754,16 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         metric_rows = repo.fetch_metric_scores(conn, evaluation_id)
         image_url = repo.get_task_image_url(conn, evaluation_id)
         blocks = display_config_service.enabled_blocks(conn)
+        image_attr_rows = repo.fetch_evaluation_image_attributes(conn, evaluation_id)
+        similar_rows = (
+            repo.fetch_evaluation_image_candidates(
+                conn,
+                evaluation_id,
+                min_similarity=get_settings().annotation_similar_min_similarity,
+            )
+            if "similar_streets" in blocks
+            else []
+        )
 
     # 维度名映射：跨所有模板的全量 id→名称（历史评价按当时模板的维度名还原，
     # 不受当前启用模板影响）
@@ -699,6 +829,21 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         if "metric_score" in blocks
         else []
     )
+    # 图片属性：照片点评才有；依赖三级指标区块（属性标签挂在指标行上，
+    # 指标行不渲染时属性无处可挂）
+    image_attributes = (
+        [
+            {
+                "metric_id": r["metric_id"],
+                "metric_name": r["metric_name"],
+                "grade_word": r["grade_word"],
+            }
+            for r in image_attr_rows
+            if r.get("metric_id") is not None and r.get("grade_word")
+        ]
+        if blocks & {"image_attribute"} and "metric_score" in blocks
+        else []
+    )
 
     return {
         "evaluation_id": evaluation_id,
@@ -715,4 +860,6 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         "dimension_scores": dimension_scores,
         "sub_dimension_scores": sub_dimension_scores,
         "metric_scores": metric_scores,
+        "image_attributes": image_attributes,
+        "similar_annotations": similar_rows,
     }

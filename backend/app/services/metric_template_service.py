@@ -146,6 +146,70 @@ def delete(template_id: int) -> dict[str, str] | None:
     return None
 
 
+# ──────────────── 权重校验 ────────────────
+
+class WeightSumError(ValueError):
+    """同级权重之和不为 100%。errors 为全部不合规分组的中文说明。"""
+
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = errors
+        super().__init__("；".join(errors))
+
+
+
+# 同级权重和的容差。通例是和恰为 1（如三级 0.5/0.3/0.2、一级 5 个 0.2），
+# 但等分时除不尽：3 个 0.3333 和为 0.9999（DECIMAL(6,4) 存不下 1/3）。
+# 故留 0.001 的余量只为放过这类等分舍入；对不等权的情形没有任何放松 ——
+# 0.9 / 1.1 这类真错填差值达 0.1，是容差的 100 倍，照样拦住。
+WEIGHT_SUM_TOLERANCE = 0.001
+
+
+def _check_weight_group(
+    label: str, weights: list[float], errors: list[str]
+) -> None:
+    """校验一组同级权重之和是否约等于 1，不合规则向 errors 追加一条中文说明。"""
+    if not weights:
+        return
+    total = sum(weights)
+    if abs(total - 1.0) > WEIGHT_SUM_TOLERANCE:
+        errors.append(
+            f"{label}：{len(weights)} 项权重之和为 {round(total * 100, 2)}%，应为 100%"
+        )
+
+
+def validate_tree_weights(dims: list[dict[str, Any]]) -> list[str]:
+    """校验整棵维度树的权重：每一组同级兄弟之和须约等于 1。
+
+    共三类分组：一级维度（全表一组）、各一级下的二级、各二级下的三级。
+    返回全部不合规的说明列表（空列表表示通过）—— 一次返回所有问题，
+    而不是遇到第一个就停，否则用户要改好几轮才知道全部错在哪。
+
+    这里必须校验，不能只靠前端：API 可被直接调用；且 scoring_service 会按实际
+    权重和归一化，和不为 1 时评分照样跑，只是界面显示的百分比与真实生效的权重
+    不一致 —— 静默失真比直接报错更难排查。
+    """
+    errors: list[str] = []
+    _check_weight_group(
+        "一级维度", [float(d.get("dim_weight", 0)) for d in dims], errors
+    )
+    for d in dims:
+        dim_name = d.get("dim_name") or f"维度#{d.get('dim_id')}"
+        subs = d.get("subs", [])
+        _check_weight_group(
+            f"「{dim_name}」下的二级维度",
+            [float(s.get("sub_weight", 0)) for s in subs],
+            errors,
+        )
+        for s in subs:
+            sub_name = s.get("sub_name") or f"二级#{s.get('sub_id')}"
+            _check_weight_group(
+                f"「{dim_name}」→「{sub_name}」下的三级指标",
+                [float(m.get("metric_weight", 0)) for m in s.get("metrics", [])],
+                errors,
+            )
+    return errors
+
+
 # ──────────────── 维度内容编辑（含「已用则另存」保护） ────────────────
 
 def save_tree(
@@ -165,7 +229,12 @@ def save_tree(
         sub_weight, metrics:[{metric_id, metric_name, metric_desc, metric_weight}]}]}]
         其中各 id 必须属于 template_id（原地改）或与之同构（克隆改时按相对位置映射）。
     :return: {"template": <模板元信息>, "is_new": bool} 或 None（模板不存在）
+    :raises WeightSumError: 任一组同级权重之和不等于 100%（容差见 WEIGHT_SUM_TOLERANCE）
     """
+    weight_errors = validate_tree_weights(dims)
+    if weight_errors:
+        raise WeightSumError(weight_errors)
+
     with connection_scope() as conn:
         meta = repo.get_template(conn, template_id)
         if meta is None:

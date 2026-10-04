@@ -45,6 +45,10 @@ next-env.d.ts
 static/uploads/
 **/static/uploads/
 
+# Runtime annotation library images (imported from 图片匹配数据/数据标注.xlsx)
+static/annotations/
+**/static/annotations/
+
 # Local databases
 *.db
 *.sqlite
@@ -68,3 +72,5 @@ yarn-error.log*
 .DS_Store
 
 .claude/
+
+图片匹配数据/

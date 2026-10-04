@@ -31,7 +31,8 @@ export default function ResourcesPage() {
         <div className="px-3 lg:px-6 py-8 space-y-12">
           {/* ──── 资源中心 ──── */}
           <Section title="资源中心" subtitle="Resource Center">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {/* 6 张卡：xl 下 3 列铺满两行，避免 5 列时末行只剩一张 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* 分析管理 */}
               <Link href="/resources/analysis" className={`${cardBase} group p-5 min-h-45 block`}>
                 <div className="mb-3">
@@ -94,6 +95,26 @@ export default function ResourcesPage() {
                 <div className="flex items-center gap-2 text-[11px] font-bold text-[#536471]">
                   <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
                   <span>画像生成 & 预览 facts</span>
+                </div>
+              </Link>
+
+              {/* 人工标注库 */}
+              <Link
+                href="/resources/annotations"
+                className={`${cardBase} group p-5 min-h-45 block`}
+              >
+                <div className="mb-3">
+                  <IconBadge icon="photo_library" />
+                </div>
+                <h4 className="text-[15px] font-bold mb-1">人工标注库</h4>
+                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
+                  导入标注街景图与图片属性，照片点评时匹配赋值
+                </p>
+                <div className="flex items-center gap-2 text-[11px] font-bold text-[#536471]">
+                  <span className="material-symbols-outlined text-[16px]">
+                    image_search
+                  </span>
+                  <span>相似度匹配 & 属性标签</span>
                 </div>
               </Link>
 

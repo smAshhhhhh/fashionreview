@@ -460,7 +460,21 @@ export async function saveMetricTemplateTree(
       new_name: opts?.newName ?? null,
     }),
   });
-  if (!res.ok) throw new Error(`保存维度内容失败 (${res.status})`);
+  if (!res.ok) {
+    // 422 = 权重校验未过，detail 带 {message, errors[]}，透出具体哪几组不合规。
+    // 前端已在编辑态拦住这种提交，这里是直调 API 或前后端容差不一致时的兜底。
+    if (res.status === 422) {
+      const body = await res.json().catch(() => null);
+      const d = body?.detail;
+      if (d?.message) {
+        const errs: string[] = Array.isArray(d.errors) ? d.errors : [];
+        throw new Error(
+          errs.length > 0 ? `${d.message}：${errs.join("；")}` : d.message,
+        );
+      }
+    }
+    throw new Error(`保存维度内容失败 (${res.status})`);
+  }
   return res.json();
 }
 
@@ -619,5 +633,120 @@ export async function startRebuildStreetProfile(
 export async function fetchProfileJob(jobId: string): Promise<ProfileJobStatus> {
   const res = await fetch(`${API_BASE}/resource/profile-jobs/${jobId}`);
   if (!res.ok) throw new Error(`查询画像任务失败 (${res.status})`);
+  return res.json();
+}
+
+/* ──────────────── 资源中心：人工标注库（图片属性匹配） ──────────────── */
+
+/** 一条标注属性 */
+export interface AnnotationAttributeRow {
+  annotation_id: number;
+  attr_index: number;
+  raw_text: string;
+  metric_name: string | null;
+  grade_word: string | null;
+}
+
+/** 一张标注图（含属性与向量状态） */
+export interface AnnotationItem {
+  id: number;
+  file_name: string;
+  image_url: string;
+  row_no: number | null;
+  enabled: number;
+  embedding_model: string | null;
+  embedding_dim: number | null;
+  embedded_time: string | null;
+  /** 0/1，后端以 (embedding IS NOT NULL) 下发 */
+  has_embedding: number;
+  attributes?: AnnotationAttributeRow[];
+}
+
+export interface AnnotationListResult {
+  total: number;
+  items: AnnotationItem[];
+  image_count: number;
+  attr_count: number;
+  embedded_count: number;
+}
+
+/**
+ * 标注表格导入摘要。
+ * unknown_metrics / unknown_grade_words 非空即说明解析或词表有漏，页面需显式告警。
+ */
+export interface AnnotationImportResult {
+  total_rows: number;
+  inserted: number;
+  updated: number;
+  attr_total: number;
+  unknown_metrics: string[];
+  unknown_grade_words: string[];
+  warnings: string[];
+}
+
+export interface AnnotationJobStatus {
+  job_id: string;
+  status: "running" | "completed" | "partial";
+  total: number;
+  done: number;
+  failed: number;
+  error: string | null;
+}
+
+export async function importAnnotationXlsx(
+  file: File,
+  clearExisting = false,
+): Promise<AnnotationImportResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("clear_existing", String(clearExisting));
+  const res = await fetch(`${API_BASE}/resource/annotations/import`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`导入标注表格失败 (${res.status})：${detail}`);
+  }
+  return res.json();
+}
+
+export async function listAnnotations(params: {
+  limit?: number;
+  offset?: number;
+} = {}): Promise<AnnotationListResult> {
+  const qs = new URLSearchParams();
+  qs.set("limit", String(params.limit ?? 50));
+  qs.set("offset", String(params.offset ?? 0));
+  const res = await fetch(`${API_BASE}/resource/annotations?${qs}`);
+  if (!res.ok) throw new Error(`查询标注库失败 (${res.status})`);
+  return res.json();
+}
+
+/** 启动向量生成；force=true 全部重算，否则只补算缺失/模型不符的。 */
+export async function startAnnotationEmbedding(
+  force = false,
+): Promise<AnnotationJobStatus> {
+  const res = await fetch(
+    `${API_BASE}/resource/annotations/embeddings/rebuild?force=${force}`,
+    { method: "POST" },
+  );
+  if (!res.ok) throw new Error(`启动向量生成失败 (${res.status})`);
+  return res.json();
+}
+
+export async function fetchAnnotationJob(
+  jobId: string,
+): Promise<AnnotationJobStatus> {
+  const res = await fetch(`${API_BASE}/resource/annotation-jobs/${jobId}`);
+  if (!res.ok) throw new Error(`查询向量任务失败 (${res.status})`);
+  return res.json();
+}
+
+export async function clearAnnotations(): Promise<{ deleted: number }> {
+  const res = await fetch(`${API_BASE}/resource/annotations`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`清空标注库失败 (${res.status})`);
   return res.json();
 }

@@ -8,6 +8,7 @@ import HeaderCard from "../components/HeaderCard";
 import RadarChart from "../components/RadarChart";
 import MetricBreakdown from "../components/MetricBreakdown";
 import ReportSummary from "../components/ReportSummary";
+import SimilarAnnotations from "../components/SimilarAnnotations";
 import { LAST_EVAL_KEY } from "../components/ActiveTaskGuard";
 import { getEvaluationResult } from "../../lib/api";
 import type { EvaluationResult } from "../types";
@@ -110,20 +111,16 @@ function ResultView({ data }: { data: EvaluationResult }) {
           subDimensions={data.sub_dimension_scores}
           metrics={data.metric_scores}
           showReason={show("metric_reason")}
+          imageAttributes={
+            show("image_attribute") ? data.image_attributes : []
+          }
         />
       )}
 
+      {/* 相似审美节点：人工标注库里最相似的标注图（照片点评才有）。
+          组件在无候选时自行返回 null，故文字点评下该区块不占位。 */}
       {show("similar_streets") && (
-        /* TODO: 相似街道推荐。待 street_similarity 表产出数据后接入，
-            目前评价链未生成相似街巷，先以占位提示保留区块。 */
-        <section>
-          <h3 className="text-sm font-bold text-[#536471] mb-3 uppercase tracking-widest">
-            相似审美节点
-          </h3>
-          <div className="border border-dashed border-[#eff3f4] p-6 text-center text-sm text-[#536471]">
-            相似街道推荐即将上线（待接入 street_similarity 数据）
-          </div>
-        </section>
+        <SimilarAnnotations items={data.similar_annotations} />
       )}
     </div>
   );

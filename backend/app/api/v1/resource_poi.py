@@ -6,21 +6,30 @@ import json
 from datetime import datetime
 from typing import Any
 
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from app.db import repository as repo
 from app.db.session import connection_scope
 from app.schemas.resource import (
+    AnnotationImportResult,
+    AnnotationJobOut,
+    AnnotationListOut,
     PoiImportResult,
     PoiListOut,
     ProfileJobOut,
     ResourceStreetOut,
     StreetProfileDetail,
 )
-from app.services import poi_import_service, profile_service
+from app.services import annotation_import_service, poi_import_service, profile_service
 from app.services.retriever import StreetFacts
 
 router = APIRouter(prefix="/resource", tags=["resource"])
+
+# 标注表格体积上限：源文件 147MB（内嵌 30 张高清图），与图片端点的 10MB 无关
+_MAX_XLSX_BYTES = 300 * 1024 * 1024
 
 
 def _dt(v: Any) -> str | None:
@@ -168,3 +177,89 @@ def get_profile_job(job_id: str) -> ProfileJobOut:
     if not job:
         raise HTTPException(status_code=404, detail="任务不存在")
     return ProfileJobOut(**job)
+
+
+# ──────────────── 人工标注库（图片属性匹配） ────────────────
+
+
+@router.post("/annotations/import", response_model=AnnotationImportResult)
+async def import_annotation_file(
+    file: UploadFile = File(...),
+    clear_existing: bool = Form(False),
+) -> AnnotationImportResult:
+    """上传 WPS 标注表格（含 DISPIMG 内嵌图）→ 解析 + 图片落盘 + 属性入库。
+
+    刻意不用 `await file.read()`：源文件 147MB，整份读进内存不合适。改为流式
+    copy 到临时文件再交给解析器，结束后无论成败都删掉临时文件。
+    """
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="请上传 .xlsx 格式的标注表格")
+
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp_path = tmp.name
+            # 分块拷贝，同时累计大小以便超限即停，不把整份文件读进内存
+            size = 0
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > _MAX_XLSX_BYTES:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"文件不得超过 {_MAX_XLSX_BYTES // (1024 * 1024)}MB",
+                    )
+                tmp.write(chunk)
+        if size == 0:
+            raise HTTPException(status_code=400, detail="文件为空")
+
+        result = annotation_import_service.import_annotation_xlsx(
+            temp_path=tmp_path, clear_existing=clear_existing
+        )
+    except HTTPException:
+        raise
+    except ValueError as exc:  # 解析层的明确报错（非预期格式等）
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"导入失败：{exc}") from exc
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+    return AnnotationImportResult(**result)
+
+
+@router.get("/annotations", response_model=AnnotationListOut)
+def list_annotations(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> AnnotationListOut:
+    """标注图列表（带属性与向量状态）+ 库概览计数。"""
+    data = annotation_import_service.list_annotations(limit=limit, offset=offset)
+    return AnnotationListOut(**data)
+
+
+@router.post("/annotations/embeddings/rebuild", response_model=AnnotationJobOut)
+def start_annotation_embedding(force: bool = Query(False)) -> AnnotationJobOut:
+    """启动向量生成任务，立即返回 job_id（前端轮询状态）。
+
+    :param force: False 只补算缺失/模型不符的；True 全部重算
+    """
+    job_id = annotation_import_service.start_embedding_job(force=force)
+    job = annotation_import_service.get_embedding_job(job_id)
+    if job is None:  # 理论不可达，防御性处理
+        raise HTTPException(status_code=500, detail="任务创建失败")
+    return AnnotationJobOut(**job)
+
+
+@router.get("/annotation-jobs/{job_id}", response_model=AnnotationJobOut)
+def get_annotation_job(job_id: str) -> AnnotationJobOut:
+    job = annotation_import_service.get_embedding_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return AnnotationJobOut(**job)
+
+
+@router.delete("/annotations")
+def clear_annotations() -> dict[str, int]:
+    """清空标注库（含磁盘图片）。破坏性操作，前端需二次确认。"""
+    removed = annotation_import_service.clear_annotations()
+    return {"deleted": removed}

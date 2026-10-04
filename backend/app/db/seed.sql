@@ -232,5 +232,6 @@ INSERT INTO analytics_display_config (block_key, block_group, name, description,
   ('sub_dimension',   'detail',   '二级维度明细',   '每个一级维度下 5 个二级维度的得分明细',                       1, 1),
   ('metric_score',    'detail',   '三级指标得分',   '全部 75 个三级指标的逐项得分',                               1, 2),
   ('metric_reason',   'detail',   '得分依据',       '三级指标的 AI 评分理由（依赖「三级指标得分」开启）',         1, 3),
+  ('image_attribute', 'detail',   '图片属性',       '照片点评时匹配人工标注库得到的属性标签（显示在三级指标得分后）', 1, 4),
   ('ai_summary',      'report',   'AI 街道画像',    'AI 生成的综合评价画像文本',                                 1, 1),
-  ('similar_streets', 'report',   '相似审美节点',   '相似街区推荐区块（数据接入后展示）',                         1, 2);
+  ('similar_streets', 'report',   '相似审美节点',   '照片点评时，人工标注库中最相似的标注图缩略图（含相似度）',     1, 2);

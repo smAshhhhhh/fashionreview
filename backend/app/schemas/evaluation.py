@@ -63,6 +63,39 @@ class MetricScoreOut(BaseModel):
     weight: float | None = None
 
 
+class ImageAttributeOut(BaseModel):
+    """一条图片属性（匹配人工标注库得到）。
+
+    挂在三级指标行上渲染，故 metric_id 必有值（解析不到的已在服务层过滤）。
+    本版只下发成语原文，不折算分值、不下发相似度与标注图信息。
+    """
+
+    metric_id: int
+    metric_name: str | None = None
+    grade_word: str
+
+
+class SimilarAnnotationAttr(BaseModel):
+    """候选标注图自身的一条属性（用于缩略图下的风格标注）。"""
+
+    metric_name: str | None = None
+    grade_word: str | None = None
+
+
+class SimilarAnnotationOut(BaseModel):
+    """一个相似标注图候选（「相似审美节点」区块）。
+
+    相似度下限由 annotation_similar_min_similarity 控制，仅作展示过滤 ——
+    Top-1 赋属性不受其影响。
+    """
+
+    annotation_id: int
+    file_name: str
+    image_url: str
+    similarity: float
+    attributes: list[SimilarAnnotationAttr] = []
+
+
 class AnalyzeAccepted(BaseModel):
     """提交分析后的受理响应（异步：此刻只有 task_id）。"""
 
@@ -99,6 +132,10 @@ class EvaluationResult(BaseModel):
     dimension_scores: list[DimensionScoreOut] = []
     sub_dimension_scores: list[SubDimensionScoreOut] = []
     metric_scores: list[MetricScoreOut] = []
+    # 图片属性标签（照片点评匹配标注库所得）；文字点评恒为空数组
+    image_attributes: list[ImageAttributeOut] = []
+    # 相似标注图候选（Top-N 中过相似度下限的），供「相似审美节点」区块展示
+    similar_annotations: list[SimilarAnnotationOut] = []
 
 
 class HistoryItemOut(BaseModel):

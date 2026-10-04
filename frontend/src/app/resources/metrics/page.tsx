@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Sidebar from "../../components/Sidebar";
 import MobileBottomNav from "../../components/MobileBottomNav";
@@ -483,6 +483,43 @@ function TreeEditor({
   const toggleDim = (dimId: number) =>
     setOpenDims((m) => ({ ...m, [dimId]: !m[dimId] }));
 
+  // 权重校验（与后端 validate_tree_weights 同口径）：每组同级兄弟之和须为 100%
+  const weightCheck = useMemo(() => {
+    const dimSum = sumWeights(dims.map((d) => d.dim_weight));
+    const subSums = new Map<number, number>();
+    const metricSums = new Map<number, number>();
+    for (const d of dims) {
+      subSums.set(d.dim_id, sumWeights(d.subs.map((s) => s.sub_weight)));
+      for (const s of d.subs) {
+        metricSums.set(
+          s.sub_id,
+          sumWeights(s.metrics.map((m) => m.metric_weight)),
+        );
+      }
+    }
+    // 「组内无条目」才跳过（与后端 _check_weight_group 同口径）；
+    // 有条目但全填 0 要报，否则保存后会被静默等权化
+    const problems: string[] = [];
+    if (dims.length > 0 && !isOneHundred(dimSum)) {
+      problems.push(`一级维度合计 ${pct(dimSum)}%`);
+    }
+    for (const d of dims) {
+      const ss = subSums.get(d.dim_id);
+      if (d.subs.length > 0 && ss != null && !isOneHundred(ss)) {
+        problems.push(`「${d.dim_name}」的二级维度合计 ${pct(ss)}%`);
+      }
+      for (const s of d.subs) {
+        const ms = metricSums.get(s.sub_id);
+        if (s.metrics.length > 0 && ms != null && !isOneHundred(ms)) {
+          problems.push(`「${d.dim_name}」→「${s.sub_name}」的三级指标合计 ${pct(ms)}%`);
+        }
+      }
+    }
+    return { dimSum, subSums, metricSums, problems };
+  }, [dims]);
+
+  const hasWeightProblem = weightCheck.problems.length > 0;
+
   // 阅读 / 编辑模式：默认阅读，点击「修改」才进入编辑
   const [editMode, setEditMode] = useState(false);
   // 切换模板时回到阅读模式（渲染期派生，避免 effect 内 setState）
@@ -493,6 +530,8 @@ function TreeEditor({
   }
 
   const handleSaveClick = () => {
+    // 权重不合规时不提交：后端同样会拒（422），这里提前拦住以免白跑一趟请求
+    if (hasWeightProblem) return;
     onSave();
     setEditMode(false);
   };
@@ -545,8 +584,13 @@ function TreeEditor({
             <button
               type="button"
               onClick={handleSaveClick}
-              disabled={busy}
-              className="flex items-center gap-2 rounded-full bg-primary-container px-5 py-2 text-sm font-bold text-on-primary-fixed shadow-sm hover:opacity-90 disabled:opacity-50 transition-all active:scale-95"
+              disabled={busy || hasWeightProblem}
+              title={
+                hasWeightProblem
+                  ? "权重合计不为 100%，请先修正后再保存"
+                  : undefined
+              }
+              className="flex items-center gap-2 rounded-full bg-primary-container px-5 py-2 text-sm font-bold text-on-primary-fixed shadow-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
             >
               <span className="material-symbols-outlined text-[18px]">save</span>
               {inUse ? "另存为新模板" : "保存更改"}
@@ -563,6 +607,53 @@ function TreeEditor({
           )}
         </div>
       </div>
+
+      {/* 权重合计提示：仅编辑态显示。合计失真不会报错（后端按实际和归一化），
+          所以必须在界面上说清楚，否则填错了页面显示的百分比与真实生效的权重不一致。 */}
+      {editMode && (
+        <div
+          className={`mb-6 rounded-2xl border px-5 py-4 ${
+            hasWeightProblem
+              ? "border-[#ffb300]/40 bg-[#fff8e1]"
+              : "border-[#1b5e20]/20 bg-[#e8f5e9]"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <span
+              className={`material-symbols-outlined text-[20px] shrink-0 ${
+                hasWeightProblem ? "text-[#8d6e00]" : "text-[#1b5e20]"
+              }`}
+            >
+              {hasWeightProblem ? "warning" : "check_circle"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p
+                className={`text-[14px] font-bold ${
+                  hasWeightProblem ? "text-[#8d6e00]" : "text-[#1b5e20]"
+                }`}
+              >
+                {hasWeightProblem
+                  ? `有 ${weightCheck.problems.length} 组权重合计不为 100%，无法保存`
+                  : "各级权重合计均为 100%"}
+              </p>
+              {hasWeightProblem && (
+                <ul className="mt-2 space-y-1">
+                  {weightCheck.problems.slice(0, 8).map((p) => (
+                    <li key={p} className="text-[13px] text-[#8d6e00]">
+                      · {p}
+                    </li>
+                  ))}
+                  {weightCheck.problems.length > 8 && (
+                    <li className="text-[13px] text-[#8d6e00]/80">
+                      · 另有 {weightCheck.problems.length - 8} 组，展开对应维度查看
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 维度手风琴（发丝线分隔） */}
       <div className="border border-[#eff3f4] rounded-2xl overflow-hidden divide-y divide-[#eff3f4]">
@@ -605,6 +696,7 @@ function TreeEditor({
                     <PercentInput
                       value={d.dim_weight}
                       onChange={(v) => onEditDim(di, { dim_weight: v })}
+                      invalid={!isOneHundred(weightCheck.dimSum)}
                     />
                   ) : (
                     <span className="text-[20px] font-black text-primary-container tabular-nums">
@@ -624,6 +716,13 @@ function TreeEditor({
             {/* 展开内容 */}
             {open && (
             <div className="border-t border-[#eff3f4] bg-surface-container-low/40 p-5 space-y-5">
+              {/* 该维度下二级权重合计，便于就地定位是哪一组填错 */}
+              {editMode && (
+                <SumBadge
+                  label="二级维度合计"
+                  total={weightCheck.subSums.get(d.dim_id) ?? 0}
+                />
+              )}
               {d.subs.map((s, si) => (
                 <div
                   key={s.sub_id}
@@ -728,6 +827,19 @@ function TreeEditor({
                           </td>
                         </tr>
                       ))}
+                      {/* 三级权重合计行：紧跟在输入框下方，改一格立刻看到合计变化 */}
+                      {editMode && (
+                        <tr className="bg-surface-container-low/60">
+                          <td className="px-4 py-2 text-[12px] font-bold text-[#536471]">
+                            合计
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <SumText
+                              total={weightCheck.metricSums.get(s.sub_id) ?? 0}
+                            />
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -742,14 +854,49 @@ function TreeEditor({
   );
 }
 
+/* ──────────────── 权重合计校验 ──────────────── */
+
+/**
+ * 同级权重和的容差，与后端 metric_template_service.WEIGHT_SUM_TOLERANCE 一致。
+ *
+ * 通例是和恰为 1（如三级 0.5/0.3/0.2）；但等分时除不尽 —— 3 个 0.3333 和为
+ * 0.9999（DECIMAL(6,4) 存不下 1/3）。容差只为放过这类等分舍入，对不等权的情形
+ * 没有放松：0.9 / 1.1 这类真错填差值是容差的 100 倍，照样判为不合规。
+ */
+const WEIGHT_SUM_TOLERANCE = 0.001;
+
+/** 权重求和；空数组返回 0。 */
+function sumWeights(weights: number[]): number {
+  return weights.reduce((acc, w) => acc + (Number.isFinite(w) ? w : 0), 0);
+}
+
+/**
+ * 和是否约等于 1。
+ *
+ * 不对 0 放行：有条目却全填 0 必须判为不合规 —— 保存后 scoring_service 会退化成
+ * 等权，界面却显示 0%，正是要防的静默失真。「组内无条目」由调用方按长度跳过，
+ * 与后端 _check_weight_group 的 `if not weights: return` 同口径。
+ */
+function isOneHundred(total: number): boolean {
+  return Math.abs(total - 1) <= WEIGHT_SUM_TOLERANCE;
+}
+
+/** 0-1 权重和转百分比显示，最多一位小数（99.99% 这类舍入噪声收敛为 100）。 */
+function pct(total: number): number {
+  return Math.round(total * 1000) / 10;
+}
+
 /* ──────────────── 权重输入（百分比，存回 0-1） ──────────────── */
 
 function PercentInput({
   value,
   onChange,
+  invalid = false,
 }: {
   value: number;
   onChange: (v: number) => void;
+  /** 所在分组合计不为 100% 时描边标红，提示问题出在这一组 */
+  invalid?: boolean;
 }) {
   return (
     <label className="shrink-0 flex items-center gap-1 text-[12px] font-bold text-[#536471]">
@@ -760,9 +907,46 @@ function PercentInput({
         max="100"
         value={Math.round(value * 1000) / 10}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
-        className="w-16 rounded-xl border border-[#eff3f4] bg-white px-2 py-1.5 text-[13px] font-bold text-[#0f1419] text-right outline-none focus:border-primary-container transition-colors"
+        className={`w-16 rounded-xl border bg-white px-2 py-1.5 text-[13px] font-bold text-[#0f1419] text-right outline-none transition-colors ${
+          invalid
+            ? "border-[#ffb300] focus:border-[#ffb300]"
+            : "border-[#eff3f4] focus:border-primary-container"
+        }`}
       />
       %
     </label>
+  );
+}
+
+/** 分组权重合计徽标（二级维度组用）。 */
+function SumBadge({ label, total }: { label: string; total: number }) {
+  const ok = isOneHundred(total);
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-bold ${
+        ok ? "bg-[#e8f5e9] text-[#1b5e20]" : "bg-[#fff8e1] text-[#8d6e00]"
+      }`}
+    >
+      <span className="material-symbols-outlined text-[16px]">
+        {ok ? "check_circle" : "warning"}
+      </span>
+      {label} {pct(total)}%{!ok && "（应为 100%）"}
+    </div>
+  );
+}
+
+/** 分组权重合计文字（三级指标表格的合计行用）。 */
+function SumText({ total }: { total: number }) {
+  const ok = isOneHundred(total);
+  return (
+    <span
+      className={`text-[13px] font-black tabular-nums ${
+        ok ? "text-[#1b5e20]" : "text-[#8d6e00]"
+      }`}
+      title={ok ? undefined : "该组三级指标权重合计应为 100%"}
+    >
+      {pct(total)}
+      {!ok && " ⚠"}
+    </span>
   );
 }

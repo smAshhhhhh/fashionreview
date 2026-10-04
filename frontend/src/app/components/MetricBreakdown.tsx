@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type {
   DimensionScoreResult,
+  ImageAttribute,
   MetricScoreResult,
   SubDimensionScoreResult,
 } from "../types";
@@ -30,12 +31,18 @@ export default function MetricBreakdown({
   subDimensions,
   metrics,
   showReason,
+  imageAttributes = [],
 }: {
   dimensions: DimensionScoreResult[];
   subDimensions: SubDimensionScoreResult[];
   metrics: MetricScoreResult[];
   /** 是否展示三级指标的 AI 评分依据 */
   showReason: boolean;
+  /**
+   * 图片属性标签（照片点评匹配人工标注库所得），按 metric_id 挂到对应三级指标行。
+   * 文字点评、或「图片属性」区块关闭时为空数组，此时渲染结果与接入本功能前一致。
+   */
+  imageAttributes?: ImageAttribute[];
 }) {
   const [activeDim, setActiveDim] = useState<number>(dimensions[0]?.dim_id ?? 0);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -59,6 +66,19 @@ export default function MetricBreakdown({
     }
     return map;
   }, [metrics]);
+
+  // metric_id → 该指标的等级成语列表。一个指标理论上只被赋一条属性，
+  // 但用数组承接以免同名属性重复时丢数据。
+  const attrsByMetric = useMemo(() => {
+    const map = new Map<number, string[]>();
+    for (const a of imageAttributes) {
+      if (a.metric_id == null || !a.grade_word) continue;
+      const arr = map.get(a.metric_id) ?? [];
+      arr.push(a.grade_word);
+      map.set(a.metric_id, arr);
+    }
+    return map;
+  }, [imageAttributes]);
 
   if (dimensions.length === 0) return null;
 
@@ -139,6 +159,7 @@ export default function MetricBreakdown({
                   isOpen={isOpen}
                   onToggle={() => canExpand && toggle(sub.sub_id)}
                   showReason={showReason}
+                  attrsByMetric={attrsByMetric}
                 />
               );
             })}
@@ -157,6 +178,7 @@ function FragmentRow({
   isOpen,
   onToggle,
   showReason,
+  attrsByMetric,
 }: {
   sub: SubDimensionScoreResult;
   items: MetricScoreResult[];
@@ -164,6 +186,8 @@ function FragmentRow({
   isOpen: boolean;
   onToggle: () => void;
   showReason: boolean;
+  /** metric_id → 等级成语列表；无属性的指标取不到值，渲染与原先一致 */
+  attrsByMetric: Map<number, string[]>;
 }) {
   return (
     <>
@@ -221,8 +245,21 @@ function FragmentRow({
                       </p>
                     )}
                   </div>
-                  <div className="text-right font-bold text-primary-container shrink-0">
-                    {m.score}
+                  {/* 得分右侧并排：图片属性标签（绿色圆角）+ 得分。
+                      无属性时标签数组为空，渲染结果与接入本功能前完全一致。 */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {(attrsByMetric.get(m.metric_id) ?? []).map((word) => (
+                      <span
+                        key={word}
+                        className="rounded-md bg-[#e8f5e9] px-2 py-0.5 text-xs font-medium text-[#1b5e20] whitespace-nowrap"
+                        title="人工标注库匹配到的图片属性"
+                      >
+                        {word}
+                      </span>
+                    ))}
+                    <span className="font-bold text-primary-container">
+                      {m.score}
+                    </span>
                   </div>
                 </div>
               ))}

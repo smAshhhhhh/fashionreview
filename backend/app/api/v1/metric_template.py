@@ -62,12 +62,20 @@ def update_meta(template_id: int, body: MetricTemplateMetaUpdate) -> MetricTempl
 
 @router.put("/{template_id}/tree", response_model=MetricTemplateSaveResult)
 def save_tree(template_id: int, body: MetricTemplateSaveTree) -> MetricTemplateSaveResult:
-    result = svc.save_tree(
-        template_id,
-        [d.model_dump() for d in body.dims],
-        save_as_new=body.save_as_new,
-        new_name=body.new_name,
-    )
+    try:
+        result = svc.save_tree(
+            template_id,
+            [d.model_dump() for d in body.dims],
+            save_as_new=body.save_as_new,
+            new_name=body.new_name,
+        )
+    except svc.WeightSumError as exc:
+        # 422：请求结构合法但内容不满足业务约束（同级权重和须为 100%）。
+        # detail 下发全部不合规分组，前端一次性列出，避免用户反复试错。
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "权重之和必须为 100%", "errors": exc.errors},
+        ) from exc
     if result is None:
         raise HTTPException(status_code=404, detail="模板不存在")
     return MetricTemplateSaveResult(

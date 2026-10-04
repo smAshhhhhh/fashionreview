@@ -24,6 +24,7 @@ SQL_DIR = Path(__file__).resolve().parent
 SCHEMA_FILES = [
     SQL_DIR / "schema.sql",
     SQL_DIR / "schema_ai.sql",
+    SQL_DIR / "schema_annotation.sql",
 ]
 SEED_FILE = SQL_DIR / "seed.sql"
 

@@ -42,6 +42,8 @@ app.include_router(api_router, prefix="/api/v1")
 _static_root = Path(settings.upload_dir).parent  # static/
 _static_root.mkdir(parents=True, exist_ok=True)
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+# 人工标注库图片同挂 static/ 之下，随上面这一次 mount 一起对外可访问
+Path(settings.annotation_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_static_root)), name="static")
 
 

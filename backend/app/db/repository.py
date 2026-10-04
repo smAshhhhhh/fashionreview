@@ -1135,3 +1135,416 @@ def update_display_config_enabled(
             (enabled, block_key),
         )
 
+
+# ──────────────────────────────────────────────
+# 人工标注库（图片属性匹配）
+# ──────────────────────────────────────────────
+
+def upsert_annotation_image(
+    conn: pymysql.connections.Connection,
+    *,
+    file_name: str,
+    image_url: str,
+    row_no: int | None = None,
+) -> tuple[int, bool]:
+    """按 file_name 幂等写入标注图，返回 (annotation_id, existed)。
+
+    重复导入同一份 xlsx 时**保留已算好的 embedding**（图片字节未变就不必重算），
+    故 UPDATE 不触碰 embedding 相关列。
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM annotation_image WHERE file_name = %s LIMIT 1",
+            (file_name,),
+        )
+        row = cur.fetchone()
+        if row:
+            annotation_id = row[0]
+            cur.execute(
+                "UPDATE annotation_image SET image_url = %s, row_no = %s WHERE id = %s",
+                (image_url, row_no, annotation_id),
+            )
+            return annotation_id, True
+        cur.execute(
+            "INSERT INTO annotation_image (file_name, image_url, row_no) "
+            "VALUES (%s, %s, %s)",
+            (file_name, image_url, row_no),
+        )
+        return cur.lastrowid, False
+
+
+def replace_annotation_attributes(
+    conn: pymysql.connections.Connection,
+    annotation_id: int,
+    attributes: list[dict[str, Any]],
+) -> int:
+    """整体替换某标注图的属性（先删后插），返回写入条数。
+
+    属性是「一图一组」的整体，逐条 upsert 无从判断哪条被删了；先删后插最简单也
+    最不容易留下脏数据。调用方在同一事务内使用。
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM annotation_attribute WHERE annotation_id = %s",
+            (annotation_id,),
+        )
+        if not attributes:
+            return 0
+        cur.executemany(
+            """
+            INSERT INTO annotation_attribute
+                (annotation_id, attr_index, raw_text, metric_name, grade_word)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            [
+                (
+                    annotation_id,
+                    a["attr_index"],
+                    a["raw_text"],
+                    a.get("metric_name"),
+                    a.get("grade_word"),
+                )
+                for a in attributes
+            ],
+        )
+        return len(attributes)
+
+
+def update_annotation_embedding(
+    conn: pymysql.connections.Connection,
+    annotation_id: int,
+    vector: list[float],
+    model: str,
+    dim: int,
+) -> None:
+    """写入标注图的向量（已归一化的单位向量）。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE annotation_image "
+            "SET embedding = %s, embedding_model = %s, embedding_dim = %s, "
+            "    embedded_time = NOW() "
+            "WHERE id = %s",
+            (json.dumps(vector), model, dim, annotation_id),
+        )
+
+
+def _parse_vector(raw: Any) -> list[float]:
+    """embedding 列可能是 list（驱动已解码 JSON）或 str，统一成 list[float]。"""
+    if isinstance(raw, list):
+        return [float(v) for v in raw]
+    if isinstance(raw, (str, bytes)):
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        if isinstance(data, list):
+            return [float(v) for v in data]
+    return []
+
+
+def list_annotation_embeddings(
+    conn: pymysql.connections.Connection, *, model: str, dim: int
+) -> list[dict[str, Any]]:
+    """取可用于匹配的标注图向量。
+
+    只返回 embedding_model / embedding_dim 与当前配置一致的行 —— 换过模型的旧向量
+    属于另一个语义空间，混比会静默算出无意义的相似度。
+    """
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT id, file_name, image_url, embedding FROM annotation_image "
+            "WHERE enabled = 1 AND embedding IS NOT NULL "
+            "  AND embedding_model = %s AND embedding_dim = %s "
+            "ORDER BY id",
+            (model, dim),
+        )
+        rows = cur.fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        r["embedding"] = _parse_vector(r.get("embedding"))
+        if r["embedding"]:
+            out.append(r)
+    return out
+
+
+def list_annotations(
+    conn: pymysql.connections.Connection,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """标注图分页列表，每项带其属性。供资源中心页面展示。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute("SELECT COUNT(*) AS c FROM annotation_image")
+        total = (cur.fetchone() or {}).get("c", 0)
+        cur.execute(
+            "SELECT id, file_name, image_url, row_no, enabled, "
+            "       embedding_model, embedding_dim, embedded_time, "
+            "       (embedding IS NOT NULL) AS has_embedding "
+            "FROM annotation_image ORDER BY row_no, id LIMIT %s OFFSET %s",
+            (limit, offset),
+        )
+        items = cur.fetchall()
+        if items:
+            ids = [i["id"] for i in items]
+            placeholders = ", ".join(["%s"] * len(ids))
+            cur.execute(
+                "SELECT annotation_id, attr_index, raw_text, metric_name, grade_word "
+                f"FROM annotation_attribute WHERE annotation_id IN ({placeholders}) "
+                "ORDER BY annotation_id, attr_index",
+                tuple(ids),
+            )
+            by_ann: dict[int, list[dict[str, Any]]] = {}
+            for a in cur.fetchall():
+                by_ann.setdefault(a["annotation_id"], []).append(a)
+            for i in items:
+                i["attributes"] = by_ann.get(i["id"], [])
+    return {"total": total, "items": items}
+
+
+def count_annotations(conn: pymysql.connections.Connection) -> dict[str, int]:
+    """标注库概览计数：图片数 / 属性数 / 已生成向量数。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS image_count, "
+            "       SUM(embedding IS NOT NULL) AS embedded_count "
+            "FROM annotation_image"
+        )
+        row = cur.fetchone() or {}
+        cur.execute("SELECT COUNT(*) AS attr_count FROM annotation_attribute")
+        attr = cur.fetchone() or {}
+    return {
+        "image_count": int(row.get("image_count") or 0),
+        "embedded_count": int(row.get("embedded_count") or 0),
+        "attr_count": int(attr.get("attr_count") or 0),
+    }
+
+
+def list_annotation_ids_without_embedding(
+    conn: pymysql.connections.Connection, *, model: str, dim: int
+) -> list[int]:
+    """待算向量的标注图 id：无向量、或向量产自别的模型 / 别的维度。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM annotation_image "
+            "WHERE embedding IS NULL OR embedding_model <> %s OR embedding_dim <> %s "
+            "ORDER BY id",
+            (model, dim),
+        )
+        return [r[0] for r in cur.fetchall()]
+
+
+def list_all_annotation_ids(conn: pymysql.connections.Connection) -> list[int]:
+    """全部标注图 id（强制重算向量时用）。"""
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM annotation_image ORDER BY id")
+        return [r[0] for r in cur.fetchall()]
+
+
+def get_annotation_image_url(
+    conn: pymysql.connections.Connection, annotation_id: int
+) -> str | None:
+    """取标注图的相对 url（/static/annotations/xxx.jpg）。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT image_url FROM annotation_image WHERE id = %s", (annotation_id,)
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
+def get_annotation_attributes(
+    conn: pymysql.connections.Connection, annotation_id: int
+) -> list[dict[str, Any]]:
+    """取某标注图的全部属性，按源列序号排序。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT attr_index, raw_text, metric_name, grade_word "
+            "FROM annotation_attribute WHERE annotation_id = %s ORDER BY attr_index",
+            (annotation_id,),
+        )
+        return cur.fetchall()
+
+
+def delete_all_annotations(conn: pymysql.connections.Connection) -> int:
+    """清空标注库，返回删除的图片数（属性随外键级联删除）。"""
+    with conn.cursor() as cur:
+        return cur.execute("DELETE FROM annotation_image")
+
+
+# ──────────── 点评侧：匹配结果与被赋予的属性 ────────────
+
+def create_evaluation_image_match(
+    conn: pymysql.connections.Connection,
+    evaluation_id: int,
+    *,
+    annotation_id: int | None,
+    similarity: float | None,
+    candidates: list[dict[str, Any]] | None,
+    embedding_model: str | None,
+    attr_count: int = 0,
+) -> None:
+    """写入一次点评的匹配结果（evaluation_id 唯一，重复提交则覆盖）。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO evaluation_image_match
+                (evaluation_id, annotation_id, similarity, candidates,
+                 embedding_model, attr_count)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                annotation_id = VALUES(annotation_id),
+                similarity = VALUES(similarity),
+                candidates = VALUES(candidates),
+                embedding_model = VALUES(embedding_model),
+                attr_count = VALUES(attr_count)
+            """,
+            (
+                evaluation_id,
+                annotation_id,
+                similarity,
+                json.dumps(candidates, ensure_ascii=False) if candidates else None,
+                embedding_model,
+                attr_count,
+            ),
+        )
+
+
+def bulk_insert_evaluation_image_attributes(
+    conn: pymysql.connections.Connection,
+    evaluation_id: int,
+    rows: list[dict[str, Any]],
+) -> None:
+    """批量写入本次点评被赋予的图片属性。
+
+    rows: [{metric_id, metric_name, grade_word, raw_text}]
+    metric_name / grade_word / raw_text 冗余存快照，不靠 join —— 评价结果是已发生
+    事实，标注库后续修改不得改变历史点评的显示内容。
+    """
+    if not rows:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM evaluation_image_attribute WHERE evaluation_id = %s",
+            (evaluation_id,),
+        )
+        cur.executemany(
+            """
+            INSERT INTO evaluation_image_attribute
+                (evaluation_id, metric_id, metric_name, grade_word, raw_text)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            [
+                (
+                    evaluation_id,
+                    r.get("metric_id"),
+                    r.get("metric_name"),
+                    r.get("grade_word"),
+                    r["raw_text"],
+                )
+                for r in rows
+            ],
+        )
+
+
+def fetch_evaluation_image_attributes(
+    conn: pymysql.connections.Connection, evaluation_id: int
+) -> list[dict[str, Any]]:
+    """取某次点评被赋予的图片属性（供结果接口下发）。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT metric_id, metric_name, grade_word, raw_text "
+            "FROM evaluation_image_attribute WHERE evaluation_id = %s ORDER BY id",
+            (evaluation_id,),
+        )
+        return cur.fetchall()
+
+
+def fetch_evaluation_image_candidates(
+    conn: pymysql.connections.Connection,
+    evaluation_id: int,
+    *,
+    min_similarity: float = 0.0,
+) -> list[dict[str, Any]]:
+    """取某次点评的相似标注图候选（Top-N），按相似度降序。
+
+    候选本身存在 evaluation_image_match.candidates（JSON 留痕），但其中只有
+    annotation_id / file_name / similarity，**没有 image_url** —— 要显示缩略图
+    须回 annotation_image 取。这里顺带按 id 过滤掉已被删除的标注图（清空标注库后
+    历史点评的候选会指向不存在的行，此时不渲染缩略图而非给出 404 图）。
+
+    :param min_similarity: 相似度下限（不含）。这是**展示过滤**，与匹配无关 ——
+        Top-1 赋属性始终不设阈值，此处只是不把「勉强有点像」的图摆到结果页上。
+    """
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT candidates FROM evaluation_image_match WHERE evaluation_id = %s",
+            (evaluation_id,),
+        )
+        row = cur.fetchone()
+        if not row or not row.get("candidates"):
+            return []
+
+        raw = row["candidates"]
+        if isinstance(raw, (str, bytes)):
+            try:
+                items = json.loads(raw)
+            except (TypeError, ValueError):
+                return []
+        else:
+            items = raw
+        if not isinstance(items, list):
+            return []
+
+        picked: list[dict[str, Any]] = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            try:
+                sim = float(it.get("similarity"))
+            except (TypeError, ValueError):
+                continue
+            aid = it.get("annotation_id")
+            if aid is None or sim <= min_similarity:
+                continue
+            picked.append({"annotation_id": int(aid), "similarity": sim})
+        if not picked:
+            return []
+
+        placeholders = ", ".join(["%s"] * len(picked))
+        cur.execute(
+            "SELECT id, file_name, image_url FROM annotation_image "
+            f"WHERE id IN ({placeholders})",
+            tuple(p["annotation_id"] for p in picked),
+        )
+        by_id = {r["id"]: r for r in cur.fetchall()}
+
+        # 同时带出各候选图的属性，供前端在缩略图上标注其风格
+        cur.execute(
+            "SELECT annotation_id, metric_name, grade_word FROM annotation_attribute "
+            f"WHERE annotation_id IN ({placeholders}) ORDER BY annotation_id, attr_index",
+            tuple(p["annotation_id"] for p in picked),
+        )
+        attrs_by_id: dict[int, list[dict[str, Any]]] = {}
+        for a in cur.fetchall():
+            attrs_by_id.setdefault(a["annotation_id"], []).append(
+                {"metric_name": a["metric_name"], "grade_word": a["grade_word"]}
+            )
+
+    out: list[dict[str, Any]] = []
+    for p in picked:
+        img = by_id.get(p["annotation_id"])
+        if not img:
+            continue  # 标注图已被删除，跳过而非渲染坏图
+        out.append(
+            {
+                "annotation_id": p["annotation_id"],
+                "file_name": img["file_name"],
+                "image_url": img["image_url"],
+                "similarity": round(p["similarity"], 5),
+                "attributes": attrs_by_id.get(p["annotation_id"], []),
+            }
+        )
+    out.sort(key=lambda x: x["similarity"], reverse=True)
+    return out
+

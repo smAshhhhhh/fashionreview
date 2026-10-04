@@ -66,6 +66,39 @@ export interface MetricScoreResult {
   weight?: number | null;
 }
 
+/**
+ * 一条图片属性（照片点评匹配人工标注库所得）。
+ *
+ * 挂在三级指标行上渲染，故 metric_id 必有值 —— 后端已过滤掉解析不到指标的条目。
+ * 本版只有成语原文，不带分值、不带相似度与标注图信息。
+ */
+export interface ImageAttribute {
+  /** 对齐的三级指标 id */
+  metric_id: number;
+  /** 属性指标名，如「色彩控制力」 */
+  metric_name: string | null;
+  /** 等级成语，如「繁简相宜」 */
+  grade_word: string;
+}
+
+/**
+ * 一个相似标注图候选（「相似审美节点」区块）。
+ *
+ * 相似度下限由后端 annotation_similar_min_similarity 控制（默认 0.5），只作展示
+ * 过滤 —— Top-1 赋属性本身不设阈值。故此数组可能比后端留痕的 Top-N 更短，
+ * 甚至为空（全部候选都不够像）。
+ */
+export interface SimilarAnnotation {
+  annotation_id: number;
+  file_name: string;
+  /** 标注图相对路径 /static/annotations/...，用 assetUrl() 拼完整地址 */
+  image_url: string;
+  /** 余弦相似度 0~1 */
+  similarity: number;
+  /** 该标注图自身的属性，用于缩略图下的风格标注 */
+  attributes: { metric_name: string | null; grade_word: string | null }[];
+}
+
 /** 评价结果查询响应 */
 export interface EvaluationResult {
   evaluation_id: number;
@@ -82,6 +115,10 @@ export interface EvaluationResult {
   dimension_scores: DimensionScoreResult[];
   sub_dimension_scores: SubDimensionScoreResult[];
   metric_scores: MetricScoreResult[];
+  /** 图片属性标签；文字点评、或「图片属性」区块关闭时为空数组 */
+  image_attributes: ImageAttribute[];
+  /** 相似标注图候选；文字点评、或「相似审美节点」区块关闭时为空数组 */
+  similar_annotations: SimilarAnnotation[];
 }
 
 /** 历史记录列表项（对齐后端 /analyze/history，分制 1.0~5.0） */
