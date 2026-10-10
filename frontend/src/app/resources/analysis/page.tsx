@@ -45,8 +45,14 @@ const GROUP_META: Record<string, GroupMeta> = {
     icon: "description",
     desc: "AI 街道画像与相似街区推荐",
   },
+  // flow 不是结果页区块，而是点评链路的流程开关
+  flow: {
+    label: "流程控制",
+    icon: "account_tree",
+    desc: "照片点评的地点确认等链路流程开关",
+  },
 };
-const GROUP_ORDER = ["overview", "visual", "detail", "report"];
+const GROUP_ORDER = ["overview", "visual", "detail", "report", "flow"];
 
 export default function AnalysisConfigPage() {
   const [configs, setConfigs] = useState<AnalyticsDisplayConfig[]>([]);

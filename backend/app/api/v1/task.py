@@ -19,7 +19,10 @@ from app.services import evaluation_service
 
 router = APIRouter(prefix="/task", tags=["task"])
 
-_TERMINAL = {"completed", "failed", "cancelled"}
+# SSE 应当收尾关闭的状态。
+# awaiting_confirm 并非任务终态（用户确认后还会继续评分），但等待可能持续几分钟，
+# 挂着连接毫无意义 —— 推完最后一帧即断开，前端在确认成功后重新订阅。
+_TERMINAL = {"completed", "failed", "cancelled", "awaiting_confirm"}
 
 
 def _load(task_id: int) -> dict | None:

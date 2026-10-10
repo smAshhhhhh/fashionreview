@@ -85,7 +85,7 @@ CREATE TABLE ai_analysis_task (
     text_input  TEXT         NULL COMMENT '文本输入内容',
     image_url   VARCHAR(500) NULL COMMENT '上传图片地址（MinIO）',
     evaluation_id BIGINT     NULL COMMENT '关联的评价任务（street_evaluation）',
-    status      ENUM('pending','analyzing','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
+    status      ENUM('pending','analyzing','awaiting_confirm','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
     progress      INT          NOT NULL DEFAULT 0 COMMENT '进度百分比 0~100',
     current_stage VARCHAR(100) NULL COMMENT '当前阶段标识，如 space_score',
     stage_message VARCHAR(500) NULL COMMENT '当前阶段文案，前端展示',

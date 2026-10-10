@@ -37,7 +37,8 @@ function clearActiveTaskId(): void {
  *
  * 读 localStorage.activeTaskId → 以后端真实状态为准：
  *   - 仍在跑（pending/analyzing）→ 跳进度页 /progress 继续显示进度条
- *   - 已 completed / failed       → 清账放行
+ *   - 等待确认地点（awaiting_confirm）→ 同样跳进度页，在那里渲染确认卡
+ *   - 已 completed / failed / cancelled → 清账放行
  *   - 查询失败 / 任务不存在        → 清账放行（脏数据自愈）
  *   - 无活跃任务                   → 直接放行
  *
@@ -73,13 +74,19 @@ export default function ActiveTaskGuard({
       try {
         const snap = await fetchTaskProgress(taskId);
         if (cancelled) return;
-        if (snap.status === "pending" || snap.status === "analyzing") {
+        if (
+          snap.status === "pending" ||
+          snap.status === "analyzing" ||
+          // 等待确认地点：任务未结束，只是在等用户决定。若按「已结束」清账放行，
+          // 用户回首页就把待确认的任务丢了，照片白传、识别白跑。
+          snap.status === "awaiting_confirm"
+        ) {
           // 仍在跑：回到进度页，replace 不留历史栈
           setPhase("redirecting");
           router.replace(`/progress?taskId=${taskId}`);
           return;
         }
-        // completed / failed：任务已结束，清账放行
+        // completed / failed / cancelled：任务已结束，清账放行
         clearActiveTaskId();
         setPhase("ready");
       } catch {

@@ -17,6 +17,22 @@ def list_config() -> list[dict[str, Any]]:
         return repo.list_display_config(conn)
 
 
+def is_enabled(block_key: str, *, default: bool = True) -> bool:
+    """某个配置项是否启用（自开连接，供链路内判断流程开关）。
+
+    除结果页展示区块外，flow 分组放的是链路流程开关（如 image_confirm_location）。
+    查询失败或该行不存在时返回 default —— 配置缺失不应让点评链路挂掉。
+    """
+    try:
+        with connection_scope() as conn:
+            row = repo.get_display_config(conn, block_key)
+    except Exception:  # noqa: BLE001 - 配置读取失败按默认值放行，不拖垮链路
+        return default
+    if row is None:
+        return default
+    return row["enabled"] == 1
+
+
 def enabled_blocks(conn: pymysql.connections.Connection) -> set[str]:
     """启用中的区块 block_key 集合（供结果接口按配置过滤字段）。
 

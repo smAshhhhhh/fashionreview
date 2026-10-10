@@ -850,9 +850,14 @@ def update_ai_task(
     stage_message: str | None = None,
     stage_detail: dict[str, Any] | None = None,
     error_message: str | None = None,
+    image_url: str | None = None,
 ) -> None:
     sets: list[str] = []
     params: list[Any] = []
+    if image_url is not None:
+        # 「换图重识别」会在同一个 task 上替换图片地址
+        sets.append("image_url = %s")
+        params.append(image_url)
     if evaluation_id is not None:
         sets.append("evaluation_id = %s")
         params.append(evaluation_id)
@@ -974,6 +979,88 @@ def get_ai_task(
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute("SELECT * FROM ai_analysis_task WHERE id = %s", (task_id,))
         return cur.fetchone()
+
+
+def set_task_awaiting_confirm(
+    conn: pymysql.connections.Connection, task_id: int
+) -> bool:
+    """把任务置为「等待确认地点」，仅当它仍是 analyzing 时生效。
+
+    条件更新而非无条件写：取消请求可能恰好落在识别阶段最后一次 check_cancel
+    之后：那时 DB 已被 request_cancel 改成 cancelled，无条件写会把它复活成待确认
+    态，用户就会看到一个已取消任务的确认卡。
+
+    :return: True 已置为待确认；False 任务已不是 analyzing（已取消/失败）
+    """
+    with conn.cursor() as cur:
+        affected = cur.execute(
+            "UPDATE ai_analysis_task SET status = 'awaiting_confirm' "
+            "WHERE id = %s AND status = 'analyzing'",
+            (task_id,),
+        )
+    return affected > 0
+
+
+def delete_ai_results_by_task(
+    conn: pymysql.connections.Connection, task_id: int
+) -> int:
+    """删除某任务的识别结果行，返回删除条数。
+
+    用于「换图重识别」：旧识别结果是针对旧照片的，换图后它既不该被确认接口预填，
+    也不该被 _run_scoring_phase 当成「已有结果」而走回填分支。删掉比留着更干净 ——
+    留着会让 get_ai_result_by_task 的 ORDER BY id DESC 成为唯一正确性依赖。
+    """
+    with conn.cursor() as cur:
+        return cur.execute(
+            "DELETE FROM ai_analysis_result WHERE task_id = %s", (task_id,)
+        )
+
+
+def get_ai_result_by_task(
+    conn: pymysql.connections.Connection, task_id: int
+) -> dict[str, Any] | None:
+    """取某任务的识别结果（最新一条）。
+
+    照片确认流程中，第一段（识别）与第二段（评分）分属两次后台执行，识别结果
+    靠这张表传递；本函数也是 _run_scoring_phase 判断「该插入还是该回填」的依据。
+    """
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT * FROM ai_analysis_result WHERE task_id = %s "
+            "ORDER BY id DESC LIMIT 1",
+            (task_id,),
+        )
+        return cur.fetchone()
+
+
+def update_ai_result_street(
+    conn: pymysql.connections.Connection,
+    task_id: int,
+    *,
+    street_id: int,
+    recognized_street: str | None = None,
+    recognized_city: str | None = None,
+) -> None:
+    """回填识别结果最终采用的 street_id（可同时覆盖地点名）。
+
+    确认流程里第一段先落识别结果、matched_street_id 留空；用户确认（可能改写了
+    地点）后由第二段建 street 并回填。覆盖地点名是必要的 —— 否则表里留着 AI 的
+    原始猜测，与实际评分的街区不一致，追溯时会误导。
+    """
+    sets = ["matched_street_id = %s"]
+    params: list[Any] = [street_id]
+    if recognized_street is not None:
+        sets.append("recognized_street = %s")
+        params.append(recognized_street)
+    if recognized_city is not None:
+        sets.append("recognized_city = %s")
+        params.append(recognized_city)
+    params.append(task_id)
+    with conn.cursor() as cur:
+        cur.execute(
+            f"UPDATE ai_analysis_result SET {', '.join(sets)} WHERE task_id = %s",
+            params,
+        )
 
 
 # ──────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "../components/Sidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
 import ProgressStep from "../components/ProgressStep";
+import LocationConfirmCard from "../components/LocationConfirmCard";
 import { ACTIVE_TASK_KEY } from "../components/ActiveTaskGuard";
 import type { ProgressStage, ProgressStatus, ProgressTone } from "../types";
 import {
@@ -137,6 +138,11 @@ function AnalysisProgressInner() {
   const [cancelled, setCancelled] = useState(false);
   // 取消二次确认弹窗
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // 照片地点待确认：后端 status=awaiting_confirm 时在时间线位置渲染确认卡。
+  // 单独用一个 state 而不是只看 stage，是因为确认成功后要立刻切回时间线并重连 SSE。
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  // 确认后重连 SSE 的触发器：自增即重跑订阅 effect
+  const [resubscribe, setResubscribe] = useState(0);
 
   // 用于测量「当前阶段」节点位置，计算居中偏移
   const trackRef = useRef<HTMLDivElement>(null);
@@ -197,6 +203,16 @@ function AnalysisProgressInner() {
         setCancelling(false);
         return true;
       }
+      if (data.status === "awaiting_confirm") {
+        // 不清 activeTask：任务并未结束，只是在等用户决定 —— 清了用户回首页
+        // 就会被放行，待确认的任务就丢了。
+        // 返回 true 让调用方停止订阅：后端此时也会收尾关闭 SSE，等待可能持续
+        // 几分钟，挂着连接无意义；确认成功后由 resubscribe 重连。
+        setAwaitingConfirm(true);
+        return true;
+      }
+      // 从确认态回到运行态（确认成功后重连的首帧）：收起确认卡
+      setAwaitingConfirm(false);
       return false;
     };
 
@@ -228,7 +244,8 @@ function AnalysisProgressInner() {
       cancelled = true;
       es?.close();
     };
-  }, [taskId, hasValidTask, router]);
+    // resubscribe 自增用于确认地点后重新订阅（SSE 在 awaiting_confirm 时已断开）
+  }, [taskId, hasValidTask, router, resubscribe]);
 
   // 计算偏移量：让当前 active 节点在视口垂直居中
   useLayoutEffect(() => {
@@ -316,6 +333,24 @@ function AnalysisProgressInner() {
     ? "缺少有效的任务 ID，请返回重新发起分析"
     : errorMsg;
 
+  /** 收起确认卡，时间线复位到第一阶段并重连 SSE（不等首帧，立刻可见）。 */
+  const restartTimeline = () => {
+    setAwaitingConfirm(false);
+    setErrorMsg(null);
+    setScoring(null); // 清上一轮评分名单，否则会渲进新一轮节点标题
+    setActiveMessage(null);
+    setStage(STAGES[0].stage);
+    setCurrentIndex(0);
+    setResubscribe((n) => n + 1);
+  };
+
+  // 确认地点成功（采用识别结果 或 改写后在后台归一化）
+  const handleConfirmed = restartTimeline;
+
+  // 换图已提交：仍是同一个 taskId，重新识别。
+  // 不改 URL、不动 ACTIVE_TASK_KEY —— 任务没变，只是它的输入图换了。
+  const handleImageReplaced = restartTimeline;
+
   return (
     <>
       <Sidebar activeHref="/" />
@@ -326,7 +361,11 @@ function AnalysisProgressInner() {
           <div className="mb-10">
             <div className="flex items-center gap-2">
               <h2 className="text-3xl font-extrabold text-on-surface">
-                {cancelled ? `已取消分析「${title}」` : `正在分析「${title}」`}
+                {cancelled
+                  ? `已取消分析「${title}」`
+                  : awaitingConfirm
+                    ? "请先确认照片所在地点"
+                    : `正在分析「${title}」`}
               </h2>
               {/* 取消入口：仅分析进行中展示，icon 紧跟标题 */}
               {!displayError && !cancelled && hasValidTask && (
@@ -347,7 +386,9 @@ function AnalysisProgressInner() {
             <p className="text-base text-on-surface-variant mt-2">
               {cancelled
                 ? "本次分析已停止，你可以重新发起。"
-                : "系统正在多维度评估该街区的时尚度，请稍候"}
+                : awaitingConfirm
+                  ? "地点决定了后续全部评分，确认后再继续"
+                  : "系统正在多维度评估该街区的时尚度，请稍候"}
             </p>
           </div>
 
@@ -367,6 +408,15 @@ function AnalysisProgressInner() {
                 返回重试
               </button>
             </div>
+          ) : awaitingConfirm && hasValidTask ? (
+            /* 等待确认地点：用确认卡替换时间线。
+               刻意不往 STAGES 数组塞节点 —— 那是「处理阶段」的时间线，
+               等待用户不是处理阶段，混进去会牵动 activeIndexFrom 的评分段推进逻辑。 */
+            <LocationConfirmCard
+              taskId={taskId}
+              onConfirmed={handleConfirmed}
+              onImageReplaced={handleImageReplaced}
+            />
           ) : cancelled ? (
             /* 已取消态 */
             <div className="flex flex-col items-start gap-4 rounded-2xl border border-outline-variant/40 bg-surface-container/40 p-6">

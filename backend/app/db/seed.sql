@@ -234,4 +234,5 @@ INSERT INTO analytics_display_config (block_key, block_group, name, description,
   ('metric_reason',   'detail',   '得分依据',       '三级指标的 AI 评分理由（依赖「三级指标得分」开启）',         1, 3),
   ('image_attribute', 'detail',   '图片属性',       '照片点评时匹配人工标注库得到的属性标签（显示在三级指标得分后）', 1, 4),
   ('ai_summary',      'report',   'AI 街道画像',    'AI 生成的综合评价画像文本',                                 1, 1),
-  ('similar_streets', 'report',   '相似审美节点',   '照片点评时，人工标注库中最相似的标注图缩略图（含相似度）',     1, 2);
+  ('similar_streets', 'report',   '相似审美节点',   '照片点评时，人工标注库中最相似的标注图缩略图（含相似度）',     1, 2),
+  ('image_confirm_location', 'flow', '照片地点确认', '照片点评识别出地点后暂停，由用户确认或修改地点后再继续评分', 1, 1);

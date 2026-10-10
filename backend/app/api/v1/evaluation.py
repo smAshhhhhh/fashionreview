@@ -16,6 +16,9 @@ from app.core.config import get_settings
 from app.schemas.evaluation import (
     AnalyzeAccepted,
     BatchDeleteRequest,
+    ConfirmInfoOut,
+    ConfirmLocationRequest,
+    ConfirmLocationResult,
     EvaluationResult,
     HistoryItemOut,
     TextAnalyzeRequest,
@@ -45,12 +48,14 @@ def analyze_text(req: TextAnalyzeRequest) -> AnalyzeAccepted:
     return AnalyzeAccepted(**result)
 
 
-@router.post("/image", response_model=AnalyzeAccepted)
-async def analyze_image(
-    file: UploadFile = File(...),
-    city: str | None = Form(None),
-) -> AnalyzeAccepted:
-    """上传街景照片发起分析：校验 → 落盘 → 异步识别评分，立即返回 task_id。"""
+async def _save_upload_image(file: UploadFile) -> tuple[str, str]:
+    """校验并落盘一张上传图片，返回 (rel_url, abs_path)。
+
+    发起分析与「换图重识别」共用，避免两处各写一遍类型/大小校验 —— 校验规则
+    分叉会留下一个绕过限制的入口。
+
+    :raises HTTPException: 类型不支持 / 空文件 / 超过上限
+    """
     ext = _ALLOWED_IMAGE_TYPES.get(file.content_type or "")
     if ext is None:
         raise HTTPException(
@@ -70,16 +75,94 @@ async def analyze_image(
     abs_path = upload_dir / fname
     abs_path.write_bytes(data)
 
-    rel_url = f"/static/uploads/{fname}"  # 对外仅暴露相对路径，不带 host
+    # 对外仅暴露相对路径，不带 host
+    return f"/static/uploads/{fname}", str(abs_path)
+
+
+@router.post("/image", response_model=AnalyzeAccepted)
+async def analyze_image(
+    file: UploadFile = File(...),
+    city: str | None = Form(None),
+) -> AnalyzeAccepted:
+    """上传街景照片发起分析：校验 → 落盘 → 异步识别评分，立即返回 task_id。"""
+    rel_url, abs_path = await _save_upload_image(file)
     try:
-        result = evaluation_service.submit_image_analysis(
-            rel_url, str(abs_path), city
-        )
+        result = evaluation_service.submit_image_analysis(rel_url, abs_path, city)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"提交失败：{exc}") from exc
     return AnalyzeAccepted(**result)
+
+
+@router.post("/confirm/{task_id}/image", response_model=AnalyzeAccepted)
+async def replace_confirm_image(
+    task_id: int,
+    file: UploadFile = File(...),
+    city: str | None = Form(None),
+) -> AnalyzeAccepted:
+    """待确认时换一张照片，在同一个 task 上重新识别。
+
+    保留同一个 taskId，而不是「取消旧任务 + 新建」—— 换图是这次点评的一次重试，
+    历史里只应留一条终态记录，前端 URL 也不必跟着变。
+    """
+    rel_url, abs_path = await _save_upload_image(file)
+    try:
+        result = evaluation_service.replace_image_and_recognize(
+            task_id, rel_url, abs_path, city
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "任务不存在":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=409, detail=detail) from exc
+    except RuntimeError as exc:  # 配置类错误，如未设置 API Key
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"更换照片失败：{exc}") from exc
+    return AnalyzeAccepted(**result)
+
+
+@router.get("/confirm/{task_id}", response_model=ConfirmInfoOut)
+def get_confirm_info(task_id: int) -> ConfirmInfoOut:
+    """取待确认的识别地点详情（供确认卡预填）。
+
+    仅 awaiting_confirm 状态可查；其他状态返回 409，避免前端在错误状态下渲染确认卡。
+    """
+    try:
+        info = evaluation_service.get_confirm_info(task_id)
+    except ValueError as exc:  # 状态不符
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if info is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return ConfirmInfoOut(**info)
+
+
+@router.post("/confirm/{task_id}", response_model=ConfirmLocationResult)
+def confirm_location(
+    task_id: int, req: ConfirmLocationRequest
+) -> ConfirmLocationResult:
+    """确认地点并继续点评：立即返回，后续在后台跑。
+
+    用户改写地点时，归一化（一次带联网的 LLM 调用）也放在后台 —— 否则确认卡会
+    冻住数秒。前端拿到响应即可切回时间线。归一化失败不会让点评失败：任务退回
+    待确认态并在 stage_detail.confirm_error 带上原因，用户可重输或换图。
+
+    「重新上传照片」走 POST /analyze/confirm/{id}/image，在同一个 task 上换图。
+    """
+    try:
+        result = evaluation_service.confirm_location(task_id, req.street)
+    except ValueError as exc:
+        # 任务不存在与状态不符都抛 ValueError，按文案区分状态码
+        detail = str(exc)
+        if detail == "任务不存在":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=409, detail=detail) from exc
+    except RuntimeError as exc:  # 配置类错误，如未设置 API Key
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"确认失败：{exc}") from exc
+    return ConfirmLocationResult(**result)
 
 
 @router.get("/history", response_model=list[HistoryItemOut])

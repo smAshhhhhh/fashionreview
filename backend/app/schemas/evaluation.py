@@ -103,6 +103,52 @@ class AnalyzeAccepted(BaseModel):
     status: str
 
 
+# ──────────────── 照片地点确认 ────────────────
+
+class ConfirmInfoOut(BaseModel):
+    """待确认的识别地点详情（供确认卡预填）。"""
+
+    task_id: int
+    # 上传原图相对路径 /static/uploads/...，供确认卡展示让用户对照判断
+    image_url: str | None = None
+    street: str | None = None
+    city: str | None = None
+    district: str | None = None
+    confidence: float | None = None
+    # True 表示模型置信度低于阈值：前端应改成「未能确定地点，请直接输入」的文案
+    low_confidence: bool = False
+    # 上一次改写地点归一化失败的原因（如输入的地点无法识别）；首次进入为 None。
+    # 归一化在后台进行，失败时任务退回待确认态，靠这个字段告诉用户为什么
+    confirm_error: str | None = None
+
+
+class ConfirmLocationRequest(BaseModel):
+    """确认地点请求。
+
+    street 省略/为空 = 采用 AI 识别结果；非空 = 用户改写的地点，服务端会调
+    recognize_street() 把这行文本规范化（与文字点评同一条归一化路径）。
+    """
+
+    street: str | None = Field(
+        None, max_length=200, description="用户改写的地点名称；为空表示采用识别结果"
+    )
+
+
+class ConfirmLocationResult(BaseModel):
+    """确认后的受理响应：任务已回到 analyzing，后续在后台继续。
+
+    采用 AI 识别结果时地点已规范化，三个地点字段直接回填；用户改写地点时归一化
+    在后台进行（要调一次 LLM，不能让前端等），此刻尚不知规范化结果，故均为 None。
+    前端无论哪种情况都只需切回时间线看进度。
+    """
+
+    task_id: int
+    status: str
+    street: str | None = None
+    city: str | None = None
+    district: str | None = None
+
+
 class TaskProgressOut(BaseModel):
     """任务进度（SSE / 轮询）。"""
 

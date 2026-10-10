@@ -24,6 +24,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+from pathlib import Path
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import repository as repo
@@ -69,7 +71,9 @@ def request_cancel(task_id: int) -> dict[str, Any]:
     返回 {"task_id", "status", "cancelled": bool}。
     - 任务不存在 → ValueError（API 转 404）
     - 已终态（completed/failed/cancelled）→ cancelled=False，原状态返回
-    - pending/analyzing → 置内存标志 + 立即把 DB 改 cancelled，cancelled=True
+    - pending/analyzing/awaiting_confirm → 置内存标志 + 立即把 DB 改 cancelled，
+      cancelled=True。awaiting_confirm 不在终态集合内，故等待确认期间同样可取消
+      （此时没有后台线程在跑，置标志只是为防确认请求与取消并发时继续评分）。
     """
     with connection_scope() as conn:
         row = repo.get_task_progress(conn, task_id)
@@ -132,25 +136,40 @@ _RECOGNIZE_IMAGE_USER = (
 )
 
 
+# 置信度低于此值视为「认不出」。照片确认流程开启时不再据此终止任务，
+# 而是带着这个判定进入确认卡，提示用户直接输入地点或换图。
+LOW_CONFIDENCE_THRESHOLD = 0.5
+
+
+def _is_low_confidence(value: Any) -> bool:
+    """置信度是否低于阈值。
+
+    None（模型未返回）与非数值一律视为「不低」—— 无法判定时不误杀。
+    """
+    if value is None:
+        return False
+    try:
+        return float(value) < LOW_CONFIDENCE_THRESHOLD
+    except (TypeError, ValueError):
+        return False
+
+
 def _assert_recognized(recog: dict[str, Any]) -> dict[str, Any]:
     """识别结果置信度兜底（文字 / 图片两条路径统一）。
 
-    confidence 低于 0.5 视为识别失败，抛 StreetNotRecognized 终止本次点评；
-    confidence 为 None 时放行（模型未返回置信度，不误杀）。
+    置信度低于阈值视为识别失败，抛 StreetNotRecognized 终止本次点评；
+    None / 非数值放行（无法判定，不误杀）。
 
     抛专属异常而非 ValueError，是为了让 _run_pipeline 能把「模型认不出」与真正的
     故障区分开 —— 前者是预期结果，日志记 WARNING 不打堆栈。
+
+    照片确认流程开启时**不走这个断言**（调用方传 assert_confidence=False）：
+    认不出恰恰是最该问用户的情形，交由确认卡提示输入地点或换图。
     """
-    c = recog.get("confidence")
-    if c is not None:
-        try:
-            score = float(c)
-        except (TypeError, ValueError):
-            return recog  # 置信度非数值，无法判定，放行
-        if score < 0.5:
-            raise StreetNotRecognized(
-                "无法识别街道，请换一张更清晰、含街道标识的照片或改用文字输入"
-            )
+    if _is_low_confidence(recog.get("confidence")):
+        raise StreetNotRecognized(
+            "无法识别街道，请换一张更清晰、含街道标识的照片或改用文字输入"
+        )
     return recog
 
 
@@ -179,9 +198,18 @@ def recognize_street(content: str, city_hint: str | None, task_id: int) -> dict[
 
 
 def recognize_street_from_image(
-    image_path: str, city_hint: str | None, task_id: int
+    image_path: str,
+    city_hint: str | None,
+    task_id: int,
+    *,
+    assert_confidence: bool = True,
 ) -> dict[str, Any]:
-    """从街景照片识别街道，返回结构与 recognize_street 完全一致。"""
+    """从街景照片识别街道，返回结构与 recognize_street 完全一致。
+
+    :param assert_confidence: True（默认，保持原行为）时低置信度抛
+        StreetNotRecognized；确认流程开启时传 False —— 认不出要交给用户处理，
+        不是终止任务。
+    """
     hint = f"\n用户提供的城市线索：{city_hint}" if city_hint else ""
     resp = chat_vision(
         _RECOGNIZE_IMAGE_SYSTEM,
@@ -191,13 +219,14 @@ def recognize_street_from_image(
     )
     _log_prompt(task_id, "recognize", resp.prompt_text, resp.text, resp.model, resp.token_usage)
     data = resp.parse_json()
-    return _assert_recognized({
+    recog = {
         "street_name": (data.get("streetName") or "").strip(),
         "city": data.get("city"),
         "district": data.get("district"),
         "confidence": data.get("confidence"),
         "raw": resp.text,
-    })
+    }
+    return _assert_recognized(recog) if assert_confidence else recog
 
 
 # ──────────────── ①.5 图片属性匹配（仅照片点评） ────────────────
@@ -496,6 +525,13 @@ def submit_image_analysis(
 ) -> dict[str, Any]:
     """提交图片分析：建任务（存相对 url）→ 后台线程池（识别用磁盘绝对路径）→ 立即返回。
 
+    **在入口按开关分叉**，而不是在链路内部分支：
+    - 开关开启 → _run_recognize_phase，识别完停在 awaiting_confirm 等用户确认
+    - 开关关闭 → _run_pipeline，即改动前的原函数（与文字点评同一个）
+
+    这样「关掉开关」等于回到改动前的代码路径，是真正的回退开关；若改成「照片永远
+    走双段、只是不暂停」，双段拆分自身的 bug 就无法靠关开关规避。
+
     :param rel_url: 对外相对路径 /static/uploads/<uuid>.ext，入库供前端展示。
     :param abs_path: 本地磁盘绝对路径，仅用于识别时 base64 读图，不入库。
     """
@@ -504,18 +540,358 @@ def submit_image_analysis(
             conn, task_no=None, input_type="image",
             text_input=None, image_url=rel_url, status="pending",
         )
-    _task_executor.submit(_run_pipeline, task_id, None, city_hint, abs_path)
+    if display_config_service.is_enabled(CONFIRM_LOCATION_BLOCK):
+        logger.info("任务 %s 走照片地点确认流程（_run_recognize_phase）", task_id)
+        _task_executor.submit(_run_recognize_phase, task_id, abs_path, city_hint)
+    else:
+        logger.info("任务 %s 照片地点确认已关闭，走原链路（_run_pipeline）", task_id)
+        _task_executor.submit(_run_pipeline, task_id, None, city_hint, abs_path)
     return {"task_id": task_id, "status": "pending"}
+
+
+# ──────────────── 照片地点确认（两段式） ────────────────
+
+# 功能开关的 block_key（复用 analytics_display_config 的 flow 分组）
+CONFIRM_LOCATION_BLOCK = "image_confirm_location"
+
+
+def _run_recognize_phase(
+    task_id: int, image_path: str, city_hint: str | None = None
+) -> None:
+    """第一段：只做识别，然后置 awaiting_confirm 收尾，等用户确认。
+
+    刻意**不建 street / street_evaluation** —— 用户可能否掉这个地点，先建会在
+    street 表留下垃圾行。识别结果暂存 ai_analysis_result（matched_street_id 留空，
+    确认后回填），确认接口据它预填。
+
+    低置信度不抛 StreetNotRecognized：认不出恰恰最该问用户，交由确认卡提示输入。
+    """
+    t_start = time.monotonic()
+    logger.info("任务 %s 开始（照片确认流程）：city_hint=%s", task_id, city_hint or "-")
+    try:
+        with connection_scope() as conn:
+            repo.update_ai_task(conn, task_id, status="analyzing")
+
+        check_cancel(task_id)
+        progress.set_stage(task_id, progress.STAGE_RECOGNIZE)
+        recog = recognize_street_from_image(
+            image_path, city_hint, task_id, assert_confidence=False
+        )
+        low_confidence = _is_low_confidence(recog.get("confidence"))
+        street_name = recog["street_name"]
+        logger.info(
+            "任务 %s 识别完成：街区=%s，城市=%s，置信度=%s%s",
+            task_id, street_name or "(未识别)", recog.get("city"),
+            recog.get("confidence"), "（低置信度）" if low_confidence else "",
+        )
+
+        check_cancel(task_id)
+        with connection_scope() as conn:
+            repo.create_ai_result(
+                conn, task_id,
+                recognized_street=street_name or None,
+                recognized_city=recog.get("city"),
+                confidence=recog.get("confidence"),
+                matched_street_id=None,  # 确认后建 street 时回填
+                raw_response=json.dumps(
+                    {k: recog.get(k) for k in
+                     ("street_name", "city", "district", "confidence")},
+                    ensure_ascii=False,
+                ),
+            )
+        # 置等待确认态。stage_detail 带 low_confidence 供前端换文案
+        progress.update_progress(
+            task_id,
+            progress.STAGE_AWAIT_CONFIRM[1],
+            progress.STAGE_AWAIT_CONFIRM[0],
+            progress.STAGE_AWAIT_CONFIRM[2],
+            stage_detail={"low_confidence": low_confidence},
+        )
+        # 条件更新（仅当仍为 analyzing）：取消请求可能恰好落在最后一次
+        # check_cancel 之后，无条件写会把 cancelled 复活成待确认态，
+        # 用户就会看到一个已取消任务的确认卡。
+        with connection_scope() as conn:
+            moved = repo.set_task_awaiting_confirm(conn, task_id)
+        if not moved:
+            logger.info("任务 %s 在置待确认前已终止，不再进入确认态", task_id)
+            return
+        logger.info(
+            "任务 %s 等待用户确认地点（识别耗时 %.1fs）",
+            task_id, time.monotonic() - t_start,
+        )
+    except _TaskCancelled:
+        logger.info("任务 %s 已取消，识别阶段提前结束", task_id)
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="cancelled",
+                current_stage="cancelled", stage_message="分析已取消",
+            )
+    except Exception as exc:  # noqa: BLE001 - 后台任务统一兜底
+        logger.exception(
+            "任务 %s 识别阶段失败（%s: %s）", task_id, type(exc).__name__, exc
+        )
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="failed",
+                stage_message="识别失败", error_message=str(exc)[:500],
+            )
+    finally:
+        # 本段到此结束（无论成功进入待确认、还是取消/失败），取消标志都要清掉：
+        # 它是「本次后台执行」的协作信号，留着会让用户确认后的评分阶段一启动
+        # 就被旧标志判为已取消。确认后若要再取消，会重新置标志。
+        _clear_cancel_flag(task_id)
+
+
+def replace_image_and_recognize(
+    task_id: int, rel_url: str, abs_path: str, city_hint: str | None = None
+) -> dict[str, Any]:
+    """换一张照片，在**同一个 task 上**重新识别。立即返回，识别在后台跑。
+
+    保留同一个 taskId（而非取消旧任务 + 新建）：换图是「这次点评的一次重试」，
+    不是另一次点评。复用同一条任务记录可以让历史里只留一条终态，不会堆积
+    cancelled 的半截任务，前端 URL 的 taskId 也不必跟着变。
+
+    旧图片文件与旧识别结果行一并清掉 —— 它们都是针对旧照片的，留着会让确认接口
+    预填出上一张图的地点，也会让 _run_scoring_phase 误判「已有识别结果」。
+
+    :raises ValueError: 任务不存在 / 不处于 awaiting_confirm / 不是图片任务
+    """
+    with connection_scope() as conn:
+        task = repo.get_ai_task(conn, task_id)
+        if task is None:
+            raise ValueError("任务不存在")
+        if task["status"] != "awaiting_confirm":
+            raise ValueError(f"任务当前状态为 {task['status']}，不处于待确认状态")
+        if task.get("input_type") != "image":
+            raise ValueError("只有照片点评任务可以更换图片")
+        old_image_url = task.get("image_url")
+        # 换图即重置：清掉旧识别结果，置回 analyzing 并写入新图地址
+        repo.delete_ai_results_by_task(conn, task_id)
+        repo.update_ai_task(conn, task_id, status="analyzing", image_url=rel_url)
+
+    # 删旧图（失败不影响主流程，仅留痕）
+    if old_image_url and old_image_url != rel_url:
+        try:
+            Path(get_settings().upload_dir, Path(old_image_url).name).unlink(
+                missing_ok=True
+            )
+        except OSError:
+            logger.warning("任务 %s 删除旧图失败：%s", task_id, old_image_url)
+
+    # 换图后重新进入识别阶段。取消标志由上一段的 finally 清过，这里是干净的。
+    _task_executor.submit(_run_recognize_phase, task_id, abs_path, city_hint)
+    logger.info("任务 %s 已更换照片，重新识别", task_id)
+    return {"task_id": task_id, "status": "analyzing"}
+
+
+def get_confirm_info(task_id: int) -> dict[str, Any] | None:
+    """取待确认详情（供确认页预填）。
+
+    :return: 待确认结构；任务不存在返回 None
+    :raises ValueError: 任务不处于 awaiting_confirm（状态机不可乱入）
+    """
+    with connection_scope() as conn:
+        task = repo.get_ai_task(conn, task_id)
+        if task is None:
+            return None
+        if task["status"] != "awaiting_confirm":
+            raise ValueError(f"任务当前状态为 {task['status']}，不处于待确认状态")
+        result = repo.get_ai_result_by_task(conn, task_id)
+
+    recog = _parse_raw_response((result or {}).get("raw_response"))
+    confidence = (result or {}).get("confidence")
+    # 上一次改写归一化失败的提示（_back_to_awaiting_confirm 写入），
+    # 让用户知道为什么又回到了这张卡上
+    stage_detail = task.get("stage_detail")
+    if isinstance(stage_detail, (str, bytes)):
+        stage_detail = _parse_raw_response(stage_detail)
+    confirm_error = (
+        stage_detail.get("confirm_error") if isinstance(stage_detail, dict) else None
+    )
+    return {
+        "task_id": task_id,
+        "image_url": task.get("image_url"),
+        "street": (result or {}).get("recognized_street") or recog.get("street_name"),
+        "city": (result or {}).get("recognized_city") or recog.get("city"),
+        "district": recog.get("district"),
+        "confidence": float(confidence) if confidence is not None else None,
+        "low_confidence": _is_low_confidence(confidence),
+        "confirm_error": confirm_error,
+    }
+
+
+def _parse_raw_response(raw: Any) -> dict[str, Any]:
+    """ai_analysis_result.raw_response 可能是 dict（驱动已解码）或 str，统一成 dict。"""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (str, bytes)):
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def confirm_location(task_id: int, street: str | None = None) -> dict[str, Any]:
+    """用户确认地点，继续点评。立即返回，评分在后台跑。
+
+    :param street: None/空 = 采用 AI 识别结果（已规范化，直接进评分）；
+        非空 = 用户改写的地点，归一化放到后台（见 _run_confirm_override_phase），
+        走的仍是 recognize_street() 这条与文字点评一致的归一化路径。
+    :raises ValueError: 任务不存在或不处于 awaiting_confirm
+    """
+    with connection_scope() as conn:
+        task = repo.get_ai_task(conn, task_id)
+        if task is None:
+            raise ValueError("任务不存在")
+        if task["status"] != "awaiting_confirm":
+            raise ValueError(f"任务当前状态为 {task['status']}，不处于待确认状态")
+        result = repo.get_ai_result_by_task(conn, task_id)
+        image_url = task.get("image_url")
+
+    # 由 rel_url 还原磁盘路径供图片属性匹配使用（abs_path 不入库，
+    # 与 annotation_import_service._run_embedding_job 的还原方式一致）
+    image_path: str | None = None
+    if image_url:
+        image_path = str(Path(get_settings().upload_dir) / Path(image_url).name)
+
+    override = (street or "").strip()
+    if override:
+        # 归一化要调 LLM，放后台跑，避免确认卡冻住等待
+        with connection_scope() as conn:
+            repo.update_ai_task(conn, task_id, status="analyzing")
+        progress.update_progress(
+            task_id,
+            progress.STAGE_RECOGNIZE[1],
+            progress.STAGE_RECOGNIZE[0],
+            f"正在核对地点「{override}」",
+        )
+        _task_executor.submit(
+            _run_confirm_override_phase, task_id, override, image_path
+        )
+        logger.info("任务 %s 用户改写地点为「%s」，后台归一化中", task_id, override)
+        return {"task_id": task_id, "status": "analyzing"}
+
+    # 采用 AI 识别结果：已规范化过，直接进评分
+    recog_raw = _parse_raw_response((result or {}).get("raw_response"))
+    street_name = (
+        (result or {}).get("recognized_street") or recog_raw.get("street_name") or ""
+    ).strip()
+    city = (result or {}).get("recognized_city") or recog_raw.get("city")
+    district = recog_raw.get("district")
+    if not street_name:
+        raise ValueError("未能识别出地点，请直接输入地点名称或重新上传照片")
+
+    with connection_scope() as conn:
+        repo.update_ai_task(conn, task_id, status="analyzing")
+    _task_executor.submit(
+        _run_scoring_phase, task_id, street_name, city, district, image_path
+    )
+    logger.info(
+        "任务 %s 已确认 AI 识别的地点：街区=%s，城市=%s，继续评分",
+        task_id, street_name, city,
+    )
+    return {
+        "task_id": task_id,
+        "status": "analyzing",
+        "street": street_name,
+        "city": city,
+        "district": district,
+    }
+
+
+def _run_confirm_override_phase(
+    task_id: int, override: str, image_path: str | None
+) -> None:
+    """后台：把用户输入的地点归一化，然后续跑评分。
+
+    归一化失败不判 failed，而是退回待确认态带上提示 —— 照片还在，让用户重输或换图。
+    """
+    t_start = time.monotonic()
+    try:
+        check_cancel(task_id)
+        recog = recognize_street(override, None, task_id)
+    except _TaskCancelled:
+        logger.info("任务 %s 已取消，地点核对提前结束", task_id)
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="cancelled",
+                current_stage="cancelled", stage_message="分析已取消",
+            )
+        _clear_cancel_flag(task_id)
+        return
+    except StreetNotRecognized as exc:
+        logger.warning("任务 %s 地点「%s」无法识别：%s", task_id, override, exc)
+        _back_to_awaiting_confirm(
+            task_id, f"无法识别「{override}」，请换一个更具体的地点名称，或重新上传照片"
+        )
+        return
+    except Exception as exc:  # noqa: BLE001 - 归一化失败退回确认，不毁掉整次点评
+        logger.exception(
+            "任务 %s 核对地点「%s」失败（%s: %s）",
+            task_id, override, type(exc).__name__, exc,
+        )
+        _back_to_awaiting_confirm(task_id, f"核对地点失败：{exc}")
+        return
+
+    logger.info(
+        "任务 %s 地点归一化完成：「%s」→ %s / %s",
+        task_id, override, recog["street_name"], recog.get("city"),
+    )
+    _run_scoring_phase(
+        task_id,
+        recog["street_name"],
+        recog.get("city"),
+        recog.get("district"),
+        image_path,
+        confidence=recog.get("confidence"),
+        t_start=t_start,
+    )
+
+
+def _back_to_awaiting_confirm(task_id: int, message: str) -> None:
+    """退回待确认态，失败原因写 stage_detail.confirm_error 带给确认卡。
+
+    不占用 error_message —— 那是「任务失败原因」，此刻任务并未失败。
+    """
+    detail: dict[str, Any] = {}
+    try:
+        with connection_scope() as conn:
+            row = repo.get_task_progress(conn, task_id)
+        if row and isinstance(row.get("stage_detail"), dict):
+            detail = dict(row["stage_detail"])  # 保留 low_confidence
+    except Exception:  # noqa: BLE001
+        logger.warning("任务 %s 读取 stage_detail 失败，仅写入本次提示", task_id)
+    detail["confirm_error"] = message
+
+    progress.update_progress(
+        task_id,
+        progress.STAGE_AWAIT_CONFIRM[1],
+        progress.STAGE_AWAIT_CONFIRM[0],
+        progress.STAGE_AWAIT_CONFIRM[2],
+        stage_detail=detail,
+    )
+    with connection_scope() as conn:
+        # 条件更新：期间若被取消，不把 cancelled 复活
+        moved = repo.set_task_awaiting_confirm(conn, task_id)
+    if not moved:
+        logger.info("任务 %s 已终止，不再退回待确认态", task_id)
+    _clear_cancel_flag(task_id)
 
 
 def _run_pipeline(
     task_id: int, content: str | None, city_hint: str | None, image_path: str | None = None
 ) -> None:
-    """后台执行整条评价链，逐阶段更新进度。异常时标记 failed 并记录原因。
+    """后台执行整条评价链（识别 → 评分 → 报告），逐阶段更新进度。
 
     输入来源二选一：image_path 非空走识图分支，否则走文字分支；识别后阶段一致。
+
+    这是**文字点评**的链路，也是照片地点确认开关关闭时照片点评走的链路 ——
+    保持与接入确认流程之前完全一致的行为。识别之后的部分委托给
+    _run_scoring_phase（两条路径共用），本函数只负责识别与异常兜底。
     """
-    evaluation_id: int | None = None
     t_start = time.monotonic()
     logger.info(
         "任务 %s 开始：input_type=%s, city_hint=%s",
@@ -537,28 +913,114 @@ def _run_pipeline(
             "任务 %s 识别完成：街区=%s，城市=%s，置信度=%s",
             task_id, street_name, recog.get("city"), recog.get("confidence"),
         )
+    except _TaskCancelled:
+        logger.info("任务 %s 已取消，识别阶段提前结束", task_id)
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="cancelled",
+                current_stage="cancelled", stage_message="分析已取消",
+            )
+        _clear_cancel_flag(task_id)
+        return
+    except StreetNotRecognized as exc:
+        # 模型正常作答「认不出」，属预期结果而非故障：记 WARNING 且不打堆栈。
+        logger.warning(
+            "任务 %s 未能识别街道，已终止（总耗时 %.1fs）：%s",
+            task_id, time.monotonic() - t_start, exc,
+        )
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="failed",
+                stage_message="未能识别街道", error_message=str(exc)[:500],
+            )
+        _clear_cancel_flag(task_id)
+        return
+    except Exception as exc:  # noqa: BLE001 - 后台任务统一兜底，写明失败原因
+        logger.exception(
+            "任务 %s 失败（%s: %s），总耗时 %.1fs",
+            task_id, type(exc).__name__, exc, time.monotonic() - t_start,
+        )
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="failed",
+                stage_message="分析失败", error_message=str(exc)[:500],
+            )
+        _clear_cancel_flag(task_id)
+        return
+    # 注意：识别成功的分支不在此清取消标志 —— 紧接着要调 _run_scoring_phase，
+    # 它的 finally 会清。这里提前清会让「识别期间点的取消」对评分阶段失效。
 
+    # ② 之后的全部阶段（建街巷 → 评分 → 报告），与确认流程共用
+    _run_scoring_phase(
+        task_id,
+        street_name,
+        recog.get("city"),
+        recog.get("district"),
+        image_path,
+        confidence=recog.get("confidence"),
+        t_start=t_start,
+    )
+
+
+def _run_scoring_phase(
+    task_id: int,
+    street_name: str,
+    city: str | None,
+    district: str | None,
+    image_path: str | None = None,
+    *,
+    confidence: float | None = None,
+    t_start: float | None = None,
+) -> None:
+    """地点既定之后的全部阶段：建街巷/评价 → 图片属性 → 画像 → 评分 → 报告。
+
+    两条路径共用：
+    - _run_pipeline（文字点评、照片确认开关关闭）识别完直接调用
+    - confirm_location（照片确认流程）在用户确认地点后提交为独立后台任务
+
+    :param confidence: 识别置信度，仅用于落 ai_analysis_result；确认流程里该行
+        已由第一段写好，此时传 None 表示只回填 matched_street_id 而不重复插入。
+    :param t_start: 计时起点；确认流程中第二段独立计时。
+    """
+    evaluation_id: int | None = None
+    if t_start is None:
+        t_start = time.monotonic()
+    try:
         # 建街巷 + 评价表头 + 识别结果（短事务）
         check_cancel(task_id)
         with connection_scope() as conn:
-            street_id = repo.get_or_create_street(
-                conn, street_name, recog.get("city"), recog.get("district")
-            )
+            street_id = repo.get_or_create_street(conn, street_name, city, district)
             evaluation_id = repo.create_evaluation(
                 conn, street_id, task_no=None, source="ai", status="analyzing"
             )
             repo.update_ai_task(conn, task_id, evaluation_id=evaluation_id)
-            repo.create_ai_result(
-                conn, task_id,
-                recognized_street=street_name,
-                recognized_city=recog.get("city"),
-                confidence=recog.get("confidence"),
-                matched_street_id=street_id,
-                raw_response=json.dumps(
-                    {k: recog[k] for k in ("street_name", "city", "district", "confidence")},
-                    ensure_ascii=False,
-                ),
-            )
+            existing = repo.get_ai_result_by_task(conn, task_id)
+            if existing is None:
+                repo.create_ai_result(
+                    conn, task_id,
+                    recognized_street=street_name,
+                    recognized_city=city,
+                    confidence=confidence,
+                    matched_street_id=street_id,
+                    raw_response=json.dumps(
+                        {
+                            "street_name": street_name,
+                            "city": city,
+                            "district": district,
+                            "confidence": confidence,
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                # 确认流程：第一段已写过识别结果，这里只回填最终采用的 street_id，
+                # 并把用户改写后的地点覆盖进去（否则留着 AI 的原始猜测会误导追溯）
+                repo.update_ai_result_street(
+                    conn, task_id,
+                    street_id=street_id,
+                    recognized_street=street_name,
+                    recognized_city=city,
+                )
             profile_facts = retriever.get_retriever().retrieve(
                 conn, street_id, street_name
             )
@@ -647,21 +1109,9 @@ def _run_pipeline(
                 conn, task_id, status="cancelled",
                 current_stage="cancelled", stage_message="分析已取消",
             )
-    except StreetNotRecognized as exc:
-        # 模型正常作答「认不出」，属预期结果而非故障：记 WARNING 且不打堆栈。
-        # 任务仍置 failed、前端仍提示换图，行为与之前一致。
-        logger.warning(
-            "任务 %s 未能识别街道，已终止（总耗时 %.1fs）：%s",
-            task_id, time.monotonic() - t_start, exc,
-        )
-        with connection_scope() as conn:
-            if evaluation_id is not None:
-                repo.mark_evaluation_failed(conn, evaluation_id)
-            repo.update_ai_task(
-                conn, task_id, status="failed",
-                stage_message="未能识别街道", error_message=str(exc)[:500],
-            )
     except Exception as exc:  # noqa: BLE001 - 后台任务统一兜底，写明失败原因
+        # 此处不再捕 StreetNotRecognized：识别发生在本函数之前（_run_pipeline 或
+        # _run_recognize_phase），进到这里时地点已经定了，该异常不可能出现。
         logger.exception(
             "任务 %s 失败（%s: %s），总耗时 %.1fs",
             task_id, type(exc).__name__, exc, time.monotonic() - t_start,

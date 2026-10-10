@@ -54,7 +54,17 @@ export interface ScoringDetail {
 
 export interface TaskProgress {
   task_id: number;
-  status: "pending" | "analyzing" | "completed" | "failed" | "cancelled";
+  /**
+   * awaiting_confirm = 照片点评识别出地点后暂停，等用户确认/改地点/换图。
+   * 它**不是终态**（确认后继续评分），但 SSE 会在此断开，前端需在确认成功后重连。
+   */
+  status:
+    | "pending"
+    | "analyzing"
+    | "awaiting_confirm"
+    | "completed"
+    | "failed"
+    | "cancelled";
   progress: number;
   current_stage: string | null;
   stage_message: string | null;
@@ -115,6 +125,98 @@ export function progressStreamUrl(taskId: number): string {
 export async function fetchTaskProgress(taskId: number): Promise<TaskProgress> {
   const res = await fetch(`${API_BASE}/task/${taskId}`);
   if (!res.ok) throw new Error(`查询进度失败 (${res.status})`);
+  return res.json();
+}
+
+/* ──────────────── 照片地点确认 ──────────────── */
+
+/** 待确认的识别地点详情（确认卡预填用）。 */
+export interface ConfirmInfo {
+  task_id: number;
+  /** 上传原图相对路径，用 assetUrl() 拼完整地址 */
+  image_url: string | null;
+  street: string | null;
+  city: string | null;
+  district: string | null;
+  confidence: number | null;
+  /** true = 置信度低于阈值，前端应改成「未能确定地点，请直接输入」的文案 */
+  low_confidence: boolean;
+  /**
+   * 上一次改写地点归一化失败的原因；首次进入为 null。
+   * 归一化在后台跑，失败时任务退回待确认态 —— 靠这个字段告诉用户为什么又回来了。
+   */
+  confirm_error: string | null;
+}
+
+/**
+ * 确认后的受理响应：任务已回 analyzing，后续在后台继续。
+ *
+ * 采用 AI 识别结果时地点已规范化，三个字段直接带回；用户改写地点时归一化在后台
+ * 进行（要调一次 LLM，不让前端等），此刻尚不知结果，故均为 null。
+ * 两种情况前端都一样处理：切回时间线从第一阶段看进度。
+ */
+export interface ConfirmLocationResult {
+  task_id: number;
+  status: string;
+  street: string | null;
+  city: string | null;
+  district: string | null;
+}
+
+/**
+ * 待确认时换一张照片，在**同一个 taskId 上**重新识别。
+ *
+ * 不走「取消旧任务 + 新建」：换图是这次点评的一次重试，复用同一条任务记录可以
+ * 让历史里只留一条终态，不堆积 cancelled 的半截任务，URL 的 taskId 也不变。
+ */
+export async function replaceConfirmImage(
+  taskId: number,
+  file: File,
+  city?: string,
+): Promise<AnalyzeAccepted> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (city) fd.append("city", city);
+  const res = await fetch(`${API_BASE}/analyze/confirm/${taskId}/image`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `更换照片失败 (${res.status})`);
+  }
+  return res.json();
+}
+
+/** 取待确认详情。任务状态不符时后端返回 409。 */
+export async function fetchConfirmInfo(taskId: number): Promise<ConfirmInfo> {
+  const res = await fetch(`${API_BASE}/analyze/confirm/${taskId}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `查询待确认地点失败 (${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * 确认地点并继续点评。
+ *
+ * @param street 省略/空 = 采用 AI 识别结果；非空 = 用户改写的地点，
+ *   后端会调文字识别把它规范化（与文字点评同一条归一化路径）。
+ */
+export async function confirmLocation(
+  taskId: number,
+  street?: string,
+): Promise<ConfirmLocationResult> {
+  const res = await fetch(`${API_BASE}/analyze/confirm/${taskId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ street: street?.trim() || null }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `确认地点失败 (${res.status})`);
+  }
   return res.json();
 }
 
