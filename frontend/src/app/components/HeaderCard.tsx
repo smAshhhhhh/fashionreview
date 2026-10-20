@@ -36,12 +36,12 @@ export default function HeaderCard({
         )}
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 text-sm">
-            <span className="material-symbols-outlined text-primary-container text-[16px]">
+            <span className="material-symbols-outlined text-primary text-[16px]">
               location_on
             </span>
-            <span className="font-bold text-primary-container">AI 街巷时尚度评价</span>
+            <span className="font-bold text-primary">AI 街巷时尚度评价</span>
           </div>
-          <h1 className="text-[31px] leading-tight font-black text-[#0f1419] tracking-tight wrap-break-word">
+          <h1 className="text-[31px] leading-tight font-black text-brand tracking-tight wrap-break-word">
             {streetName}
           </h1>
         </div>
@@ -49,14 +49,14 @@ export default function HeaderCard({
 
       {showScore && (
         <div className="shrink-0 text-left md:text-right">
-          <div className="text-sm font-medium text-[#536471] mb-1">
+          <div className="text-sm font-medium text-on-surface-variant mb-1">
             综合时尚指数 (Fashion Score)
           </div>
           <div className="flex items-baseline gap-1 md:justify-end">
-            <span className="text-[48px] leading-none font-black text-primary-container">
+            <span className="text-[48px] leading-none font-black text-primary">
               {totalScore !== null ? totalScore.toFixed(1) : "—"}
             </span>
-            <span className="text-lg font-bold text-[#536471]">/ 5</span>
+            <span className="text-lg font-bold text-on-surface-variant">/ 5</span>
           </div>
         </div>
       )}

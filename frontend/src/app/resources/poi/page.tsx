@@ -140,27 +140,27 @@ export default function PoiManagePage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-surface text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
       <main className="flex-1 min-w-0 md:ml-64 pb-24 lg:pb-12">
         {/* 顶部栏 */}
         <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
-          <Link href="/resources" className="flex items-center text-primary-container">
+          <Link href="/resources" className="flex items-center text-primary">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          <h2 className="text-xl font-bold text-[#0f1419]">POI 数据导入</h2>
+          <h2 className="text-xl font-bold text-brand">POI 数据导入</h2>
         </header>
 
         <div className="max-w-250 mx-auto p-4 lg:p-6 space-y-6">
           {/* 上传区（Dropzone 风格） */}
           <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest">
             <div className="flex items-start gap-4 mb-6">
-              <div className="bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary-container shrink-0">
+              <div className="bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary shrink-0">
                 <span className="material-symbols-outlined">upload_file</span>
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-xl font-bold mb-1">上传并导入</h3>
-                <p className="text-[#536471] text-[15px] leading-relaxed">
+                <p className="text-on-surface-variant text-[15px] leading-relaxed">
                   支持高德 / 大众点评导出的 .sql 或 .csv。系统会自动识别格式，解析后写入事实层
                   street_poi。本页只负责事实层导入，画像生成请前往「街巷画像」页。
                 </p>
@@ -169,31 +169,31 @@ export default function PoiManagePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="space-y-1">
-                <label className="text-[13px] font-semibold px-1 text-[#536471]">城市</label>
+                <label className="text-[13px] font-semibold px-1 text-on-surface-variant">城市</label>
                 <input
-                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
+                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary transition-colors outline-none"
                   placeholder="输入城市"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[13px] font-semibold px-1 text-[#536471]">
+                <label className="text-[13px] font-semibold px-1 text-on-surface-variant">
                   行政区 (可选)
                 </label>
                 <input
-                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
+                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary transition-colors outline-none"
                   placeholder="输入行政区"
                   value={district}
                   onChange={(e) => setDistrict(e.target.value)}
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[13px] font-semibold px-1 text-[#536471]">
+                <label className="text-[13px] font-semibold px-1 text-on-surface-variant">
                   街区名称 (如 新天地)
                 </label>
                 <input
-                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
+                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary transition-colors outline-none"
                   placeholder="输入街区名称"
                   value={streetName}
                   onChange={(e) => setStreetName(e.target.value)}
@@ -204,10 +204,10 @@ export default function PoiManagePage() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-divider">
               <div className="flex items-center gap-3">
                 <label className="cursor-pointer hover:bg-surface-variant transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-divider">
-                  <span className="material-symbols-outlined text-[20px] text-primary-container">
+                  <span className="material-symbols-outlined text-[20px] text-primary">
                     attach_file
                   </span>
-                  <span className="text-[15px] font-bold text-primary-container">选择文件</span>
+                  <span className="text-[15px] font-bold text-primary">选择文件</span>
                   <input
                     type="file"
                     accept=".sql,.csv"
@@ -215,7 +215,7 @@ export default function PoiManagePage() {
                     onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
-                <span className="text-[#536471] text-[13px] truncate max-w-50">
+                <span className="text-on-surface-variant text-[13px] truncate max-w-50">
                   {file ? file.name : "未选择任何文件"}
                 </span>
               </div>
@@ -223,11 +223,11 @@ export default function PoiManagePage() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    className="rounded text-primary-container h-4 w-4"
+                    className="rounded text-primary h-4 w-4"
                     checked={clearExisting}
                     onChange={(e) => setClearExisting(e.target.checked)}
                   />
-                  <span className="text-[15px] font-semibold text-[#536471]">
+                  <span className="text-[15px] font-semibold text-on-surface-variant">
                     导入前清空该街区同源数据
                   </span>
                 </label>
@@ -235,7 +235,7 @@ export default function PoiManagePage() {
                   type="button"
                   onClick={onImport}
                   disabled={!file || !streetName.trim() || importing}
-                  className="bg-primary-container text-on-primary-fixed px-6 py-2 rounded-full text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                  className="bg-primary text-white px-6 py-2 rounded-full text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                 >
                   {importing ? "解析导入中…" : "解析并导入"}
                 </button>
@@ -263,12 +263,12 @@ export default function PoiManagePage() {
                 <Stat label="跳过" value={result.skipped} />
               </div>
               <div>
-                <h4 className="text-[13px] font-semibold mb-2 text-[#536471]">字段覆盖率</h4>
+                <h4 className="text-[13px] font-semibold mb-2 text-on-surface-variant">字段覆盖率</h4>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(result.field_coverage).map(([k, v]) => (
                     <span
                       key={k}
-                      className="text-[11px] bg-surface-container-low px-2 py-1 rounded-full text-[#536471]"
+                      className="text-[11px] bg-surface-container-low px-2 py-1 rounded-full text-on-surface-variant"
                     >
                       {k}: {(v * 100).toFixed(0)}%
                     </span>
@@ -295,7 +295,7 @@ export default function PoiManagePage() {
                     type="button"
                     aria-label="向左滚动"
                     onClick={() => scrollStreets(-1)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-divider text-[#536471] hover:bg-surface-container-low transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-divider text-on-surface-variant hover:bg-surface-container-low transition-colors"
                   >
                     <span className="material-symbols-outlined text-[20px]">chevron_left</span>
                   </button>
@@ -303,7 +303,7 @@ export default function PoiManagePage() {
                     type="button"
                     aria-label="向右滚动"
                     onClick={() => scrollStreets(1)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-divider text-[#536471] hover:bg-surface-container-low transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-divider text-on-surface-variant hover:bg-surface-container-low transition-colors"
                   >
                     <span className="material-symbols-outlined text-[20px]">chevron_right</span>
                   </button>
@@ -323,17 +323,17 @@ export default function PoiManagePage() {
                     onClick={() => loadRows(s.street_id, "all")}
                     className={`shrink-0 w-64 text-left rounded-2xl p-4 border transition-all hover:bg-surface-container-low cursor-pointer ${
                       active
-                        ? "border-primary-container bg-surface-container-low"
+                        ? "border-primary bg-surface-container-low"
                         : "border-divider"
                     }`}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <h4 className="text-xl font-bold">{s.street_name}</h4>
-                      <span className="text-[#536471] text-[13px]">
+                      <span className="text-on-surface-variant text-[13px]">
                         {[s.city, s.district].filter(Boolean).join(" ") || ""}
                       </span>
                     </div>
-                    <div className="flex gap-4 text-[#536471] text-[13px]">
+                    <div className="flex gap-4 text-on-surface-variant text-[13px]">
                       <span>共 {s.poi_total}</span>
                       <span>高德 {s.amap_count}</span>
                       <span>点评 {s.dianping_count}</span>
@@ -348,10 +348,10 @@ export default function PoiManagePage() {
                         </>
                       ) : (
                         <>
-                          <span className="material-symbols-outlined text-[16px] text-[#536471]">
+                          <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
                             radio_button_unchecked
                           </span>
-                          <span className="text-[13px] text-[#536471]">尚无画像</span>
+                          <span className="text-[13px] text-on-surface-variant">尚无画像</span>
                         </>
                       )}
                     </div>
@@ -359,7 +359,7 @@ export default function PoiManagePage() {
                 );
               })}
               {streets.length === 0 && (
-                <p className="text-[15px] text-[#536471]">暂无数据，先上传导入。</p>
+                <p className="text-[15px] text-on-surface-variant">暂无数据，先上传导入。</p>
               )}
             </div>
           </section>
@@ -381,8 +381,8 @@ export default function PoiManagePage() {
                         onClick={() => loadRows(activeStreetId, s)}
                         className={`px-5 py-1 rounded-full text-[15px] font-semibold transition-colors ${
                           active
-                            ? "bg-white shadow-sm text-primary-container"
-                            : "text-[#536471] hover:bg-white/50"
+                            ? "bg-white shadow-sm text-primary"
+                            : "text-on-surface-variant hover:bg-white/50"
                         }`}
                       >
                         {SOURCE_CN[s]}
@@ -395,7 +395,7 @@ export default function PoiManagePage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-surface-container-low border-b border-divider text-[15px] font-semibold text-[#536471]">
+                    <tr className="bg-surface-container-low border-b border-divider text-[15px] font-semibold text-on-surface-variant">
                       <th className="px-6 py-3">名称</th>
                       <th className="px-6 py-3">来源</th>
                       <th className="px-6 py-3">分类</th>
@@ -408,10 +408,10 @@ export default function PoiManagePage() {
                     {rows.map((r, i) => (
                       <tr key={i} className="hover:bg-surface-container-low transition-colors">
                         <td className="px-6 py-3 text-[15px]">{String(r.name ?? "")}</td>
-                        <td className="px-6 py-3 text-[13px] text-[#536471]">
+                        <td className="px-6 py-3 text-[13px] text-on-surface-variant">
                           {SOURCE_CN[String(r.source)] ?? String(r.source ?? "")}
                         </td>
-                        <td className="px-6 py-3 text-[13px] text-[#536471]">
+                        <td className="px-6 py-3 text-[13px] text-on-surface-variant">
                           {String(r.category_l2 ?? r.cuisine ?? r.category_l1 ?? "")}
                         </td>
                         <td className="px-6 py-3 text-[15px]">
@@ -420,14 +420,14 @@ export default function PoiManagePage() {
                         <td className="px-6 py-3 text-[15px]">
                           {r.avg_price != null ? String(r.avg_price) : "—"}
                         </td>
-                        <td className="px-6 py-3 text-[13px] text-[#536471]">
+                        <td className="px-6 py-3 text-[13px] text-on-surface-variant">
                           {Number(r.is_chain) === 1 ? "是" : "否"}
                         </td>
                       </tr>
                     ))}
                     {rows.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-[15px] text-[#536471]">
+                        <td colSpan={6} className="px-6 py-8 text-center text-[15px] text-on-surface-variant">
                           该来源暂无数据
                         </td>
                       </tr>
@@ -442,7 +442,7 @@ export default function PoiManagePage() {
                     type="button"
                     onClick={loadMore}
                     disabled={loadingMore}
-                    className="text-primary-container text-[15px] font-semibold hover:bg-surface-container-low px-6 py-2 rounded-full transition-colors disabled:opacity-50"
+                    className="text-primary text-[15px] font-semibold hover:bg-surface-container-low px-6 py-2 rounded-full transition-colors disabled:opacity-50"
                   >
                     {loadingMore ? "加载中…" : "查看更多"}
                   </button>
@@ -460,7 +460,7 @@ export default function PoiManagePage() {
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-surface-container-low rounded-xl px-3 py-2">
-      <div className="text-[10px] text-[#536471] uppercase">{label}</div>
+      <div className="text-[10px] text-on-surface-variant uppercase">{label}</div>
       <div className="text-[15px] font-bold tabular-nums">{value}</div>
     </div>
   );

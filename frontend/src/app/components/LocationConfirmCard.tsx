@@ -118,8 +118,8 @@ export default function LocationConfirmCard({
           aria-hidden={flipped}
           className="backface-hidden flex w-full flex-col rounded-3xl border border-divider bg-surface-container-lowest p-6 shadow-[0_12px_40px_rgb(0,0,0,0.06)] sm:p-7"
         >
-          <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary-fixed bg-primary-fixed/40 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-primary">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-container" />
+          <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-primary">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
             AI 场景分析已就绪
           </div>
           <h3 className="pt-2 text-xl font-bold tracking-tight text-on-surface">
@@ -148,7 +148,7 @@ export default function LocationConfirmCard({
 
           {/* 识别地点 */}
           <div className="mt-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-primary-container">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
               识别地标
             </span>
             <h4 className="truncate text-lg font-extrabold leading-snug tracking-tight text-on-surface">
@@ -257,7 +257,7 @@ export default function LocationConfirmCard({
                   if (e.key === "Enter" && draft.trim()) handleConfirm(draft);
                 }}
                 placeholder="如：武康路"
-                className="w-full rounded-2xl border border-outline-variant bg-surface-container-low py-3 pl-10 pr-4 text-sm font-medium text-on-surface outline-none transition placeholder:text-outline focus:border-primary-container focus:bg-surface-container-lowest disabled:opacity-60"
+                className="w-full rounded-2xl border border-outline-variant bg-surface-container-low py-3 pl-10 pr-4 text-sm font-medium text-on-surface outline-none transition placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest disabled:opacity-60"
               />
             </div>
           </div>

@@ -1,8 +1,8 @@
 import type { DimensionScoreResult } from "../types";
 
 /**
- * 维度雷达图（完全对齐 mock 外观）：网格 divider 色、数据面 rgba(29,155,240,0.1)、
- * 描边 #1d9bf0、标签 #536471。无卡片外壳，直接作为报告中段左栏。
+ * 维度雷达图（完全对齐 mock 外观）：网格 divider 色、数据面 primary 10% 透明、
+ * 描边 primary、标签 on-surface-variant。无卡片外壳，直接作为报告中段左栏。
  * 吃后端一级维度分（5 分制），按维度数均分轴角度，支持任意维度数。
  */
 export default function RadarChart({
@@ -82,13 +82,14 @@ export default function RadarChart({
           {n > 0 && (
             <polygon
               points={polygonPoints}
-              fill="rgba(29, 155, 240, 0.1)"
-              stroke="#1d9bf0"
+              fill="var(--color-primary)"
+              fillOpacity="0.1"
+              stroke="var(--color-primary)"
               strokeWidth="1.5"
             />
           )}
           {dataPoints.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r="1.3" fill="#1d9bf0" />
+            <circle key={i} cx={p.x} cy={p.y} r="1.3" fill="var(--color-primary)" />
           ))}
           {valuePoints.map((vp, i) => (
             <text
@@ -99,7 +100,7 @@ export default function RadarChart({
               dominantBaseline="middle"
               fontSize="4"
               fontWeight="700"
-              fill="#1d9bf0"
+              fill="var(--color-primary)"
             >
               {vp.value}
             </text>
@@ -113,7 +114,7 @@ export default function RadarChart({
               dominantBaseline="middle"
               fontSize="4.5"
               fontWeight="500"
-              fill="#536471"
+              fill="var(--color-on-surface-variant)"
             >
               {lp.name}
             </text>

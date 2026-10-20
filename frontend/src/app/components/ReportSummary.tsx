@@ -52,28 +52,28 @@ function parseSummary(summary: string): ParsedSummary {
   return result;
 }
 
-/** 三色边栏：优势蓝(#1d9bf0)/短板红(#f4212e)/建议灰(#536471)，对齐 mock。 */
+/** 三色边栏：优势 primary / 短板红(#f4212e) / 建议 on-surface-variant，对齐 mock。 */
 const SECTIONS = [
   {
     key: "strengths",
     label: "优势",
     en: "Advantages",
-    border: "border-primary-container",
-    text: "text-primary-container",
+    border: "border-primary",
+    text: "text-primary",
   },
   {
     key: "weaknesses",
     label: "短板",
     en: "Weakness",
-    border: "border-[#f4212e]",
-    text: "text-[#f4212e]",
+    border: "border-danger",
+    text: "text-danger",
   },
   {
     key: "suggestions",
     label: "建议",
     en: "Suggestions",
-    border: "border-[#536471]",
-    text: "text-[#536471]",
+    border: "border-on-surface-variant",
+    text: "text-on-surface-variant",
   },
 ] as const;
 
@@ -87,14 +87,14 @@ export default function ReportSummary({ summary }: { summary: string | null }) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-2xl font-black text-[#0f1419] mb-3">综合评价</h3>
+        <h3 className="text-2xl font-black text-on-surface mb-3">综合评价</h3>
         {parsed.overview ? (
-          <p className="text-[17px] leading-relaxed text-[#0f1419] whitespace-pre-line">
+          <p className="text-[17px] leading-relaxed text-on-surface whitespace-pre-line">
             {parsed.overview}
           </p>
         ) : (
           !hasSections && (
-            <p className="text-base text-[#536471]">暂无 AI 画像内容。</p>
+            <p className="text-base text-on-surface-variant">暂无 AI 画像内容。</p>
           )
         )}
       </div>
@@ -111,7 +111,7 @@ export default function ReportSummary({ summary }: { summary: string | null }) {
                 >
                   {sec.en} / {sec.label}
                 </span>
-                <p className="text-[15px] text-[#0f1419] leading-relaxed">
+                <p className="text-[15px] text-on-surface leading-relaxed">
                   {items.join("；")}
                 </p>
               </div>

@@ -96,7 +96,7 @@ function ContactRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="material-symbols-outlined mt-0.5 text-[20px] text-primary-container">
+      <span className="material-symbols-outlined mt-0.5 text-[20px] text-primary">
         {icon}
       </span>
       <div className="min-w-0">

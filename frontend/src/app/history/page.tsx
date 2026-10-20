@@ -192,7 +192,7 @@ export default function HistoryPage() {
         (a, b) => (b.total_score ?? -1) - (a.total_score ?? -1),
       );
       return (
-        <section>
+        <section className="fx-fade-up">
           <div className="flex items-center gap-3 mb-4">
             <h3 className="text-base font-bold text-on-surface">按分数（高 → 低）</h3>
             <div className="h-px flex-1 bg-divider" />
@@ -218,7 +218,7 @@ export default function HistoryPage() {
       const items = filtered.filter((r) => sectionOf(r.created_at) === section);
       if (items.length === 0) return null;
       return (
-        <section key={section}>
+        <section key={section} className="fx-fade-up">
           <div className="flex items-center gap-3 mb-4">
             <h3 className="text-base font-bold text-on-surface">{section}</h3>
             <div className="h-px flex-1 bg-divider" />
@@ -252,57 +252,50 @@ export default function HistoryPage() {
             onFilterChange={setFilters}
             sortByScore={sortByScore}
             onToggleSort={() => setSortByScore((v) => !v)}
+            canSelect={!loading && !error && records.length > 0}
+            selectMode={selectMode}
+            onToggleSelectMode={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
           />
 
-          {/* 多选工具栏 */}
           {!loading && !error && records.length > 0 && (
-            <div className="flex items-center justify-between gap-3">
-              {selectMode ? (
-                <>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={toggleSelectAll}
-                      className="flex items-center gap-1 text-sm font-medium text-on-surface hover:text-primary transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {allFilteredSelected ? "check_box" : "check_box_outline_blank"}
-                      </span>
-                      {allFilteredSelected ? "取消全选" : "全选"}
-                    </button>
-                    <span className="text-sm text-on-surface-variant">
-                      已选 {selectedIds.size} 项
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={selectedIds.size === 0}
-                      onClick={() => setConfirmBatch(true)}
-                      className="flex items-center gap-1 bg-error text-white px-4 py-2 rounded-full text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">delete</span>
-                      删除选中
-                    </button>
-                    <button
-                      type="button"
-                      onClick={exitSelectMode}
-                      className="px-4 py-2 rounded-full text-sm font-medium bg-outline-variant/30 hover:bg-surface-variant text-on-surface transition-colors"
-                    >
-                      退出
-                    </button>
-                  </div>
-                </>
-              ) : (
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-on-surface-variant">
+                共 <span className="font-semibold tabular-nums text-on-surface">{filtered.length}</span> 条记录
+                {filtered.length !== records.length && (
+                  <span className="text-on-surface-variant">（全部 {records.length} 条）</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* 多选操作栏：进入多选后吸顶显示 */}
+          {selectMode && (
+            <div className="fx-fade-down sticky top-3 z-30 flex items-center justify-between gap-3 rounded-2xl border border-divider bg-surface-container-lowest/95 px-4 py-2.5 shadow-[0_8px_24px_rgb(0,0,0,0.06)] backdrop-blur">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectMode(true)}
-                  className="ml-auto flex items-center gap-1 bg-outline-variant/30 hover:bg-surface-variant text-on-surface px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  onClick={toggleSelectAll}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-on-surface transition-colors hover:text-primary"
                 >
-                  <span className="material-symbols-outlined text-[18px]">checklist</span>
-                  选择
+                  <span className="material-symbols-outlined text-[20px]">
+                    {allFilteredSelected ? "check_box" : "check_box_outline_blank"}
+                  </span>
+                  {allFilteredSelected ? "取消全选" : "全选"}
                 </button>
-              )}
+                <span className="h-4 w-px bg-divider" />
+                <span className="text-sm text-on-surface-variant">
+                  已选 <span className="font-semibold tabular-nums text-on-surface">{selectedIds.size}</span> 项
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={() => setConfirmBatch(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-error/30 px-4 text-sm font-medium text-error transition-all hover:bg-error hover:text-white active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+              >
+                <span className="material-symbols-outlined text-[18px]">delete</span>
+                删除
+              </button>
             </div>
           )}
 

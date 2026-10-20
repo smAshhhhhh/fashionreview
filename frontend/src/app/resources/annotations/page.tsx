@@ -143,29 +143,29 @@ export default function AnnotationsPage() {
   const pending = counts.image_count - counts.embedded_count;
 
   return (
-    <div className="flex min-h-screen bg-surface text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
       <main className="flex-1 min-w-0 md:ml-64 pb-24 lg:pb-12">
         <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
           <Link
             href="/resources"
-            className="flex items-center text-primary-container"
+            className="flex items-center text-primary"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          <h2 className="text-xl font-bold text-[#0f1419]">人工标注库</h2>
+          <h2 className="text-xl font-bold text-brand">人工标注库</h2>
         </header>
 
         <div className="max-w-250 mx-auto p-4 lg:p-6 space-y-6">
           {/* ──── 上传区 ──── */}
           <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest">
             <div className="flex items-start gap-4 mb-6">
-              <div className="bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary-container shrink-0">
+              <div className="bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary shrink-0">
                 <span className="material-symbols-outlined">upload_file</span>
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-xl font-bold mb-1">上传标注表格</h3>
-                <p className="text-[#536471] text-[15px] leading-relaxed">
+                <p className="text-on-surface-variant text-[15px] leading-relaxed">
                   支持 WPS 导出的 .xlsx（图片以 DISPIMG 内嵌在单元格内）。系统解析
                   「图片」与「图片属性1~7」两部分：图片落盘并生成向量，属性按
                   「指标名：等级成语」拆解入库。照片发起点评时据此匹配最相似的标注图，
@@ -177,10 +177,10 @@ export default function AnnotationsPage() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-divider">
               <div className="flex items-center gap-3 min-w-0">
                 <label className="cursor-pointer hover:bg-surface-variant transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-divider shrink-0">
-                  <span className="material-symbols-outlined text-[20px] text-primary-container">
+                  <span className="material-symbols-outlined text-[20px] text-primary">
                     attach_file
                   </span>
-                  <span className="text-[15px] font-bold text-primary-container">
+                  <span className="text-[15px] font-bold text-primary">
                     选择文件
                   </span>
                   <input
@@ -190,7 +190,7 @@ export default function AnnotationsPage() {
                     onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
-                <span className="text-[#536471] text-[13px] truncate">
+                <span className="text-on-surface-variant text-[13px] truncate">
                   {file ? file.name : "未选择任何文件"}
                 </span>
               </div>
@@ -198,11 +198,11 @@ export default function AnnotationsPage() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    className="rounded text-primary-container h-4 w-4"
+                    className="rounded text-primary h-4 w-4"
                     checked={clearExisting}
                     onChange={(e) => setClearExisting(e.target.checked)}
                   />
-                  <span className="text-[15px] font-semibold text-[#536471]">
+                  <span className="text-[15px] font-semibold text-on-surface-variant">
                     导入前清空标注库
                   </span>
                 </label>
@@ -210,7 +210,7 @@ export default function AnnotationsPage() {
                   type="button"
                   onClick={onImport}
                   disabled={!file || importing}
-                  className="bg-primary-container text-on-primary-fixed px-6 py-2 rounded-full text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                  className="bg-primary text-white px-6 py-2 rounded-full text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                 >
                   {importing ? "解析中…" : "上传并导入"}
                 </button>
@@ -219,7 +219,7 @@ export default function AnnotationsPage() {
           </section>
 
           {error && (
-            <div className="border border-[#f4212e]/30 bg-[#f4212e]/5 rounded-2xl px-5 py-4 text-[15px] text-[#f4212e]">
+            <div className="border border-danger/30 bg-danger/5 rounded-2xl px-5 py-4 text-[15px] text-danger">
               {error}
             </div>
           )}
@@ -227,7 +227,7 @@ export default function AnnotationsPage() {
           {/* ──── 导入摘要 ──── */}
           {result && (
             <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest space-y-4">
-              <h3 className="text-[15px] font-bold uppercase tracking-widest text-[#536471]">
+              <h3 className="text-[15px] font-bold uppercase tracking-widest text-on-surface-variant">
                 导入摘要
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -239,7 +239,7 @@ export default function AnnotationsPage() {
 
               {result.unknown_metrics.length === 0 &&
               result.unknown_grade_words.length === 0 ? (
-                <p className="text-[13px] text-[#1b5e20] bg-[#e8f5e9] rounded-xl px-4 py-3">
+                <p className="text-[13px] text-success bg-success-container rounded-xl px-4 py-3">
                   全部属性的指标名与等级成语均已识别，无需人工核对。
                 </p>
               ) : (
@@ -267,7 +267,7 @@ export default function AnnotationsPage() {
           <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest space-y-4">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h3 className="text-[15px] font-bold uppercase tracking-widest text-[#536471] mb-3">
+                <h3 className="text-[15px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
                   向量状态
                 </h3>
                 <div className="flex items-center gap-8">
@@ -282,7 +282,7 @@ export default function AnnotationsPage() {
                   type="button"
                   onClick={() => onBuildEmbeddings(false)}
                   disabled={busy || counts.image_count === 0}
-                  className="bg-primary-container text-on-primary-fixed px-5 py-2 rounded-full text-[15px] font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                  className="bg-primary text-white px-5 py-2 rounded-full text-[15px] font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                 >
                   {busy ? "生成中…" : "生成向量"}
                 </button>
@@ -290,7 +290,7 @@ export default function AnnotationsPage() {
                   type="button"
                   onClick={() => onBuildEmbeddings(true)}
                   disabled={busy || counts.image_count === 0}
-                  className="border border-divider px-5 py-2 rounded-full text-[15px] font-bold text-[#536471] hover:bg-surface-variant transition-colors disabled:opacity-50"
+                  className="border border-divider px-5 py-2 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-variant transition-colors disabled:opacity-50"
                 >
                   全部重算
                 </button>
@@ -298,7 +298,7 @@ export default function AnnotationsPage() {
                   type="button"
                   onClick={onClear}
                   disabled={busy || counts.image_count === 0}
-                  className="border border-[#f4212e]/30 text-[#f4212e] px-5 py-2 rounded-full text-[15px] font-bold hover:bg-[#f4212e]/5 transition-colors disabled:opacity-50"
+                  className="border border-danger/30 text-danger px-5 py-2 rounded-full text-[15px] font-bold hover:bg-danger/5 transition-colors disabled:opacity-50"
                 >
                   清空标注库
                 </button>
@@ -308,7 +308,7 @@ export default function AnnotationsPage() {
             {job && (
               <div className="pt-4 border-t border-divider space-y-2">
                 <div className="flex items-center justify-between text-[13px] font-bold">
-                  <span className="text-[#536471]">
+                  <span className="text-on-surface-variant">
                     {job.status === "running"
                       ? "正在生成向量…"
                       : job.status === "partial"
@@ -322,14 +322,14 @@ export default function AnnotationsPage() {
                 </div>
                 <div className="w-full bg-surface-container-low rounded-full h-1">
                   <div
-                    className="bg-primary-container h-1 rounded-full transition-all"
+                    className="bg-primary h-1 rounded-full transition-all"
                     style={{
                       width: `${job.total > 0 ? (job.done / job.total) * 100 : 0}%`,
                     }}
                   />
                 </div>
                 {job.error && (
-                  <p className="text-[13px] text-[#f4212e]">
+                  <p className="text-[13px] text-danger">
                     最近一次错误：{job.error}
                   </p>
                 )}
@@ -337,7 +337,7 @@ export default function AnnotationsPage() {
             )}
 
             {counts.image_count > 0 && pending === 0 && (
-              <p className="text-[13px] text-[#536471]">
+              <p className="text-[13px] text-on-surface-variant">
                 向量已就绪。建议执行一次标定检查匹配质量：
                 <code className="mx-1 px-1.5 py-0.5 bg-surface-container-low rounded text-[12px]">
                   python -m app.services.annotation.calibrate
@@ -349,11 +349,11 @@ export default function AnnotationsPage() {
 
           {/* ──── 标注图网格 ──── */}
           <section className="space-y-4">
-            <h3 className="text-[15px] font-bold uppercase tracking-widest text-[#536471]">
+            <h3 className="text-[15px] font-bold uppercase tracking-widest text-on-surface-variant">
               标注图 {items.length > 0 && `（${items.length}）`}
             </h3>
             {items.length === 0 ? (
-              <div className="border border-dashed border-divider rounded-2xl p-10 text-center text-[15px] text-[#536471]">
+              <div className="border border-dashed border-divider rounded-2xl p-10 text-center text-[15px] text-on-surface-variant">
                 标注库为空。上传标注表格后在此查看图片与属性。
               </div>
             ) : (
@@ -379,7 +379,7 @@ function Stat({ label, value }: { label: string; value: number }) {
       <div className="text-2xl font-black tabular-nums tracking-tight">
         {value}
       </div>
-      <div className="text-[11px] text-[#536471] font-bold uppercase">
+      <div className="text-[11px] text-on-surface-variant font-bold uppercase">
         {label}
       </div>
     </div>
@@ -396,10 +396,10 @@ function Warn({
   hint: string;
 }) {
   return (
-    <div className="bg-[#fff8e1] border border-[#ffb300]/30 rounded-xl px-4 py-3">
-      <p className="text-[13px] font-bold text-[#8d6e00]">{title}</p>
-      <p className="text-[13px] text-[#8d6e00] mt-1 break-words">{detail}</p>
-      <p className="text-[12px] text-[#8d6e00]/80 mt-1">{hint}</p>
+    <div className="bg-warning-container border border-warning-border/30 rounded-xl px-4 py-3">
+      <p className="text-[13px] font-bold text-warning">{title}</p>
+      <p className="text-[13px] text-warning mt-1 break-words">{detail}</p>
+      <p className="text-[12px] text-warning/80 mt-1">{hint}</p>
     </div>
   );
 }
@@ -421,11 +421,11 @@ function AnnotationCard({ item }: { item: AnnotationItem }) {
             {item.file_name}
           </span>
           {item.has_embedding ? (
-            <span className="shrink-0 text-[11px] font-bold text-[#1b5e20] bg-[#e8f5e9] rounded-md px-2 py-0.5">
+            <span className="shrink-0 text-[11px] font-bold text-success bg-success-container rounded-md px-2 py-0.5">
               向量就绪
             </span>
           ) : (
-            <span className="shrink-0 text-[11px] font-bold text-[#8d6e00] bg-[#fff8e1] rounded-md px-2 py-0.5">
+            <span className="shrink-0 text-[11px] font-bold text-warning bg-warning-container rounded-md px-2 py-0.5">
               待生成
             </span>
           )}
@@ -434,7 +434,7 @@ function AnnotationCard({ item }: { item: AnnotationItem }) {
           {attrs.map((a) => (
             <span
               key={a.attr_index}
-              className="rounded-md bg-[#e8f5e9] px-2 py-0.5 text-[12px] font-medium text-[#1b5e20]"
+              className="rounded-md bg-success-container px-2 py-0.5 text-[12px] font-medium text-success"
               title={a.raw_text}
             >
               {a.metric_name ? `${a.metric_name} · ` : ""}

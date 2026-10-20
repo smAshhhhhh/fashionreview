@@ -24,7 +24,7 @@ export default function MobileBottomNav({
             key={item.label}
             href={item.href}
             className={`flex flex-col items-center gap-0.5 ${
-              isActive ? "text-primary" : "text-on-surface-variant"
+              isActive ? "text-brand" : "text-on-surface-variant"
             }`}
           >
             <span

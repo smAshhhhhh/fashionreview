@@ -94,21 +94,21 @@ export default function ProfilesPage() {
   const extra = (detail?.extra_stats ?? {}) as Dict;
 
   return (
-    <div className="flex min-h-screen bg-surface text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
       <main className="flex-1 min-w-0 md:ml-64 pb-24 lg:pb-12">
         {/* 顶部栏 */}
         <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
-          <Link href="/resources" className="flex items-center text-primary-container">
+          <Link href="/resources" className="flex items-center text-primary">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          <h1 className="text-xl font-bold text-[#0f1419]">街巷画像</h1>
+          <h1 className="text-xl font-bold text-brand">街巷画像</h1>
         </header>
 
         <div className="px-4 lg:px-6 py-6 grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
           {/* 街区列表 */}
           <aside className="space-y-2 lg:sticky lg:top-20 self-start">
-            <h2 className="text-[13px] font-bold text-[#536471] uppercase mb-1">街区</h2>
+            <h2 className="text-[13px] font-bold text-on-surface-variant uppercase mb-1">街区</h2>
             {streets.map((s) => {
               const active = selectedId === s.street_id;
               return (
@@ -118,12 +118,12 @@ export default function ProfilesPage() {
                   onClick={() => selectStreet(s.street_id)}
                   className={`w-full text-left rounded-2xl p-3 border transition-colors ${
                     active
-                      ? "border-primary-container bg-surface-container-low"
+                      ? "border-primary bg-surface-container-low"
                       : "border-divider hover:bg-surface-container-low"
                   }`}
                 >
-                  <div className="text-[14px] font-bold text-[#0f1419]">{s.street_name}</div>
-                  <div className="text-[11px] text-[#536471] mt-0.5">
+                  <div className="text-[14px] font-bold text-on-surface">{s.street_name}</div>
+                  <div className="text-[11px] text-on-surface-variant mt-0.5">
                     共 {s.poi_total} · 高德 {s.amap_count} · 点评 {s.dianping_count}
                     {s.has_profile ? " · 有画像" : ""}
                   </div>
@@ -131,7 +131,7 @@ export default function ProfilesPage() {
               );
             })}
             {streets.length === 0 && (
-              <p className="text-[13px] text-[#536471]">暂无街区，先在 POI 管理导入。</p>
+              <p className="text-[13px] text-on-surface-variant">暂无街区，先在 POI 管理导入。</p>
             )}
           </aside>
 
@@ -143,17 +143,17 @@ export default function ProfilesPage() {
               </p>
             )}
             {detail == null ? (
-              <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-[#536471]">
+              <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-on-surface-variant">
                 <p className="text-[15px]">请选择左侧街区查看画像。</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between flex-wrap gap-3 pb-6 border-b border-divider">
                   <div>
-                    <h2 className="text-[28px] leading-8 font-black tracking-tight text-[#0f1419]">
+                    <h2 className="text-[28px] leading-8 font-black tracking-tight text-brand">
                       {detail.street.name}
                     </h2>
-                    <p className="text-[13px] text-[#536471] mt-1">
+                    <p className="text-[13px] text-on-surface-variant mt-1">
                       事实层 共 {detail.poi_total} · 高德 {detail.amap_count} · 点评 {detail.dianping_count}
                     </p>
                   </div>
@@ -161,7 +161,7 @@ export default function ProfilesPage() {
                     type="button"
                     onClick={rebuild}
                     disabled={jobStatus != null}
-                    className="flex items-center gap-2 bg-primary-container text-on-primary-fixed font-bold text-[15px] px-5 py-2 rounded-full shadow-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:active:scale-100"
+                    className="flex items-center gap-2 bg-primary text-white font-bold text-[15px] px-5 py-2 rounded-full shadow-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:active:scale-100"
                   >
                     {jobStatus != null && (
                       <span className="material-symbols-outlined animate-spin text-[18px]">
@@ -173,7 +173,7 @@ export default function ProfilesPage() {
                 </div>
 
                 {!detail.has_profile ? (
-                  <div className="grid place-items-center rounded-2xl border border-dashed border-divider p-10 text-center text-[#536471]">
+                  <div className="grid place-items-center rounded-2xl border border-dashed border-divider p-10 text-center text-on-surface-variant">
                     <p className="text-[15px]">该街区尚无画像，点击「生成画像」从事实层聚合。</p>
                   </div>
                 ) : (
@@ -195,12 +195,12 @@ export default function ProfilesPage() {
                     {/* facts 预览 */}
                     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
                       <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary-container text-[18px]">
+                        <span className="material-symbols-outlined text-primary text-[18px]">
                           smart_toy
                         </span>
                         点评时进入 LLM 的 facts 预览
                       </h3>
-                      <pre className="text-[12px] whitespace-pre-wrap text-[#536471] bg-surface-container-low rounded-xl p-3 overflow-x-auto">
+                      <pre className="text-[12px] whitespace-pre-wrap text-on-surface-variant bg-surface-container-low rounded-xl p-3 overflow-x-auto">
                         {detail.facts_preview || "(空)"}
                       </pre>
                     </div>
@@ -253,18 +253,18 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-      <h3 className="text-[14px] font-bold mb-3 text-[#0f1419]">{title}</h3>
+      <h3 className="text-[14px] font-bold mb-3 text-on-surface">{title}</h3>
       <div className="space-y-2">
         {data.slice(0, 12).map((d) => (
           <div key={d.label} className="flex items-center gap-2 text-[12px]">
-            <span className="w-28 shrink-0 truncate text-[#536471]">{d.label}</span>
+            <span className="w-28 shrink-0 truncate text-on-surface-variant">{d.label}</span>
             <div className="flex-1 bg-surface-container-low rounded-full h-2">
               <div
-                className="bg-primary-container h-2 rounded-full"
+                className="bg-primary h-2 rounded-full"
                 style={{ width: `${(d.count / max) * 100}%` }}
               />
             </div>
-            <span className="w-16 text-right tabular-nums text-[#0f1419]">
+            <span className="w-16 text-right tabular-nums text-on-surface">
               {d.count} ({d.pct}%)
             </span>
           </div>
@@ -290,7 +290,7 @@ function TagBlock({
   if (entries.length === 0) return null;
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-      <h3 className="text-[14px] font-bold mb-3 text-[#0f1419]">{title}</h3>
+      <h3 className="text-[14px] font-bold mb-3 text-on-surface">{title}</h3>
       <div className="flex flex-wrap gap-2">
         {entries.map(([k, v]) => {
           const base = k.replace(/_count$/, "");
@@ -298,7 +298,7 @@ function TagBlock({
           return (
             <span
               key={k}
-              className="text-[12px] bg-primary-container/10 text-primary-container px-3 py-1 rounded-full"
+              className="text-[12px] bg-primary/10 text-primary px-3 py-1 rounded-full"
             >
               {TAG_CN[base] ?? base}: {v}
               {pct != null ? ` (${pct}%)` : ""}
@@ -317,12 +317,12 @@ function HighlightBlock({ highlights }: { highlights: unknown }) {
   if (entries.length === 0) return null;
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-      <h3 className="text-[14px] font-bold mb-3 text-[#0f1419]">代表性店铺</h3>
+      <h3 className="text-[14px] font-bold mb-3 text-on-surface">代表性店铺</h3>
       <div className="space-y-2">
         {entries.map(([k, names]) => (
           <div key={k} className="text-[12px]">
-            <span className="font-semibold text-[#536471]">{TAG_CN[k] ?? k}: </span>
-            <span className="text-[#0f1419]">{names.join("、")}</span>
+            <span className="font-semibold text-on-surface-variant">{TAG_CN[k] ?? k}: </span>
+            <span className="text-on-surface">{names.join("、")}</span>
           </div>
         ))}
       </div>
@@ -333,8 +333,8 @@ function HighlightBlock({ highlights }: { highlights: unknown }) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-container-low border border-divider rounded-2xl p-3">
-      <div className="text-[11px] text-[#536471]">{label}</div>
-      <div className="text-[18px] font-bold tabular-nums text-[#0f1419]">{value}</div>
+      <div className="text-[11px] text-on-surface-variant">{label}</div>
+      <div className="text-[18px] font-bold tabular-nums text-on-surface">{value}</div>
     </div>
   );
 }

@@ -80,16 +80,16 @@ export default function PromptsPage() {
   const selected = templates.find((t) => t.id === selectedId) ?? null;
 
   return (
-    <div className="flex min-h-screen bg-surface text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
         {/* 顶部栏 */}
         <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
-          <Link href="/resources" className="flex items-center text-primary-container">
+          <Link href="/resources" className="flex items-center text-primary">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          <h2 className="text-xl font-bold text-[#0f1419]">Prompt 管理</h2>
+          <h2 className="text-xl font-bold text-brand">Prompt 管理</h2>
         </header>
 
         <section className="p-4 lg:p-6 max-w-7xl mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
@@ -98,7 +98,7 @@ export default function PromptsPage() {
               className={`flex items-start gap-3 rounded-2xl border p-4 ${
                 error
                   ? "border-error/30 bg-error/5 text-error"
-                  : "border-primary-container/30 bg-primary-container/5 text-[#536471]"
+                  : "border-primary/30 bg-primary/5 text-on-surface-variant"
               }`}
             >
               <span className="material-symbols-outlined">
@@ -119,7 +119,7 @@ export default function PromptsPage() {
                   if (items.length === 0) return null;
                   return (
                     <div key={stage} className="space-y-2">
-                      <h3 className="text-[13px] font-bold text-[#536471] uppercase px-1">
+                      <h3 className="text-[13px] font-bold text-on-surface-variant uppercase px-1">
                         {STAGE_LABEL[stage] ?? stage}
                       </h3>
                       {items.map((t) => {
@@ -131,22 +131,22 @@ export default function PromptsPage() {
                             onClick={() => setSelectedId(t.id)}
                             className={`w-full text-left rounded-2xl border p-3 transition-colors ${
                               isSel
-                                ? "border-primary-container bg-surface-container-low"
+                                ? "border-primary bg-surface-container-low"
                                 : "border-divider hover:bg-surface-container-low"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-[14px] font-bold text-[#0f1419] truncate">
+                              <span className="text-[14px] font-bold text-on-surface truncate">
                                 {t.name}
                               </span>
-                              <span className="shrink-0 text-[11px] font-semibold text-[#536471] tabular-nums">
+                              <span className="shrink-0 text-[11px] font-semibold text-on-surface-variant tabular-nums">
                                 v{t.version}
                               </span>
                             </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#536471]">
+                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-on-surface-variant">
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  t.enabled === 1 ? "bg-primary-container" : "bg-surface-container-highest"
+                                  t.enabled === 1 ? "bg-primary" : "bg-surface-container-highest"
                                 }`}
                               />
                               {t.enabled === 1 ? "已启用" : "已停用"}
@@ -178,7 +178,7 @@ export default function PromptsPage() {
                   onClearNotice={() => setNotice(null)}
                 />
               ) : (
-                <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-[#536471]">
+                <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-on-surface-variant">
                   <p className="text-[15px]">请选择左侧模板进行编辑。</p>
                 </div>
               )}
@@ -195,7 +195,7 @@ export default function PromptsPage() {
 /* ──────────────── 右侧：编辑器 ──────────────── */
 
 const inputClass =
-  "w-full bg-white border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container focus:outline-none transition-colors";
+  "w-full bg-white border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary focus:outline-none transition-colors";
 
 function PromptEditor({
   template,
@@ -277,15 +277,15 @@ function PromptEditor({
       {/* 头部：名称 + 阶段/版本 + 启用开关 */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8 border-b border-divider pb-6">
         <div className="min-w-0">
-          <p className="text-[13px] text-[#536471] mb-1">
+          <p className="text-[13px] text-on-surface-variant mb-1">
             {STAGE_LABEL[template.stage] ?? template.stage} · 当前 v{template.version}
           </p>
-          <h3 className="text-[28px] leading-8 font-black tracking-tight text-[#0f1419] truncate">
+          <h3 className="text-[28px] leading-8 font-black tracking-tight text-on-surface truncate">
             {template.name}
           </h3>
         </div>
         <label className="flex items-center gap-2 cursor-pointer shrink-0 select-none">
-          <span className="text-[13px] font-semibold text-[#536471]">
+          <span className="text-[13px] font-semibold text-on-surface-variant">
             {template.enabled === 1 ? "已启用" : "已停用"}
           </span>
           <span className="relative inline-flex items-center">
@@ -296,7 +296,7 @@ function PromptEditor({
               disabled={enabledBusy}
               onChange={toggleEnabled}
             />
-            <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary-container after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+            <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
           </span>
         </label>
       </div>
@@ -304,12 +304,12 @@ function PromptEditor({
       {/* 可用占位符 */}
       {placeholders.length > 0 && (
         <div className="mb-6">
-          <p className="text-[13px] font-semibold text-[#536471] mb-2">可用占位符</p>
+          <p className="text-[13px] font-semibold text-on-surface-variant mb-2">可用占位符</p>
           <div className="flex flex-wrap gap-2">
             {placeholders.map((p) => (
               <code
                 key={p}
-                className="text-[12px] bg-surface-container-low text-[#0f1419] px-2 py-1 rounded-full border border-divider"
+                className="text-[12px] bg-surface-container-low text-on-surface px-2 py-1 rounded-full border border-divider"
               >
                 {p}
               </code>
@@ -321,11 +321,11 @@ function PromptEditor({
       {/* 名称 / 模型 / 温度 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="space-y-1.5">
-          <label className="block text-[13px] font-semibold text-[#536471] px-1">模版名称</label>
+          <label className="block text-[13px] font-semibold text-on-surface-variant px-1">模版名称</label>
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
         </div>
         <div className="space-y-1.5">
-          <label className="block text-[13px] font-semibold text-[#536471] px-1">
+          <label className="block text-[13px] font-semibold text-on-surface-variant px-1">
             模型（留空用默认）
           </label>
           <input
@@ -336,7 +336,7 @@ function PromptEditor({
           />
         </div>
         <div className="space-y-1.5">
-          <label className="block text-[13px] font-semibold text-[#536471] px-1">
+          <label className="block text-[13px] font-semibold text-on-surface-variant px-1">
             采样温度 0~2（留空用默认）
           </label>
           <input
@@ -355,7 +355,7 @@ function PromptEditor({
       {/* System / User / 更新日志 */}
       <div className="space-y-5 mb-6">
         <div>
-          <label className="block text-[13px] font-semibold text-[#536471] mb-2 px-1">
+          <label className="block text-[13px] font-semibold text-on-surface-variant mb-2 px-1">
             System Prompt（系统提示词）
           </label>
           <textarea
@@ -366,7 +366,7 @@ function PromptEditor({
           />
         </div>
         <div>
-          <label className="block text-[13px] font-semibold text-[#536471] mb-2 px-1">
+          <label className="block text-[13px] font-semibold text-on-surface-variant mb-2 px-1">
             User Template（用户模版）
           </label>
           <textarea
@@ -377,7 +377,7 @@ function PromptEditor({
           />
         </div>
         <div>
-          <label className="block text-[13px] font-semibold text-[#536471] mb-2 px-1">
+          <label className="block text-[13px] font-semibold text-on-surface-variant mb-2 px-1">
             更新日志（选填，记入版本历史）
           </label>
           <textarea
@@ -395,7 +395,7 @@ function PromptEditor({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 rounded-full bg-primary-container px-6 py-2 text-[15px] font-bold text-on-primary-fixed shadow-sm hover:opacity-90 disabled:opacity-50 transition-all active:scale-95"
+          className="flex items-center gap-2 rounded-full bg-primary px-6 py-2 text-[15px] font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-50 transition-all active:scale-95"
         >
           {saving && (
             <span className="material-symbols-outlined animate-spin text-[18px]">
@@ -475,13 +475,13 @@ function HistoryPanel({
   return (
     <div className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
       <div className="px-5 py-4 border-b border-divider">
-        <h5 className="text-[15px] font-bold text-[#0f1419]">版本历史</h5>
+        <h5 className="text-[15px] font-bold text-on-surface">版本历史</h5>
       </div>
 
       {loading ? (
-        <p className="px-5 py-6 text-[13px] text-[#536471]">正在加载历史版本…</p>
+        <p className="px-5 py-6 text-[13px] text-on-surface-variant">正在加载历史版本…</p>
       ) : history.length === 0 ? (
-        <p className="px-5 py-6 text-[13px] text-[#536471]">暂无历史版本</p>
+        <p className="px-5 py-6 text-[13px] text-on-surface-variant">暂无历史版本</p>
       ) : (
         <div className="divide-y divide-divider">
           {history.map((h) => (
@@ -490,17 +490,17 @@ function HistoryPanel({
               className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-surface-container-low transition-colors"
             >
               <div className="flex items-center gap-4 min-w-0">
-                <span className="font-bold text-[#536471] tabular-nums shrink-0">
+                <span className="font-bold text-on-surface-variant tabular-nums shrink-0">
                   v{h.version}
                 </span>
-                <span className="text-[14px] text-[#0f1419] truncate">
+                <span className="text-[14px] text-on-surface truncate">
                   {h.change_note || "（无变更说明）"}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setPendingVersion(h.version)}
-                className="shrink-0 text-primary-container text-[14px] font-semibold px-4 py-1 rounded-full border border-primary-container/30 hover:bg-primary-container/5 transition-colors"
+                className="shrink-0 text-primary text-[14px] font-semibold px-4 py-1 rounded-full border border-primary/30 hover:bg-primary/5 transition-colors"
               >
                 回滚
               </button>
@@ -520,9 +520,9 @@ function HistoryPanel({
             onClick={(e) => e.stopPropagation()}
           >
             <h4 className="text-xl font-bold mb-3">确认回滚版本？</h4>
-            <p className="text-[15px] text-[#536471] mb-6">
+            <p className="text-[15px] text-on-surface-variant mb-6">
               回滚到版本{" "}
-              <span className="font-bold text-primary-container">v{pendingVersion}</span>{" "}
+              <span className="font-bold text-primary">v{pendingVersion}</span>{" "}
               后，该版本内容会作为新版本写回，当前未保存的编辑将被丢弃。
             </p>
             <div className="flex justify-end gap-3">
@@ -530,7 +530,7 @@ function HistoryPanel({
                 type="button"
                 onClick={() => setPendingVersion(null)}
                 disabled={rollingBack}
-                className="px-4 py-3 rounded-full text-[15px] font-bold text-[#536471] hover:bg-surface-container transition-colors disabled:opacity-50"
+                className="px-4 py-3 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
               >
                 取消
               </button>
@@ -538,7 +538,7 @@ function HistoryPanel({
                 type="button"
                 onClick={executeRollback}
                 disabled={rollingBack}
-                className="px-6 py-3 rounded-full text-[15px] font-bold bg-primary-container text-on-primary-fixed shadow-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-3 rounded-full text-[15px] font-bold bg-primary text-white shadow-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {rollingBack && (
                   <span className="material-symbols-outlined animate-spin text-[18px]">

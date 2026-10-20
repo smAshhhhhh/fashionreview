@@ -23,7 +23,7 @@ type GroupMeta = {
   desc: string;
 };
 
-// 统一走单一主色（primary-container），不再按分组用多种花哨配色
+// 统一走单一主色（primary），不再按分组用多种花哨配色
 const GROUP_META: Record<string, GroupMeta> = {
   overview: {
     label: "概览头部",
@@ -100,7 +100,7 @@ export default function AnalysisConfigPage() {
     if (loading) return <LoadingSkeleton />;
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center gap-3 py-24 text-[#536471]">
+        <div className="flex flex-col items-center justify-center gap-3 py-24 text-on-surface-variant">
           <span className="material-symbols-outlined text-5xl text-error">error</span>
           <p className="text-[15px]">{error}</p>
         </div>
@@ -124,20 +124,20 @@ export default function AnalysisConfigPage() {
             className="w-full flex items-center justify-between p-4 hover:bg-surface-container-low transition-colors text-left"
           >
             <div className="flex items-center gap-3">
-              <span className="w-10 h-10 rounded-full bg-primary-container/10 grid place-items-center text-primary-container shrink-0">
+              <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
                 <span className="material-symbols-outlined">{meta.icon}</span>
               </span>
               <div>
-                <h3 className="text-[17px] font-bold text-[#0f1419]">{meta.label}</h3>
-                <p className="text-[13px] text-[#536471]">{meta.desc}</p>
+                <h3 className="text-[17px] font-bold text-on-surface">{meta.label}</h3>
+                <p className="text-[13px] text-on-surface-variant">{meta.desc}</p>
               </div>
             </div>
             <div className="flex items-center gap-6">
-              <span className="px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-[#536471]">
+              <span className="px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-on-surface-variant">
                 {activeCount}/{items.length} 启用
               </span>
               <span
-                className="material-symbols-outlined text-[#536471] transition-transform duration-300"
+                className="material-symbols-outlined text-on-surface-variant transition-transform duration-300"
                 style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}
               >
                 expand_more
@@ -164,25 +164,25 @@ export default function AnalysisConfigPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-surface text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
         {/* 顶部栏 */}
         <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
-          <Link href="/resources" className="flex items-center text-primary-container">
+          <Link href="/resources" className="flex items-center text-primary">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          <h2 className="text-xl font-bold text-[#0f1419]">分析管理</h2>
+          <h2 className="text-xl font-bold text-brand">分析管理</h2>
         </header>
 
         <section className="p-4 lg:p-6 max-w-300 mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
           {/* 说明条 */}
           <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
-            <span className="material-symbols-outlined text-primary-container">info</span>
-            <p className="text-[13px] leading-relaxed text-[#536471]">
+            <span className="material-symbols-outlined text-primary">info</span>
+            <p className="text-[13px] leading-relaxed text-on-surface-variant">
               这里的开关控制
-              <Link href="/analytics" className="text-primary-container font-semibold mx-1 hover:underline">
+              <Link href="/analytics" className="text-primary font-semibold mx-1 hover:underline">
                 分析中心
               </Link>
               结果页展示哪些内容区块。关闭后该区块对所有评价结果统一隐藏；「得分依据」依赖「三级指标得分」开启才会出现。
@@ -230,9 +230,9 @@ function BlockItem({
     <div className="p-4 hover:bg-surface-container-low transition-colors">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h4 className="text-[15px] font-bold text-[#0f1419]">{config.name}</h4>
+          <h4 className="text-[15px] font-bold text-on-surface">{config.name}</h4>
           {config.description && (
-            <p className="text-[13px] text-[#536471] mt-1">{config.description}</p>
+            <p className="text-[13px] text-on-surface-variant mt-1">{config.description}</p>
           )}
         </div>
         <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -243,7 +243,7 @@ function BlockItem({
             disabled={busy}
             onChange={handle}
           />
-          <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary-container peer-focus:outline-none after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+          <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary peer-focus:outline-none after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
         </label>
       </div>
     </div>

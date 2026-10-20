@@ -27,8 +27,8 @@ export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
               href={item.href}
               className={`flex items-center gap-3 rounded-full px-4 py-3 font-semibold transition-transform active:scale-95 ${
                 isActive
-                  ? "bg-secondary-container text-on-secondary-container"
-                  : "text-on-surface-variant hover:bg-surface-container-high"
+                  ? "bg-brand/[0.07] text-brand"
+                  : "text-on-surface-variant hover:bg-surface-container hover:text-brand"
               }`}
             >
               <span

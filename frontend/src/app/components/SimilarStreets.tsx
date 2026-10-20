@@ -9,10 +9,10 @@ export default function SimilarStreets({ items }: { items: SimilarStreet[] }) {
   return (
     <section>
       <div className="flex items-baseline gap-3 mb-3">
-        <h3 className="text-sm font-bold text-[#536471] uppercase tracking-widest">
+        <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest">
           相似审美节点
         </h3>
-        <span className="text-[13px] text-[#536471]">
+        <span className="text-[13px] text-on-surface-variant">
           历史点评中最相似的 {items.length} 个街区
         </span>
       </div>
@@ -45,7 +45,7 @@ export default function SimilarStreets({ items }: { items: SimilarStreet[] }) {
                   {it.shared_strengths.map((s) => (
                     <span
                       key={s}
-                      className="rounded-md bg-[#e8f5e9] px-1.5 py-0.5 text-[11px] font-medium text-[#1b5e20]"
+                      className="rounded-md bg-success-container px-1.5 py-0.5 text-[11px] font-medium text-success"
                     >
                       {s}
                     </span>

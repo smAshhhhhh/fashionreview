@@ -360,7 +360,7 @@ function AnalysisProgressInner() {
           {/* 顶部标题（左对齐） */}
           <div className="mb-10">
             <div className="flex items-center gap-2">
-              <h2 className="text-3xl font-extrabold text-on-surface">
+              <h2 className="text-3xl font-extrabold text-brand">
                 {cancelled
                   ? `已取消分析「${title}」`
                   : awaitingConfirm

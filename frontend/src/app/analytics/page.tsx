@@ -19,7 +19,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <>
       <Sidebar activeHref="/analytics" />
       {/* mock 为纯白主内容区，故内容容器强制白底 */}
-      <main className="lg:ml-64 min-h-screen bg-surface text-[#0f1419]">
+      <main className="lg:ml-64 min-h-screen bg-surface text-on-surface">
         <div className="py-8 px-4 md:px-8 max-w-247.5 mx-auto">{children}</div>
       </main>
       <MobileBottomNav activeHref="/analytics" />
@@ -51,7 +51,7 @@ function CenteredNotice({
         {icon}
       </span>
       <div>
-        <h2 className="text-xl font-bold text-on-surface">{title}</h2>
+        <h2 className="text-xl font-bold text-brand">{title}</h2>
         {desc && (
           <p className="text-sm text-on-surface-variant mt-1">{desc}</p>
         )}

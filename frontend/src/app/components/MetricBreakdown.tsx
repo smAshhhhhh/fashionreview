@@ -16,9 +16,9 @@ function weightPct(weight?: number | null): string {
 
 /** 分数(5 分制) → mock 的得分文字色：低分红，其余黑。 */
 function scoreColor(score: number): string {
-  if (score < 3) return "text-[#f4212e]";
-  if (score < 4) return "text-[#536471]";
-  return "text-[#0f1419]";
+  if (score < 3) return "text-danger";
+  if (score < 4) return "text-on-surface-variant";
+  return "text-on-surface";
 }
 
 /**
@@ -95,7 +95,7 @@ export default function MetricBreakdown({
 
   return (
     <section className="space-y-4">
-      <h3 className="text-xl font-black text-[#0f1419]">多维指标明细</h3>
+      <h3 className="text-xl font-black text-on-surface">多维指标明细</h3>
 
       {/* 维度切换 tab */}
       <div className="flex border-b border-divider overflow-x-auto no-scrollbar">
@@ -108,8 +108,8 @@ export default function MetricBreakdown({
               onClick={() => setActiveDim(dim.dim_id)}
               className={`px-6 py-4 border-b-4 text-sm shrink-0 transition-colors whitespace-nowrap ${
                 active
-                  ? "border-primary-container text-[#0f1419] font-bold"
-                  : "border-transparent text-[#536471] hover:bg-black/5 font-medium"
+                  ? "border-primary text-on-surface font-bold"
+                  : "border-transparent text-on-surface-variant hover:bg-black/5 font-medium"
               }`}
             >
               {dim.dim_name}
@@ -123,13 +123,13 @@ export default function MetricBreakdown({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-divider bg-surface-container-lowest">
-              <th className="px-6 py-4 font-bold text-[14px] text-[#536471] uppercase">
+              <th className="px-6 py-4 font-bold text-[14px] text-on-surface-variant uppercase">
                 指标名称
               </th>
-              <th className="px-6 py-4 font-bold text-[14px] text-[#536471] text-center uppercase">
+              <th className="px-6 py-4 font-bold text-[14px] text-on-surface-variant text-center uppercase">
                 权重
               </th>
-              <th className="px-6 py-4 font-bold text-[14px] text-[#536471] text-right uppercase">
+              <th className="px-6 py-4 font-bold text-[14px] text-on-surface-variant text-right uppercase">
                 得分
               </th>
               <th className="px-4 py-4 w-10" />
@@ -140,7 +140,7 @@ export default function MetricBreakdown({
               <tr>
                 <td
                   colSpan={4}
-                  className="px-6 py-8 text-center text-sm text-[#536471]"
+                  className="px-6 py-8 text-center text-sm text-on-surface-variant"
                 >
                   该维度暂无明细数据
                 </td>
@@ -198,9 +198,9 @@ function FragmentRow({
         }`}
       >
         <td className="px-6 py-4">
-          <div className="font-bold text-sm text-[#0f1419]">{sub.sub_name}</div>
+          <div className="font-bold text-sm text-on-surface">{sub.sub_name}</div>
         </td>
-        <td className="px-6 py-4 text-center text-[#536471] text-sm">
+        <td className="px-6 py-4 text-center text-on-surface-variant text-sm">
           {weightPct(sub.weight)}
         </td>
         <td className="px-6 py-4 text-right">
@@ -211,7 +211,7 @@ function FragmentRow({
         <td className="px-4 py-4 text-right">
           {canExpand && (
             <span
-              className="material-symbols-outlined text-[20px] text-[#536471] group-hover:text-primary-container transition-transform"
+              className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-transform"
               style={{ transform: isOpen ? "rotate(180deg)" : "none" }}
             >
               expand_more
@@ -230,17 +230,17 @@ function FragmentRow({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-bold text-[#0f1419]">
+                      <span className="text-sm font-bold text-on-surface">
                         {m.metric_name}
                       </span>
                       {m.weight != null && (
-                        <span className="text-xs text-[#536471]">
+                        <span className="text-xs text-on-surface-variant">
                           (权重 {weightPct(m.weight)})
                         </span>
                       )}
                     </div>
                     {showReason && m.reason && (
-                      <p className="text-xs text-[#536471] leading-relaxed">
+                      <p className="text-xs text-on-surface-variant leading-relaxed">
                         评分理由：{m.reason}
                       </p>
                     )}
@@ -251,13 +251,13 @@ function FragmentRow({
                     {(attrsByMetric.get(m.metric_id) ?? []).map((word) => (
                       <span
                         key={word}
-                        className="rounded-md bg-[#e8f5e9] px-2 py-0.5 text-xs font-medium text-[#1b5e20] whitespace-nowrap"
+                        className="rounded-md bg-success-container px-2 py-0.5 text-xs font-medium text-success whitespace-nowrap"
                         title="人工标注库匹配到的图片属性"
                       >
                         {word}
                       </span>
                     ))}
-                    <span className="font-bold text-primary-container">
+                    <span className="font-bold text-primary">
                       {m.score}
                     </span>
                   </div>

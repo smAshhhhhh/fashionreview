@@ -7,7 +7,7 @@ export default function Logo({ className = "" }: { className?: string }) {
         aria-label="Fashion Street AI"
         viewBox="12 28 473 56"
         preserveAspectRatio="xMinYMid meet"
-        className="block w-full max-w-48 h-auto text-on-surface"
+        className="block w-full max-w-48 h-auto text-brand"
       >
         <title>Fashion Street AI</title>
         <text
@@ -28,7 +28,7 @@ export default function Logo({ className = "" }: { className?: string }) {
           </tspan>
         </text>
       </svg>
-      <span className="text-[9px] font-semibold tracking-[0.15em] text-primary whitespace-nowrap">
+      <span className="text-[9px] font-semibold tracking-[0.15em] text-brand whitespace-nowrap">
         STYLE MEETS INTELLIGENCE
       </span>
     </div>

@@ -69,7 +69,7 @@ export default function SearchBar() {
 
   return (
     <section className="flex flex-col items-center gap-4 text-center py-6">
-      <h2 className="text-3xl font-extrabold tracking-tight text-on-surface">
+      <h2 className="text-3xl font-extrabold tracking-tight text-brand">
         为每个角落注入潮流洞察
       </h2>
       <p className="text-base text-on-surface-variant max-w-md leading-relaxed">
@@ -81,7 +81,7 @@ export default function SearchBar() {
           {/* 文本搜索框 */}
           <div className="relative flex items-center grow">
             <input
-              className="neu-input w-full rounded-2xl border-none p-4 pr-14 text-lg text-on-surface placeholder:text-on-surface-variant disabled:opacity-60"
+              className="neu-input w-full h-12 rounded-full border-none px-5 pr-14 text-lg text-on-surface placeholder:text-on-surface-variant disabled:opacity-60"
               placeholder="搜索街道（如：安福路）..."
               type="text"
               value={query}
@@ -97,7 +97,7 @@ export default function SearchBar() {
               disabled={submitting}
               aria-label="开始分析"
               aria-busy={submitting}
-              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-primary hover:bg-primary-fixed-dim p-2 rounded-full transition-colors disabled:opacity-60 disabled:hover:bg-transparent"
+              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-primary hover:bg-primary/10 p-2 rounded-full transition-colors disabled:opacity-60 disabled:hover:bg-transparent"
             >
               <span className="material-symbols-outlined text-[28px]">
                 {submitting ? "progress_activity" : "arrow_forward"}

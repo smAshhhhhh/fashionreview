@@ -3,11 +3,10 @@
 /* ──── Custom Theme ──── */
 @theme inline {
   /* Colors (custom namespace, does not override Tailwind builtins) */
-  --color-primary: #00629d;
-  --color-primary-container: #1d9bf0;
-  --color-primary-fixed: #cfe5ff;
-  --color-primary-fixed-dim: #99cbff;
-  --color-inverse-primary: #99cbff;
+  /* 品牌深蓝：Logo、导航、标题 */
+  --color-brand: #243b63;
+  /* 交互亮蓝：主按钮、链接、选中状态；浅色底用 bg-primary/10 这类透明度派生 */
+  --color-primary: #246bfd;
 
   --color-secondary: #5e5e5e;
   --color-secondary-container: #e2e2e2;
@@ -22,26 +21,30 @@
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
 
+  /* 状态色：短板/低分、通过、待处理告警 */
+  --color-danger: #f4212e;
+  --color-success: #1b5e20;
+  --color-success-container: #e8f5e9;
+  --color-warning: #8d6e00;
+  --color-warning-container: #fff8e1;
+  --color-warning-border: #ffb300;
+
   --color-surface: #faf9f5;
   --color-surface-bright: #faf9f5;
   --color-surface-dim: #d6dae1;
   --color-surface-variant: #e3e1d9;
   --color-surface-container: #efede7;
   --color-surface-container-low: #f4f3ee;
-  /* 容器色：背景 #faf9f5 = hsl(48 33.3% 97.1%)，同色相饱和度，只提高亮度 */
-  --color-surface-container-lowest: hsl(48 33.3% 98.5%);
+  /* 卡片背景：图片信息卡、浮层 */
+  --color-surface-container-lowest: #ffffff;
   --color-surface-container-high: #e9e7e0;
   --color-surface-container-highest: #e3e1d9;
-  --color-surface-tint: #00629d;
 
   --color-background: #faf9f5;
   --color-inverse-surface: #2c3136;
   --color-inverse-on-surface: #edf1f8;
 
   --color-on-primary: #ffffff;
-  --color-on-primary-container: #003050;
-  --color-on-primary-fixed: #001d33;
-  --color-on-primary-fixed-variant: #004a78;
 
   --color-on-secondary: #ffffff;
   --color-on-secondary-container: #646464;
@@ -57,13 +60,14 @@
   --color-on-error-container: #93000a;
 
   --color-on-surface: #171c21;
-  --color-on-surface-variant: #3f4851;
+  /* 次级文字：说明、时间、辅助信息 */
+  --color-on-surface-variant: #777b85;
   --color-on-background: #171c21;
 
   --color-outline: #6f7883;
   --color-outline-variant: #bfc7d3;
   /* 分割线与容器描边 */
-  --color-divider: #e8e6e0;
+  --color-divider: #e8e5dd;
 }
 
 /* ──── Material Symbols ──── */
@@ -126,22 +130,60 @@ body {
 
 /* ──── 浮起式输入框（聚焦转内凹）──── */
 /* 两种状态都写满 4 组阴影且 inset 位置一致，否则浏览器无法插值、只会跳变 */
+/* 底色用容器色；暗部阴影与背景同色相，只降低亮度 */
 .neu-input {
-  background: #e8e8e8;
+  --neu-dark: hsl(48 18% 82%);
+  --neu-light: #ffffff;
+  background: var(--color-surface-container-lowest);
   box-shadow:
-    20px 20px 60px #c5c5c5,
-    -20px -20px 60px #ffffff,
-    inset 0 0 0 #c5c5c5,
-    inset 0 0 0 #ffffff;
+    20px 20px 60px var(--neu-dark),
+    -20px -20px 60px var(--neu-light),
+    inset 0 0 0 var(--neu-dark),
+    inset 0 0 0 var(--neu-light);
   transition: box-shadow 0.3s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .neu-input:focus {
-  outline-color: #e8e8e8;
+  outline-color: var(--color-surface-container-lowest);
   box-shadow:
-    0 0 0 #c5c5c5,
-    0 0 0 #ffffff,
-    inset 20px 20px 60px #c5c5c5,
-    inset -20px -20px 60px #ffffff;
+    0 0 0 var(--neu-dark),
+    0 0 0 var(--neu-light),
+    inset 20px 20px 60px var(--neu-dark),
+    inset -20px -20px 60px var(--neu-light);
 }
 
+/* ──── 轻量动效 ──── */
+.fx-pop-in {
+  animation: fx-pop-in 0.18s ease-out;
+}
+@keyframes fx-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.fx-fade-down {
+  animation: fx-fade-down 0.2s ease-out;
+}
+@keyframes fx-fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.fx-fade-up {
+  animation: fx-fade-up 0.3s ease-out both;
+}
+@keyframes fx-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-pop-in,
+  .fx-fade-down,
+  .fx-fade-up {
+    animation: none;
+  }
+}
