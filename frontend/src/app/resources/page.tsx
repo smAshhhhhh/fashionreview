@@ -2,15 +2,65 @@ import Link from "next/link";
 import Sidebar from "../components/Sidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
 
-/* ──────────────────────────────────────────────
- * 资源管理页 /resources
- * 仅实现页面主体内容；左侧菜单与底部导航复用现有组件。
- * 视觉对齐扁平 Twitter/X 风格（白底 / #eff3f4 发丝线 / primary-container 蓝）。
- * ────────────────────────────────────────────── */
+/* 资源中心 /resources：各管理页的入口 */
 
-/* 卡片通用外观：扁平白底 + 发丝线，hover 浅灰 */
-const cardBase =
-  "bg-white border border-[#eff3f4] rounded-2xl hover:bg-[#f7f9f9] transition-colors cursor-pointer";
+type Entry = {
+  href: string;
+  icon: string;
+  title: string;
+  desc: string;
+};
+
+const SECTIONS: { title: string; subtitle: string; entries: Entry[] }[] = [
+  {
+    title: "数据资源",
+    subtitle: "Data",
+    entries: [
+      {
+        href: "/resources/poi",
+        icon: "location_on",
+        title: "POI 管理",
+        desc: "导入高德 / 大众点评数据，管理街区 POI 事实层",
+      },
+      {
+        href: "/resources/profiles",
+        icon: "insights",
+        title: "街巷画像",
+        desc: "由 POI 生成画像，预览评分时使用的街区事实",
+      },
+      {
+        href: "/resources/annotations",
+        icon: "photo_library",
+        title: "人工标注库",
+        desc: "导入标注街景图与属性，照片点评时匹配赋值",
+      },
+    ],
+  },
+  {
+    title: "分析配置",
+    subtitle: "Configuration",
+    entries: [
+      {
+        href: "/resources/metrics",
+        icon: "account_tree",
+        title: "指标体系",
+        desc: "维度与指标权重，模板版本管理",
+      },
+      {
+        href: "/resources/prompts",
+        icon: "terminal",
+        title: "Prompt 管理",
+        desc: "识别、评分、报告各阶段的提示词与历史版本",
+      },
+      {
+        href: "/resources/analysis",
+        icon: "tune",
+        title: "分析管理",
+        desc: "结果页展示区块与点评流程开关",
+      },
+    ],
+  },
+];
 
 export default function ResourcesPage() {
   return (
@@ -18,198 +68,32 @@ export default function ResourcesPage() {
       <Sidebar activeHref="/resources" />
 
       <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0 pb-24 lg:pb-12 bg-white text-[#0f1419]">
-        {/* ──── 顶部工作台头部 ──── */}
-        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[#eff3f4] px-3 lg:px-6 py-6">
-          <h2 className="text-[23px] leading-7 font-bold tracking-tight text-[#0f1419]">
-            工作台中心
-          </h2>
-          <p className="text-[15px] text-[#536471] mt-1">
-            管理大规模资源档案、AI训练任务及多维评分规则体系。
-          </p>
-        </div>
+        <div className="mx-auto w-full max-w-5xl px-4 lg:px-8 py-10 space-y-10">
+          <header>
+            <h2 className="text-[28px] leading-8 font-black tracking-tight">资源中心</h2>
+            <p className="mt-2 text-[15px] text-[#536471]">
+              管理点评所用的数据资源与分析配置。
+            </p>
+          </header>
 
-        <div className="px-3 lg:px-6 py-8 space-y-12">
-          {/* ──── 资源中心 ──── */}
-          <Section title="资源中心" subtitle="Resource Center">
-            {/* 6 张卡：xl 下 3 列铺满两行，避免 5 列时末行只剩一张 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* 分析管理 */}
-              <Link href="/resources/analysis" className={`${cardBase} group p-5 min-h-45 block`}>
-                <div className="mb-3">
-                  <IconBadge icon="tune" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">分析管理</h4>
-                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
-                  管控分析中心展示的内容区块
-                </p>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[11px] font-bold">
-                    <span className="text-[#536471] uppercase">展示区块</span>
-                    <span className="tabular-nums tracking-tight">9 区块</span>
-                  </div>
-                  <div className="w-full bg-surface-container-low rounded-full h-1">
-                    <div className="bg-primary-container h-1 rounded-full w-[85%]" />
-                  </div>
-                </div>
-              </Link>
-
-              {/* 指标体系 */}
-              <Link href="/resources/metrics" className={`${cardBase} group p-5 min-h-45 block`}>
-                <div className="mb-3">
-                  <IconBadge icon="account_tree" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">指标体系</h4>
-                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
-                  多维时尚度评价架构 · 模板版本管理
-                </p>
-                <div className="flex items-end gap-1">
-                  <span className="text-2xl font-black tabular-nums tracking-tight">5</span>
-                  <span className="text-[10px] text-[#536471] font-bold mb-1">一级维度</span>
-                </div>
-              </Link>
-
-              {/* POI管理 */}
-              <Link href="/resources/poi" className={`${cardBase} group p-5 min-h-45 block`}>
-                <div className="mb-3">
-                  <IconBadge icon="location_on" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">POI管理</h4>
-                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
-                  上传解析高德/点评 SQL/CSV，管理街区 POI 事实层
-                </p>
-                <div className="flex items-center gap-2 text-[11px] font-bold text-[#536471]">
-                  <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                  <span>导入 & 事实层可视化</span>
-                </div>
-              </Link>
-
-              {/* 街巷画像 */}
-              <Link href="/resources/profiles" className={`${cardBase} group p-5 min-h-45 block`}>
-                <div className="mb-3">
-                  <IconBadge icon="insights" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">街巷画像</h4>
-                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
-                  从事实层生成画像，可视化业态/评分/时尚标签
-                </p>
-                <div className="flex items-center gap-2 text-[11px] font-bold text-[#536471]">
-                  <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
-                  <span>画像生成 & 预览 facts</span>
-                </div>
-              </Link>
-
-              {/* 人工标注库 */}
-              <Link
-                href="/resources/annotations"
-                className={`${cardBase} group p-5 min-h-45 block`}
-              >
-                <div className="mb-3">
-                  <IconBadge icon="photo_library" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">人工标注库</h4>
-                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
-                  导入标注街景图与图片属性，照片点评时匹配赋值
-                </p>
-                <div className="flex items-center gap-2 text-[11px] font-bold text-[#536471]">
-                  <span className="material-symbols-outlined text-[16px]">
-                    image_search
+          {SECTIONS.map((section) => (
+            <section key={section.title}>
+              <div className="mb-4 flex items-center gap-3">
+                <h3 className="text-lg font-bold tracking-tight">
+                  {section.title}
+                  <span className="ml-2 text-[13px] font-normal text-[#536471]">
+                    {section.subtitle}
                   </span>
-                  <span>相似度匹配 & 属性标签</span>
-                </div>
-              </Link>
-
-              {/* 向量库管理 */}
-              <div className={`${cardBase} group p-5 min-h-45`}>
-                <div className="mb-3">
-                  <IconBadge icon="hub" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">向量库管理</h4>
-                <p className="text-[13px] text-[#536471] mb-6 leading-relaxed">
-                  Milvus 引擎高性能检索
-                </p>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-primary-container">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-container" />
-                  就绪
-                </div>
+                </h3>
+                <div className="h-px flex-1 bg-[#eff3f4]" />
               </div>
-            </div>
-          </Section>
-
-          {/* ──── AI中心 ──── */}
-          <Section title="AI中心" subtitle="Intelligence Operations">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* AI任务 */}
-              <div className={`${cardBase} group p-5 min-h-45`}>
-                <div className="mb-3">
-                  <IconBadge icon="dynamic_form" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">AI任务</h4>
-                <p className="text-[13px] text-[#536471] mb-3">
-                  视觉识别与预测监控系统
-                </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {section.entries.map((entry) => (
+                  <EntryCard key={entry.href} entry={entry} />
+                ))}
               </div>
-
-              {/* RAG调试 */}
-              <div className={`${cardBase} group p-5 min-h-45`}>
-                <div className="mb-3">
-                  <IconBadge icon="bug_report" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">RAG调试</h4>
-                <p className="text-[13px] text-[#536471] mb-3">
-                  语义检索链路性能优化
-                </p>
-              </div>
-
-              {/* Prompt管理 */}
-              <Link href="/resources/prompts" className={`${cardBase} group p-5 min-h-45 block`}>
-                <div className="mb-3">
-                  <IconBadge icon="terminal" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">Prompt管理</h4>
-                <p className="text-[13px] text-[#536471] mb-3">
-                  自动报告生产模版库
-                </p>
-              </Link>
-
-              {/* 模型管理 */}
-              <div className={`${cardBase} group p-5 min-h-45`}>
-                <div className="mb-3">
-                  <IconBadge icon="model_training" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">模型管理</h4>
-                <p className="text-[13px] text-[#536471] mb-3">
-                  权重版本分发与负载治理
-                </p>
-              </div>
-            </div>
-          </Section>
-
-          {/* ──── 规则中心 ──── */}
-          <Section title="规则中心" subtitle="Rules" compact>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* 评分规则 */}
-              <div className={`${cardBase} group p-5 min-h-45`}>
-                <div className="mb-3">
-                  <IconBadge icon="rule" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">评分规则</h4>
-                <p className="text-[13px] text-[#536471]">
-                  权重配置与算子计算模型
-                </p>
-              </div>
-
-              {/* 知识库管理 */}
-              <div className={`${cardBase} group p-5 min-h-45`}>
-                <div className="mb-3">
-                  <IconBadge icon="database" />
-                </div>
-                <h4 className="text-[15px] font-bold mb-1">知识库管理</h4>
-                <p className="text-[13px] text-[#536471]">
-                  RAG 增强索引架构
-                </p>
-              </div>
-            </div>
-          </Section>
+            </section>
+          ))}
         </div>
       </main>
 
@@ -218,49 +102,23 @@ export default function ResourcesPage() {
   );
 }
 
-/* ──────────────── 局部子组件 ──────────────── */
-
-function Section({
-  title,
-  subtitle,
-  compact,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  compact?: boolean;
-  children: React.ReactNode;
-}) {
+function EntryCard({ entry }: { entry: Entry }) {
   return (
-    <section>
-      <div className="flex items-center gap-3 mb-4">
-        <h3
-          className={`font-black tracking-tight text-[#0f1419] ${
-            compact ? "text-[15px]" : "text-xl"
-          }`}
-        >
-          {title}
-          <span
-            className={`text-[#536471] font-normal ${
-              compact ? "ml-1" : "ml-2 text-[15px]"
-            }`}
-          >
-            {subtitle}
-          </span>
-        </h3>
-        <div className="h-px flex-1 bg-[#eff3f4]" />
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function IconBadge({ icon, className = "" }: { icon: string; className?: string }) {
-  return (
-    <div
-      className={`w-10 h-10 rounded-full flex items-center justify-center bg-primary-container/10 text-primary-container transition-colors group-hover:bg-primary-container group-hover:text-white ${className}`}
+    <Link
+      href={entry.href}
+      className="group flex h-full flex-col rounded-2xl border border-[#eff3f4] bg-white p-6 transition-all hover:-translate-y-0.5 hover:border-primary-container/30 hover:shadow-[0_8px_24px_rgb(0,0,0,0.05)]"
     >
-      <span className="material-symbols-outlined">{icon}</span>
-    </div>
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-container/10 text-primary-container transition-colors group-hover:bg-primary-container group-hover:text-white">
+        <span className="material-symbols-outlined">{entry.icon}</span>
+      </div>
+      <h4 className="mt-5 text-base font-bold">{entry.title}</h4>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-[#536471]">{entry.desc}</p>
+      <span className="mt-auto flex items-center gap-1 pt-5 text-[13px] font-bold text-primary-container">
+        进入
+        <span className="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-0.5">
+          arrow_forward
+        </span>
+      </span>
+    </Link>
   );
 }
