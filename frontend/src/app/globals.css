@@ -124,6 +124,8 @@ body {
     linear-gradient(to right, #e2e8f0 1px, transparent 1px),
     linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
   background-size: 20px 30px;
+  /* 网格从底边起算，页脚才能稳定落在倒数第二行 */
+  background-position: left bottom;
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
   mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
 }
@@ -180,10 +182,22 @@ body {
     transform: translateY(6px);
   }
 }
+/* 雷达图数据面：自中心展开（SVG 用户坐标，viewBox 0~100 的中心） */
+.fx-radar-in {
+  transform-origin: 50px 50px;
+  animation: fx-radar-in 0.5s ease-out both;
+}
+@keyframes fx-radar-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .fx-pop-in,
   .fx-fade-down,
-  .fx-fade-up {
+  .fx-fade-up,
+  .fx-radar-in {
     animation: none;
   }
 }

@@ -37,9 +37,9 @@ export default function Home() {
           </section>
         </div>
 
-        {/* Footer */}
-        <footer className="w-full py-4 px-4 flex flex-col sm:flex-row justify-between items-center max-w-150 mx-auto mt-6 bg-transparent gap-4">
-          <div className="flex flex-col items-center sm:items-start">
+        {/* Footer：每行高 = 网格行高 30px，底部留一行，落在倒数第二格（移动端再避开底部导航） */}
+        <footer className="w-full px-4 flex flex-col sm:flex-row justify-between items-center max-w-150 mx-auto mt-auto mb-22.5 lg:mb-7.5 bg-transparent">
+          <div className="flex h-7.5 items-center gap-3">
             <span className="text-sm font-bold text-on-surface">
               Fashion Street AI
             </span>
@@ -47,7 +47,7 @@ export default function Home() {
               © 2026 Fashion Street AI
             </span>
           </div>
-          <div className="flex gap-4">
+          <div className="flex h-7.5 items-center gap-4">
             <a href="#" className={footerLinkClass}>
               关于我们
             </a>

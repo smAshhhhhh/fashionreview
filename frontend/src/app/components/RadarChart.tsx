@@ -1,126 +1,153 @@
+"use client";
+
+import { useId, useState } from "react";
 import type { DimensionScoreResult } from "../types";
 
-/**
- * 维度雷达图（完全对齐 mock 外观）：网格 divider 色、数据面 primary 10% 透明、
- * 描边 primary、标签 on-surface-variant。无卡片外壳，直接作为报告中段左栏。
- * 吃后端一级维度分（5 分制），按维度数均分轴角度，支持任意维度数。
- */
+/** 维度雷达图：一级维度分（5 分制），虚线多边形网格、渐变发光数据面，悬停显示分数。 */
+
+const MAX_SCORE = 5;
+const LEVELS = 5;
+const C = 50; // viewBox 0~100 的中心
+const R = 32; // 数据区半径
+const LABEL_R = 39;
+const HIT_R = 48; // 悬停感应扇区半径，覆盖到维度名称
+
+const polar = (deg: number, radius: number) => {
+  const a = (deg * Math.PI) / 180;
+  return { x: C + radius * Math.cos(a), y: C + radius * Math.sin(a) };
+};
+const toPoints = (pts: { x: number; y: number }[]) =>
+  pts.map((p) => `${p.x},${p.y}`).join(" ");
+
 export default function RadarChart({
   dimensions,
 }: {
   dimensions: DimensionScoreResult[];
 }) {
-  const cx = 50;
-  const cy = 50;
-  const r = 40;
+  // useId 可能含冒号等字符，url(#id) 引用前先清理
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const fillId = `radar-fill-${uid}`;
+  const glowId = `radar-glow-${uid}`;
+  const [active, setActive] = useState<number | null>(null);
+
   const n = dimensions.length;
+  if (n < 3) return null;
 
-  const rad = (deg: number) => (deg * Math.PI) / 180;
-  const angleAt = (i: number) => -90 + (360 / n) * i;
-
-  const axes = dimensions.map((_, i) => ({
-    x: cx + r * Math.cos(rad(angleAt(i))),
-    y: cy + r * Math.sin(rad(angleAt(i))),
-  }));
-
-  const dataPoints = dimensions.map((d, i) => {
-    const ratio = Math.max(0, Math.min(1, d.score / 5));
-    return {
-      x: cx + r * ratio * Math.cos(rad(angleAt(i))),
-      y: cy + r * ratio * Math.sin(rad(angleAt(i))),
-    };
-  });
-  const polygonPoints = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
-
-  const valuePoints = dimensions.map((d, i) => {
-    const deg = angleAt(i);
-    const ratio = Math.max(0, Math.min(1, d.score / 5));
-    const vr = r * ratio + 4;
-    return {
-      x: cx + vr * Math.cos(rad(deg)),
-      y: cy + vr * Math.sin(rad(deg)),
-      value: d.score.toFixed(1),
-    };
-  });
-
-  const labelPoints = dimensions.map((d, i) => {
-    const deg = angleAt(i);
-    const lr = r + 9;
-    const x = cx + lr * Math.cos(rad(deg));
-    const y = cy + lr * Math.sin(rad(deg));
-    const anchor: "middle" | "start" | "end" =
-      Math.abs(x - cx) < 4 ? "middle" : x < cx ? "end" : "start";
-    return { x, y, anchor, name: d.dim_name };
-  });
+  const angles = dimensions.map((_, i) => -90 + (360 / n) * i);
+  const ratio = (s: number) => Math.max(0, Math.min(1, s / MAX_SCORE));
+  const points = dimensions.map((d, i) => polar(angles[i], R * ratio(d.score)));
+  const half = 180 / n;
 
   return (
-    <div className="flex items-center justify-center w-full">
-      <div className="relative w-full max-w-100 aspect-square">
-        <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100">
-          {[40, 30, 20, 10].map((gr) => (
-            <circle
-              key={gr}
-              cx="50"
-              cy="50"
-              r={gr}
-              fill="none"
-              stroke="var(--color-divider)"
-              strokeWidth="0.6"
-            />
-          ))}
-          {axes.map((p, i) => (
-            <line
-              key={i}
-              x1="50"
-              y1="50"
-              x2={p.x}
-              y2={p.y}
-              stroke="var(--color-divider)"
-              strokeWidth="0.6"
-            />
-          ))}
-          {n > 0 && (
+    <div
+      className="relative mx-auto aspect-square w-full max-w-100"
+      onMouseLeave={() => setActive(null)}
+    >
+      <svg
+        viewBox="0 0 100 100"
+        className="h-full w-full overflow-visible"
+        role="img"
+        aria-label={dimensions.map((d) => `${d.dim_name} ${d.score.toFixed(1)} 分`).join("，")}
+      >
+        <defs>
+          <linearGradient id={fillId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.45} />
+            <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.1} />
+          </linearGradient>
+          <filter id={glowId} x="-15%" y="-15%" width="130%" height="130%">
+            <feGaussianBlur stdDeviation="1.7" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        {/* 网格：每 1 分一圈虚线多边形 + 放射线 */}
+        <g fill="none" stroke="var(--color-divider)" strokeWidth="0.35" strokeDasharray="1 1">
+          {Array.from({ length: LEVELS }, (_, k) => (
             <polygon
-              points={polygonPoints}
-              fill="var(--color-primary)"
-              fillOpacity="0.1"
-              stroke="var(--color-primary)"
-              strokeWidth="1.5"
+              key={k}
+              points={toPoints(angles.map((a) => polar(a, (R * (k + 1)) / LEVELS)))}
             />
-          )}
-          {dataPoints.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r="1.3" fill="var(--color-primary)" />
           ))}
-          {valuePoints.map((vp, i) => (
-            <text
+          {angles.map((a, i) => {
+            const p = polar(a, R);
+            return <line key={i} x1={C} y1={C} x2={p.x} y2={p.y} />;
+          })}
+        </g>
+
+        <g className="fx-radar-in">
+          <polygon
+            points={toPoints(points)}
+            fill={`url(#${fillId})`}
+            stroke="var(--color-primary)"
+            strokeWidth="0.85"
+            strokeLinejoin="round"
+            filter={`url(#${glowId})`}
+          />
+          {points.map((p, i) => (
+            <circle
               key={i}
-              x={vp.x}
-              y={vp.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize="4"
-              fontWeight="700"
-              fill="var(--color-primary)"
-            >
-              {vp.value}
-            </text>
+              cx={p.x}
+              cy={p.y}
+              r={active === i ? 1.9 : 1.3}
+              fill={active === i ? "var(--color-primary)" : "var(--color-surface)"}
+              stroke="var(--color-primary)"
+              strokeWidth="0.85"
+            />
           ))}
-          {labelPoints.map((lp, i) => (
+        </g>
+
+        {dimensions.map((d, i) => {
+          const p = polar(angles[i], LABEL_R);
+          const cos = Math.cos((angles[i] * Math.PI) / 180);
+          const anchor = Math.abs(cos) < 0.2 ? "middle" : cos < 0 ? "end" : "start";
+          return (
             <text
-              key={i}
-              x={lp.x}
-              y={lp.y}
-              textAnchor={lp.anchor}
+              key={d.dim_id}
+              x={p.x}
+              y={p.y}
+              textAnchor={anchor}
               dominantBaseline="middle"
-              fontSize="4.5"
-              fontWeight="500"
-              fill="var(--color-on-surface-variant)"
+              fontSize="3.8"
+              fontWeight={active === i ? 600 : 500}
+              fill={active === i ? "var(--color-on-surface)" : "var(--color-on-surface-variant)"}
             >
-              {lp.name}
+              {d.dim_name}
             </text>
-          ))}
-        </svg>
-      </div>
+          );
+        })}
+
+        {/* 透明扇区：鼠标移到维度方向即激活，不必精确对准圆点 */}
+        {angles.map((a, i) => {
+          const p1 = polar(a - half, HIT_R);
+          const p2 = polar(a + half, HIT_R);
+          return (
+            <path
+              key={i}
+              d={`M ${C} ${C} L ${p1.x} ${p1.y} A ${HIT_R} ${HIT_R} 0 0 1 ${p2.x} ${p2.y} Z`}
+              fill="transparent"
+              onMouseEnter={() => setActive(i)}
+            />
+          );
+        })}
+      </svg>
+
+      {active !== null && (
+        <div
+          className="pointer-events-none absolute z-10"
+          style={{
+            left: `${points[active].x}%`,
+            top: `${points[active].y}%`,
+            transform: "translate(-50%, calc(-100% - 8px))",
+          }}
+        >
+          <div className="fx-pop-in whitespace-nowrap rounded-lg border border-divider bg-surface-container-lowest px-2.5 py-1.5 text-xs shadow-lg">
+            <span className="text-on-surface-variant">{dimensions[active].dim_name}</span>
+            <span className="ml-2 font-semibold tabular-nums text-primary">
+              {dimensions[active].score.toFixed(1)}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
