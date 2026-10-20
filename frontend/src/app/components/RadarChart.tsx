@@ -1,7 +1,7 @@
 import type { DimensionScoreResult } from "../types";
 
 /**
- * 维度雷达图（完全对齐 mock 外观）：网格 #eff3f4、数据面 rgba(29,155,240,0.1)、
+ * 维度雷达图（完全对齐 mock 外观）：网格 divider 色、数据面 rgba(29,155,240,0.1)、
  * 描边 #1d9bf0、标签 #536471。无卡片外壳，直接作为报告中段左栏。
  * 吃后端一级维度分（5 分制），按维度数均分轴角度，支持任意维度数。
  */
@@ -64,7 +64,7 @@ export default function RadarChart({
               cy="50"
               r={gr}
               fill="none"
-              stroke="#eff3f4"
+              stroke="var(--color-divider)"
               strokeWidth="0.6"
             />
           ))}
@@ -75,7 +75,7 @@ export default function RadarChart({
               y1="50"
               x2={p.x}
               y2={p.y}
-              stroke="#eff3f4"
+              stroke="var(--color-divider)"
               strokeWidth="0.6"
             />
           ))}

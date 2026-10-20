@@ -22,7 +22,7 @@ export default function SimilarStreets({ items }: { items: SimilarStreet[] }) {
           <Link
             key={it.evaluation_id}
             href={`/analytics?eid=${it.evaluation_id}`}
-            className="border border-[#eff3f4] rounded-2xl overflow-hidden bg-white"
+            className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest"
           >
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element -- 后端静态图，无需 next/image 优化 */}

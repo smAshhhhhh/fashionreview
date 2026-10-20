@@ -19,7 +19,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <>
       <Sidebar activeHref="/analytics" />
       {/* mock 为纯白主内容区，故内容容器强制白底 */}
-      <main className="lg:ml-64 min-h-screen bg-white text-[#0f1419]">
+      <main className="lg:ml-64 min-h-screen bg-surface text-[#0f1419]">
         <div className="py-8 px-4 md:px-8 max-w-247.5 mx-auto">{children}</div>
       </main>
       <MobileBottomNav activeHref="/analytics" />
@@ -91,7 +91,7 @@ function ResultView({ data }: { data: EvaluationResult }) {
 
       {/* 中段：雷达图（左） + 综合评价（右），对齐 mock 的 12 栏并排 */}
       {showMidRow && (
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-x-20 gap-y-8 pb-6 border-b border-[#eff3f4]">
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-x-20 gap-y-8 pb-6 border-b border-divider">
           {showRadar && (
             <div className="lg:col-span-5 flex items-center justify-center">
               <RadarChart dimensions={data.dimension_scores} />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { NavItem } from "../types";
+import Logo from "./Logo";
 
 const navItems: NavItem[] = [
   { icon: "home", label: "首页", href: "/" },
@@ -10,14 +11,11 @@ const navItems: NavItem[] = [
 
 export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
   return (
-    <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full p-4 gap-2 bg-surface border-r border-outline-variant w-64 z-50">
+    <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full p-4 gap-2 bg-surface border-r border-divider w-64 z-50">
       {/* Logo */}
-      <div className="mb-6 px-4">
-        <h1 className="text-xl font-extrabold text-on-surface">
-          Fashion Street AI
-        </h1>
-        <p className="text-xs text-on-surface-variant">专业分析师</p>
-      </div>
+      <Link href="/" className="mb-6 px-4 pt-1 block">
+        <Logo />
+      </Link>
 
       {/* Navigation */}
       <nav className="flex flex-col gap-1 grow">

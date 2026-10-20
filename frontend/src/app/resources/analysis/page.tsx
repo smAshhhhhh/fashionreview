@@ -115,13 +115,13 @@ export default function AnalysisConfigPage() {
       return (
         <div
           key={group}
-          className="bg-white rounded-2xl border border-[#eff3f4] overflow-hidden"
+          className="bg-surface-container-lowest rounded-2xl border border-divider overflow-hidden"
         >
           {/* 组头 */}
           <button
             type="button"
             onClick={() => toggleGroup(group)}
-            className="w-full flex items-center justify-between p-4 hover:bg-[#f7f9f9] transition-colors text-left"
+            className="w-full flex items-center justify-between p-4 hover:bg-surface-container-low transition-colors text-left"
           >
             <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-full bg-primary-container/10 grid place-items-center text-primary-container shrink-0">
@@ -147,7 +147,7 @@ export default function AnalysisConfigPage() {
 
           {/* 组内容 */}
           {!isCollapsed && (
-            <div className="border-t border-[#eff3f4] divide-y divide-[#eff3f4]">
+            <div className="border-t border-divider divide-y divide-divider">
               {items.map((c) => (
                 <BlockItem
                   key={c.block_key}
@@ -164,12 +164,12 @@ export default function AnalysisConfigPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-[#0f1419]">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
         {/* 顶部栏 */}
-        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
           <Link href="/resources" className="flex items-center text-primary-container">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
@@ -178,7 +178,7 @@ export default function AnalysisConfigPage() {
 
         <section className="p-4 lg:p-6 max-w-300 mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
           {/* 说明条 */}
-          <div className="flex items-start gap-3 rounded-2xl border border-[#eff3f4] bg-surface-container-low p-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
             <span className="material-symbols-outlined text-primary-container">info</span>
             <p className="text-[13px] leading-relaxed text-[#536471]">
               这里的开关控制
@@ -227,7 +227,7 @@ function BlockItem({
   };
 
   return (
-    <div className="p-4 hover:bg-[#f7f9f9] transition-colors">
+    <div className="p-4 hover:bg-surface-container-low transition-colors">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <h4 className="text-[15px] font-bold text-[#0f1419]">{config.name}</h4>
@@ -258,7 +258,7 @@ function LoadingSkeleton() {
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="rounded-2xl border border-[#eff3f4] p-4 animate-pulse"
+          className="rounded-2xl border border-divider bg-surface-container-lowest p-4 animate-pulse"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-surface-container-high rounded-full" />

@@ -203,12 +203,12 @@ export default function MetricTemplatesPage() {
     );
 
   return (
-    <div className="flex min-h-screen bg-white text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-[#0f1419]">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
         {/* 顶部栏 */}
-        <header className="sticky top-0 z-40 flex justify-between items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+        <header className="sticky top-0 z-40 flex justify-between items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
           <div className="flex items-center gap-4">
             <Link href="/resources" className="flex items-center text-primary-container">
               <span className="material-symbols-outlined">arrow_back</span>
@@ -228,7 +228,7 @@ export default function MetricTemplatesPage() {
 
         <section className="p-4 lg:p-6 max-w-7xl mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
           {/* 说明条 */}
-          <div className="flex items-start gap-3 rounded-2xl border border-[#eff3f4] bg-surface-container-low p-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
             <span className="material-symbols-outlined text-primary-container">info</span>
             <p className="text-[13px] leading-relaxed text-[#536471]">
               左侧管理指标模板（启用 / 克隆 / 删除），右侧编辑所选模板的一/二/三级维度。启用的模板将影响后续
@@ -286,7 +286,7 @@ export default function MetricTemplatesPage() {
           onClick={() => !busy && setPendingDeleteId(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#eff3f4]"
+            className="bg-surface-container-lowest rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-divider"
             onClick={(e) => e.stopPropagation()}
           >
             <h4 className="text-xl font-bold mb-3">确认删除模板？</h4>
@@ -350,7 +350,7 @@ function TemplateList({
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="rounded-2xl border border-[#eff3f4] p-4 animate-pulse"
+            className="rounded-2xl border border-divider bg-surface-container-lowest p-4 animate-pulse"
           >
             <div className="space-y-2">
               <div className="h-3 bg-surface-container-high rounded w-1/2" />
@@ -373,7 +373,7 @@ function TemplateList({
             className={`rounded-2xl border p-4 cursor-pointer transition-all ${
               isSel
                 ? "border-primary-container bg-surface-container-low"
-                : "border-[#eff3f4] hover:bg-[#f7f9f9]"
+                : "border-divider hover:bg-surface-container-low"
             }`}
             onClick={() => onSelect(t.id)}
           >
@@ -428,7 +428,7 @@ function TemplateList({
 
 // 编辑态文本输入统一样式：明显的边框 + 浅背景，聚焦时主色高亮，一眼可辨可编辑
 const editInputClass =
-  "flex-1 min-w-0 rounded-xl border border-[#eff3f4] bg-white px-2.5 py-1.5 text-[#0f1419] outline-none focus:border-primary-container transition-colors";
+  "flex-1 min-w-0 rounded-xl border border-divider bg-white px-2.5 py-1.5 text-[#0f1419] outline-none focus:border-primary-container transition-colors";
 
 // 一级维度图标：按名称关键词匹配，回退到顺序色板
 const DIM_ICON_BY_KEYWORD: Array<[RegExp, string]> = [
@@ -538,14 +538,14 @@ function TreeEditor({
 
   if (!selected) {
     return (
-      <div className="grid place-items-center rounded-2xl border border-[#eff3f4] min-h-100 text-[#536471]">
+      <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-[#536471]">
         <p className="text-[15px]">请选择左侧模板，或点击右上角新建一个模板。</p>
       </div>
     );
   }
   if (loading) {
     return (
-      <div className="rounded-2xl border border-[#eff3f4] min-h-100 animate-pulse" />
+      <div className="rounded-2xl border border-divider bg-surface-container-lowest min-h-100 animate-pulse" />
     );
   }
 
@@ -554,7 +554,7 @@ function TreeEditor({
   return (
     <div>
       {/* 头部信息条：面包屑 + 标题 + 操作 */}
-      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8 border-b border-[#eff3f4] pb-6">
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8 border-b border-divider pb-6">
         <div className="min-w-0">
           {inUse && (
             <span className="inline-block mb-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-[#536471]">
@@ -573,7 +573,7 @@ function TreeEditor({
                 allOpen ? {} : Object.fromEntries(dims.map((d) => [d.dim_id, true])),
               )
             }
-            className="flex items-center gap-1 rounded-full border border-[#eff3f4] px-3 py-2 text-[13px] font-semibold text-[#536471] hover:bg-[#f7f9f9] transition-colors"
+            className="flex items-center gap-1 rounded-full border border-divider px-3 py-2 text-[13px] font-semibold text-[#536471] hover:bg-surface-container-low transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">
               {allOpen ? "unfold_less" : "unfold_more"}
@@ -599,7 +599,7 @@ function TreeEditor({
             <button
               type="button"
               onClick={() => setEditMode(true)}
-              className="flex items-center gap-2 rounded-full border border-[#eff3f4] px-5 py-2 text-sm font-bold text-[#0f1419] hover:bg-[#f7f9f9] transition-all active:scale-95"
+              className="flex items-center gap-2 rounded-full border border-divider px-5 py-2 text-sm font-bold text-[#0f1419] hover:bg-surface-container-low transition-all active:scale-95"
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>
               点击修改
@@ -656,16 +656,16 @@ function TreeEditor({
       )}
 
       {/* 维度手风琴（发丝线分隔） */}
-      <div className="border border-[#eff3f4] rounded-2xl overflow-hidden divide-y divide-[#eff3f4]">
+      <div className="border border-divider rounded-2xl overflow-hidden divide-y divide-divider">
         {dims.map((d, di) => {
           const open = !!openDims[d.dim_id];
           const dimPct = Math.round(d.dim_weight * 1000) / 10;
           return (
-          <div key={d.dim_id} className="bg-white">
+          <div key={d.dim_id} className="bg-surface-container-lowest">
             {/* 一级维度（手风琴头部） */}
             <div
               onClick={() => toggleDim(d.dim_id)}
-              className="w-full flex items-center justify-between gap-4 p-5 hover:bg-[#f7f9f9] transition-colors cursor-pointer"
+              className="w-full flex items-center justify-between gap-4 p-5 hover:bg-surface-container-low transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <span className="w-10 h-10 rounded-full bg-primary-container/10 grid place-items-center text-primary-container shrink-0">
@@ -715,7 +715,7 @@ function TreeEditor({
 
             {/* 展开内容 */}
             {open && (
-            <div className="border-t border-[#eff3f4] bg-surface-container-low/40 p-5 space-y-5">
+            <div className="border-t border-divider bg-surface-container-low/40 p-5 space-y-5">
               {/* 该维度下二级权重合计，便于就地定位是哪一组填错 */}
               {editMode && (
                 <SumBadge
@@ -726,10 +726,10 @@ function TreeEditor({
               {d.subs.map((s, si) => (
                 <div
                   key={s.sub_id}
-                  className="rounded-2xl border border-[#eff3f4] bg-white overflow-hidden"
+                  className="rounded-2xl border border-divider bg-surface-container-lowest overflow-hidden"
                 >
                   {/* 二级维度头部 */}
-                  <div className="flex items-center gap-3 bg-surface-container-low px-4 py-3 border-b border-[#eff3f4]">
+                  <div className="flex items-center gap-3 bg-surface-container-low px-4 py-3 border-b border-divider">
                     {editMode ? (
                       <input
                         value={s.sub_name}
@@ -767,7 +767,7 @@ function TreeEditor({
                         <th className="px-4 py-2 font-bold text-right w-28">权重 (%)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#eff3f4]">
+                    <tbody className="divide-y divide-divider">
                       {s.metrics.map((m, mi) => (
                         <tr key={m.metric_id} className="align-top">
                           <td className="px-4 py-3">
@@ -788,7 +788,7 @@ function TreeEditor({
                                   }
                                   placeholder="指标说明（用于 AI 点评参考）"
                                   rows={2}
-                                  className="mt-2 w-full resize-y rounded-xl border border-[#eff3f4] bg-white p-2 text-[12px] text-[#536471] outline-none focus:border-primary-container transition-colors"
+                                  className="mt-2 w-full resize-y rounded-xl border border-divider bg-white p-2 text-[12px] text-[#536471] outline-none focus:border-primary-container transition-colors"
                                 />
                               </>
                             ) : (
@@ -817,7 +817,7 @@ function TreeEditor({
                                     metric_weight: Number(e.target.value) / 100,
                                   })
                                 }
-                                className="w-20 text-right rounded-xl border border-[#eff3f4] bg-white px-2 py-1.5 text-[13px] font-bold text-[#0f1419] outline-none focus:border-primary-container transition-colors"
+                                className="w-20 text-right rounded-xl border border-divider bg-white px-2 py-1.5 text-[13px] font-bold text-[#0f1419] outline-none focus:border-primary-container transition-colors"
                               />
                             ) : (
                               <span className="text-[13px] font-bold text-[#0f1419] tabular-nums">
@@ -910,7 +910,7 @@ function PercentInput({
         className={`w-16 rounded-xl border bg-white px-2 py-1.5 text-[13px] font-bold text-[#0f1419] text-right outline-none transition-colors ${
           invalid
             ? "border-[#ffb300] focus:border-[#ffb300]"
-            : "border-[#eff3f4] focus:border-primary-container"
+            : "border-divider focus:border-primary-container"
         }`}
       />
       %

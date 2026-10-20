@@ -143,10 +143,10 @@ export default function AnnotationsPage() {
   const pending = counts.image_count - counts.embedded_count;
 
   return (
-    <div className="flex min-h-screen bg-white text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-[#0f1419]">
       <Sidebar activeHref="/resources" />
       <main className="flex-1 min-w-0 md:ml-64 pb-24 lg:pb-12">
-        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
           <Link
             href="/resources"
             className="flex items-center text-primary-container"
@@ -158,7 +158,7 @@ export default function AnnotationsPage() {
 
         <div className="max-w-250 mx-auto p-4 lg:p-6 space-y-6">
           {/* ──── 上传区 ──── */}
-          <section className="border border-[#eff3f4] rounded-2xl p-6 bg-white">
+          <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest">
             <div className="flex items-start gap-4 mb-6">
               <div className="bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary-container shrink-0">
                 <span className="material-symbols-outlined">upload_file</span>
@@ -174,9 +174,9 @@ export default function AnnotationsPage() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-[#eff3f4]">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-divider">
               <div className="flex items-center gap-3 min-w-0">
-                <label className="cursor-pointer hover:bg-surface-variant transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-[#eff3f4] shrink-0">
+                <label className="cursor-pointer hover:bg-surface-variant transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-divider shrink-0">
                   <span className="material-symbols-outlined text-[20px] text-primary-container">
                     attach_file
                   </span>
@@ -226,7 +226,7 @@ export default function AnnotationsPage() {
 
           {/* ──── 导入摘要 ──── */}
           {result && (
-            <section className="border border-[#eff3f4] rounded-2xl p-6 bg-white space-y-4">
+            <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest space-y-4">
               <h3 className="text-[15px] font-bold uppercase tracking-widest text-[#536471]">
                 导入摘要
               </h3>
@@ -264,7 +264,7 @@ export default function AnnotationsPage() {
           )}
 
           {/* ──── 向量状态 ──── */}
-          <section className="border border-[#eff3f4] rounded-2xl p-6 bg-white space-y-4">
+          <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest space-y-4">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <h3 className="text-[15px] font-bold uppercase tracking-widest text-[#536471] mb-3">
@@ -290,7 +290,7 @@ export default function AnnotationsPage() {
                   type="button"
                   onClick={() => onBuildEmbeddings(true)}
                   disabled={busy || counts.image_count === 0}
-                  className="border border-[#eff3f4] px-5 py-2 rounded-full text-[15px] font-bold text-[#536471] hover:bg-surface-variant transition-colors disabled:opacity-50"
+                  className="border border-divider px-5 py-2 rounded-full text-[15px] font-bold text-[#536471] hover:bg-surface-variant transition-colors disabled:opacity-50"
                 >
                   全部重算
                 </button>
@@ -306,7 +306,7 @@ export default function AnnotationsPage() {
             </div>
 
             {job && (
-              <div className="pt-4 border-t border-[#eff3f4] space-y-2">
+              <div className="pt-4 border-t border-divider space-y-2">
                 <div className="flex items-center justify-between text-[13px] font-bold">
                   <span className="text-[#536471]">
                     {job.status === "running"
@@ -353,7 +353,7 @@ export default function AnnotationsPage() {
               标注图 {items.length > 0 && `（${items.length}）`}
             </h3>
             {items.length === 0 ? (
-              <div className="border border-dashed border-[#eff3f4] rounded-2xl p-10 text-center text-[15px] text-[#536471]">
+              <div className="border border-dashed border-divider rounded-2xl p-10 text-center text-[15px] text-[#536471]">
                 标注库为空。上传标注表格后在此查看图片与属性。
               </div>
             ) : (
@@ -407,7 +407,7 @@ function Warn({
 function AnnotationCard({ item }: { item: AnnotationItem }) {
   const attrs = item.attributes ?? [];
   return (
-    <div className="border border-[#eff3f4] rounded-2xl overflow-hidden bg-white">
+    <div className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
       {/* eslint-disable-next-line @next/next/no-img-element -- 后端静态图，无需 next/image 优化 */}
       <img
         src={assetUrl(item.image_url)}

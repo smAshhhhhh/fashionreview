@@ -131,11 +131,11 @@ export default function HistoryHeader({
                 className="fixed inset-0 z-40"
                 onClick={() => setOpen(false)}
               />
-              <div className="absolute right-0 top-12 z-50 w-72 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl p-4 flex flex-col gap-4">
+              <div className="absolute right-0 top-12 z-50 w-72 rounded-2xl bg-surface-container-lowest border border-divider shadow-xl p-4 flex flex-col gap-4">
                 {ChipRow("综合评分", SCORE_OPTS, "scoreBand")}
                 {ChipRow("输入类型", TYPE_OPTS, "inputType")}
                 {ChipRow("时间范围", TIME_OPTS, "timeRange")}
-                <div className="flex justify-between pt-1 border-t border-outline-variant/30">
+                <div className="flex justify-between pt-1 border-t border-divider">
                   <button
                     type="button"
                     onClick={() => onFilterChange(DEFAULT_FILTERS)}

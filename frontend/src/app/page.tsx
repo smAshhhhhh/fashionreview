@@ -16,12 +16,14 @@ export default function Home() {
     <ActiveTaskGuard>
       <Sidebar activeHref="/" />
 
-      <main className="lg:ml-64 flex flex-col items-center min-h-screen">
+      <main className="relative isolate lg:ml-64 flex flex-col items-center min-h-screen bg-surface">
+        {/* isolate + -z-10：网格垫在内容下方，不遮挡点击 */}
+        <div aria-hidden className="grid-background pointer-events-none absolute inset-0 -z-10" />
         <div className="w-full max-w-225 px-3 lg:px-0 py-6 flex flex-col gap-6">
           {/* Hero / Search */}
           <SearchBar />
 
-          <hr className="border-outline-variant max-w-150 mx-auto w-full" />
+          <hr className="border-divider max-w-150 mx-auto w-full" />
 
           {/* Recent Insights */}
           <section className="flex flex-col gap-4 max-w-150 mx-auto w-full">
@@ -36,7 +38,7 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <footer className="w-full py-4 px-4 flex flex-col sm:flex-row justify-between items-center max-w-150 mx-auto border-t border-outline-variant mt-6 bg-transparent gap-4">
+        <footer className="w-full py-4 px-4 flex flex-col sm:flex-row justify-between items-center max-w-150 mx-auto mt-6 bg-transparent gap-4">
           <div className="flex flex-col items-center sm:items-start">
             <span className="text-sm font-bold text-on-surface">
               Fashion Street AI

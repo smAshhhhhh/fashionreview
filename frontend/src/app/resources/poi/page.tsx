@@ -140,11 +140,11 @@ export default function PoiManagePage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-[#0f1419]">
       <Sidebar activeHref="/resources" />
       <main className="flex-1 min-w-0 md:ml-64 pb-24 lg:pb-12">
         {/* 顶部栏 */}
-        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
           <Link href="/resources" className="flex items-center text-primary-container">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
@@ -153,7 +153,7 @@ export default function PoiManagePage() {
 
         <div className="max-w-250 mx-auto p-4 lg:p-6 space-y-6">
           {/* 上传区（Dropzone 风格） */}
-          <section className="border border-[#eff3f4] rounded-2xl p-6 bg-white">
+          <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest">
             <div className="flex items-start gap-4 mb-6">
               <div className="bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary-container shrink-0">
                 <span className="material-symbols-outlined">upload_file</span>
@@ -171,7 +171,7 @@ export default function PoiManagePage() {
               <div className="space-y-1">
                 <label className="text-[13px] font-semibold px-1 text-[#536471]">城市</label>
                 <input
-                  className="w-full border border-[#eff3f4] rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
+                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
                   placeholder="输入城市"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -182,7 +182,7 @@ export default function PoiManagePage() {
                   行政区 (可选)
                 </label>
                 <input
-                  className="w-full border border-[#eff3f4] rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
+                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
                   placeholder="输入行政区"
                   value={district}
                   onChange={(e) => setDistrict(e.target.value)}
@@ -193,7 +193,7 @@ export default function PoiManagePage() {
                   街区名称 (如 新天地)
                 </label>
                 <input
-                  className="w-full border border-[#eff3f4] rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
+                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container transition-colors outline-none"
                   placeholder="输入街区名称"
                   value={streetName}
                   onChange={(e) => setStreetName(e.target.value)}
@@ -201,9 +201,9 @@ export default function PoiManagePage() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-[#eff3f4]">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-divider">
               <div className="flex items-center gap-3">
-                <label className="cursor-pointer hover:bg-surface-variant transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-[#eff3f4]">
+                <label className="cursor-pointer hover:bg-surface-variant transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-divider">
                   <span className="material-symbols-outlined text-[20px] text-primary-container">
                     attach_file
                   </span>
@@ -251,7 +251,7 @@ export default function PoiManagePage() {
 
           {/* 导入结果 */}
           {result && (
-            <section className="border border-[#eff3f4] rounded-2xl p-6 bg-white space-y-4">
+            <section className="border border-divider rounded-2xl p-6 bg-surface-container-lowest space-y-4">
               <h3 className="text-xl font-bold">导入结果</h3>
               <div className="flex flex-wrap gap-3 text-[13px]">
                 <Stat label="街区" value={result.street.name} />
@@ -286,7 +286,7 @@ export default function PoiManagePage() {
           )}
 
           {/* 已收录街区（Bento 卡片，吸顶：滚动长表时始终可切换街区） */}
-          <section className="sticky top-14 z-30 bg-white/95 backdrop-blur-md py-2">
+          <section className="sticky top-14 z-30 bg-surface/95 backdrop-blur-md py-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold">已收录街区 (事实层)</h3>
               {streets.length > 1 && (
@@ -295,7 +295,7 @@ export default function PoiManagePage() {
                     type="button"
                     aria-label="向左滚动"
                     onClick={() => scrollStreets(-1)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-[#eff3f4] text-[#536471] hover:bg-[#f7f9f9] transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-divider text-[#536471] hover:bg-surface-container-low transition-colors"
                   >
                     <span className="material-symbols-outlined text-[20px]">chevron_left</span>
                   </button>
@@ -303,7 +303,7 @@ export default function PoiManagePage() {
                     type="button"
                     aria-label="向右滚动"
                     onClick={() => scrollStreets(1)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-[#eff3f4] text-[#536471] hover:bg-[#f7f9f9] transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-divider text-[#536471] hover:bg-surface-container-low transition-colors"
                   >
                     <span className="material-symbols-outlined text-[20px]">chevron_right</span>
                   </button>
@@ -321,10 +321,10 @@ export default function PoiManagePage() {
                     key={s.street_id}
                     type="button"
                     onClick={() => loadRows(s.street_id, "all")}
-                    className={`shrink-0 w-64 text-left rounded-2xl p-4 border transition-all hover:bg-[#f7f9f9] cursor-pointer ${
+                    className={`shrink-0 w-64 text-left rounded-2xl p-4 border transition-all hover:bg-surface-container-low cursor-pointer ${
                       active
                         ? "border-primary-container bg-surface-container-low"
-                        : "border-[#eff3f4]"
+                        : "border-divider"
                     }`}
                   >
                     <div className="flex justify-between items-start mb-3">
@@ -366,8 +366,8 @@ export default function PoiManagePage() {
 
           {/* POI 明细表 */}
           {activeStreetId != null && (
-            <section className="border border-[#eff3f4] rounded-2xl overflow-hidden bg-white">
-              <div className="px-6 py-4 border-b border-[#eff3f4] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <section className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
+              <div className="px-6 py-4 border-b border-divider flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h3 className="text-xl font-bold">
                   POI 明细 (前 {rows.length} / 共 {rowsTotal})
                 </h3>
@@ -395,7 +395,7 @@ export default function PoiManagePage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-surface-container-low border-b border-[#eff3f4] text-[15px] font-semibold text-[#536471]">
+                    <tr className="bg-surface-container-low border-b border-divider text-[15px] font-semibold text-[#536471]">
                       <th className="px-6 py-3">名称</th>
                       <th className="px-6 py-3">来源</th>
                       <th className="px-6 py-3">分类</th>
@@ -404,9 +404,9 @@ export default function PoiManagePage() {
                       <th className="px-6 py-3">连锁</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#eff3f4]">
+                  <tbody className="divide-y divide-divider">
                     {rows.map((r, i) => (
-                      <tr key={i} className="hover:bg-[#f7f9f9] transition-colors">
+                      <tr key={i} className="hover:bg-surface-container-low transition-colors">
                         <td className="px-6 py-3 text-[15px]">{String(r.name ?? "")}</td>
                         <td className="px-6 py-3 text-[13px] text-[#536471]">
                           {SOURCE_CN[String(r.source)] ?? String(r.source ?? "")}
@@ -437,12 +437,12 @@ export default function PoiManagePage() {
               </div>
 
               {rows.length < rowsTotal && (
-                <div className="px-6 py-3 border-t border-[#eff3f4] bg-white flex justify-center">
+                <div className="px-6 py-3 border-t border-divider bg-surface-container-lowest flex justify-center">
                   <button
                     type="button"
                     onClick={loadMore}
                     disabled={loadingMore}
-                    className="text-primary-container text-[15px] font-semibold hover:bg-[#f7f9f9] px-6 py-2 rounded-full transition-colors disabled:opacity-50"
+                    className="text-primary-container text-[15px] font-semibold hover:bg-surface-container-low px-6 py-2 rounded-full transition-colors disabled:opacity-50"
                   >
                     {loadingMore ? "加载中…" : "查看更多"}
                   </button>

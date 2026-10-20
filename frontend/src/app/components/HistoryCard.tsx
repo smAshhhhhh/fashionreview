@@ -70,7 +70,7 @@ export default function HistoryCard({
         className={`relative w-full text-left block border-2 rounded-2xl p-4 transition-colors cursor-pointer group ${
           selected
             ? "bg-primary/5 border-primary"
-            : "bg-surface-container-lowest border-outline-variant hover:bg-surface-container-low"
+            : "bg-surface-container-lowest border-divider hover:bg-surface-container-low"
         }`}
       >
         {inner}
@@ -81,7 +81,7 @@ export default function HistoryCard({
   return (
     <Link
       href={`/analytics?eid=${record.evaluation_id}`}
-      className="relative block bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 hover:bg-surface-container-low transition-colors cursor-pointer group"
+      className="relative block bg-surface-container-lowest border border-divider rounded-2xl p-4 hover:bg-surface-container-low transition-colors cursor-pointer group"
     >
       {inner}
     </Link>

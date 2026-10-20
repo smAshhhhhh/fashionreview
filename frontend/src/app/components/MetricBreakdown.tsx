@@ -23,7 +23,7 @@ function scoreColor(score: number): string {
 
 /**
  * 多维指标明细（完全对齐 mock）：一级维度 tab 切换 + 二级维度表格，行可展开看三级指标。
- * 表格样式沿用 mock：#eff3f4 分割线、白底、无圆角、真实 <table>。
+ * 表格样式沿用 mock：divider 分割线、白底、无圆角、真实 <table>。
  * showReason 关闭时不展示三级评分理由；无三级数据时行不可展开。
  */
 export default function MetricBreakdown({
@@ -98,7 +98,7 @@ export default function MetricBreakdown({
       <h3 className="text-xl font-black text-[#0f1419]">多维指标明细</h3>
 
       {/* 维度切换 tab */}
-      <div className="flex border-b border-[#eff3f4] overflow-x-auto no-scrollbar">
+      <div className="flex border-b border-divider overflow-x-auto no-scrollbar">
         {dimensions.map((dim) => {
           const active = dim.dim_id === activeDim;
           return (
@@ -119,10 +119,10 @@ export default function MetricBreakdown({
       </div>
 
       {/* 指标表格 */}
-      <div className="w-full border border-[#eff3f4] overflow-hidden">
+      <div className="w-full border border-divider bg-surface-container-lowest overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-[#eff3f4] bg-white">
+            <tr className="border-b border-divider bg-surface-container-lowest">
               <th className="px-6 py-4 font-bold text-[14px] text-[#536471] uppercase">
                 指标名称
               </th>
@@ -135,7 +135,7 @@ export default function MetricBreakdown({
               <th className="px-4 py-4 w-10" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#eff3f4]">
+          <tbody className="divide-y divide-divider">
             {activeSubs.length === 0 && (
               <tr>
                 <td
@@ -220,9 +220,9 @@ function FragmentRow({
         </td>
       </tr>
       {canExpand && isOpen && (
-        <tr className="bg-white">
-          <td className="px-6 py-0 border-t border-[#eff3f4]" colSpan={4}>
-            <div className="divide-y divide-[#eff3f4]">
+        <tr className="bg-surface-container-lowest">
+          <td className="px-6 py-0 border-t border-divider" colSpan={4}>
+            <div className="divide-y divide-divider">
               {items.map((m) => (
                 <div
                   key={m.metric_id}

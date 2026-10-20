@@ -195,7 +195,7 @@ export default function HistoryPage() {
         <section>
           <div className="flex items-center gap-3 mb-4">
             <h3 className="text-base font-bold text-on-surface">按分数（高 → 低）</h3>
-            <div className="h-px flex-1 bg-outline-variant/50" />
+            <div className="h-px flex-1 bg-divider" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 justify-items-center">
             {sorted.map((record, i) => (
@@ -221,7 +221,7 @@ export default function HistoryPage() {
         <section key={section}>
           <div className="flex items-center gap-3 mb-4">
             <h3 className="text-base font-bold text-on-surface">{section}</h3>
-            <div className="h-px flex-1 bg-outline-variant/50" />
+            <div className="h-px flex-1 bg-divider" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 justify-items-center">
             {items.map((record, i) => (

@@ -20,10 +20,10 @@ export default function HeaderCard({
   showScore?: boolean;
 }) {
   return (
-    <section className="flex flex-col md:flex-row justify-between items-start gap-6 pb-6 border-b border-[#eff3f4]">
+    <section className="flex flex-col md:flex-row justify-between items-start gap-6 pb-6 border-b border-divider">
       <div className="flex items-center gap-5 min-w-0">
         {imageUrl && (
-          <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-[#eff3f4] bg-[#eff3f4]">
+          <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-divider bg-divider">
             <Image
               src={assetUrl(imageUrl)}
               alt={streetName}

@@ -419,7 +419,7 @@ function AnalysisProgressInner() {
             />
           ) : cancelled ? (
             /* 已取消态 */
-            <div className="flex flex-col items-start gap-4 rounded-2xl border border-outline-variant/40 bg-surface-container/40 p-6">
+            <div className="flex flex-col items-start gap-4 rounded-2xl border border-divider bg-surface-container-lowest p-6">
               <div className="flex items-center gap-2 text-on-surface-variant">
                 <span className="material-symbols-outlined">cancel</span>
                 <span className="font-bold">分析已取消</span>

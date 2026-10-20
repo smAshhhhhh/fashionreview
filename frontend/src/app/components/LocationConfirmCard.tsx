@@ -93,7 +93,7 @@ export default function LocationConfirmCard({
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-105 rounded-3xl border border-outline-variant/60 bg-surface-container-lowest p-7">
+      <div className="mx-auto w-full max-w-105 rounded-3xl border border-divider bg-surface-container-lowest p-7">
         <div className="animate-pulse space-y-4">
           <div className="h-5 w-40 rounded-full bg-surface-container" />
           <div className="aspect-4/3 w-full rounded-2xl bg-surface-container" />
@@ -116,7 +116,7 @@ export default function LocationConfirmCard({
         {/* ──── 正面：识别结果 ──── */}
         <div
           aria-hidden={flipped}
-          className="backface-hidden flex w-full flex-col rounded-3xl border border-outline-variant/60 bg-surface-container-lowest p-6 shadow-[0_12px_40px_rgb(0,0,0,0.06)] sm:p-7"
+          className="backface-hidden flex w-full flex-col rounded-3xl border border-divider bg-surface-container-lowest p-6 shadow-[0_12px_40px_rgb(0,0,0,0.06)] sm:p-7"
         >
           <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary-fixed bg-primary-fixed/40 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-primary">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-container" />
@@ -130,7 +130,7 @@ export default function LocationConfirmCard({
           </p>
 
           {/* 街景原图 */}
-          <div className="group relative mt-5 aspect-4/3 overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container">
+          <div className="group relative mt-5 aspect-4/3 overflow-hidden rounded-2xl border border-divider bg-surface-container">
             {info?.image_url && (
               /* eslint-disable-next-line @next/next/no-img-element -- 后端静态图，无需 next/image */
               <img
@@ -171,7 +171,7 @@ export default function LocationConfirmCard({
           )}
 
           {/* 底部右下角：改地址 + 确认 */}
-          <div className="mt-6 flex items-center justify-end gap-2 border-t border-outline-variant/40 pt-5">
+          <div className="mt-6 flex items-center justify-end gap-2 border-t border-divider pt-5">
             <button
               type="button"
               onClick={() => {
@@ -206,7 +206,7 @@ export default function LocationConfirmCard({
         {/* ──── 反面：手动输入地点 ──── */}
         <div
           aria-hidden={!flipped}
-          className="backface-hidden absolute inset-0 flex h-full w-full rotate-y-180 flex-col rounded-3xl border border-outline-variant/60 bg-surface-container-lowest p-6 shadow-[0_12px_40px_rgb(0,0,0,0.06)] sm:p-7"
+          className="backface-hidden absolute inset-0 flex h-full w-full rotate-y-180 flex-col rounded-3xl border border-divider bg-surface-container-lowest p-6 shadow-[0_12px_40px_rgb(0,0,0,0.06)] sm:p-7"
         >
           <div className="flex items-center gap-2">
             {/* 没认出地点时无正面可回退，不给返回入口 */}
@@ -269,7 +269,7 @@ export default function LocationConfirmCard({
           )}
 
           {/* 底部右下角：重新上传 + 提交 */}
-          <div className="mt-auto flex items-center justify-end gap-2 border-t border-outline-variant/40 pt-5">
+          <div className="mt-auto flex items-center justify-end gap-2 border-t border-divider pt-5">
             <input
               ref={fileInputRef}
               type="file"

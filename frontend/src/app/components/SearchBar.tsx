@@ -79,12 +79,9 @@ export default function SearchBar() {
       <div className="w-full mt-4">
         <div className="flex items-center gap-3">
           {/* 文本搜索框 */}
-          <div className="relative flex items-center group grow">
-            <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-              search
-            </span>
+          <div className="relative flex items-center grow">
             <input
-              className="w-full bg-outline-variant/30 border-none rounded-full h-12 pl-14 pr-16 text-lg text-on-surface placeholder:text-on-surface-variant focus:ring-1 focus:ring-primary focus:bg-white transition-all disabled:opacity-60"
+              className="neu-input w-full rounded-2xl border-none p-4 pr-14 text-lg text-on-surface placeholder:text-on-surface-variant disabled:opacity-60"
               placeholder="搜索街道（如：安福路）..."
               type="text"
               value={query}

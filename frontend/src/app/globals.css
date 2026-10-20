@@ -22,18 +22,19 @@
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
 
-  --color-surface: #f7f9ff;
-  --color-surface-bright: #f7f9ff;
+  --color-surface: #faf9f5;
+  --color-surface-bright: #faf9f5;
   --color-surface-dim: #d6dae1;
-  --color-surface-variant: #dee3ea;
-  --color-surface-container: #eaeef5;
-  --color-surface-container-low: #f0f4fb;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-high: #e4e8f0;
-  --color-surface-container-highest: #dee3ea;
+  --color-surface-variant: #e3e1d9;
+  --color-surface-container: #efede7;
+  --color-surface-container-low: #f4f3ee;
+  /* 容器色：背景 #faf9f5 = hsl(48 33.3% 97.1%)，同色相饱和度，只提高亮度 */
+  --color-surface-container-lowest: hsl(48 33.3% 98.5%);
+  --color-surface-container-high: #e9e7e0;
+  --color-surface-container-highest: #e3e1d9;
   --color-surface-tint: #00629d;
 
-  --color-background: #f7f9ff;
+  --color-background: #faf9f5;
   --color-inverse-surface: #2c3136;
   --color-inverse-on-surface: #edf1f8;
 
@@ -61,6 +62,8 @@
 
   --color-outline: #6f7883;
   --color-outline-variant: #bfc7d3;
+  /* 分割线与容器描边 */
+  --color-divider: #e8e6e0;
 }
 
 /* ──── Material Symbols ──── */
@@ -109,5 +112,36 @@ body {
 }
 .step-transition {
   transition: all 0.5s ease-in-out;
+}
+
+/* ──── 首页网格背景（底部显示，向上渐隐）──── */
+.grid-background {
+  background-image:
+    linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+  background-size: 20px 30px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
+}
+
+/* ──── 浮起式输入框（聚焦转内凹）──── */
+/* 两种状态都写满 4 组阴影且 inset 位置一致，否则浏览器无法插值、只会跳变 */
+.neu-input {
+  background: #e8e8e8;
+  box-shadow:
+    20px 20px 60px #c5c5c5,
+    -20px -20px 60px #ffffff,
+    inset 0 0 0 #c5c5c5,
+    inset 0 0 0 #ffffff;
+  transition: box-shadow 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.neu-input:focus {
+  outline-color: #e8e8e8;
+  box-shadow:
+    0 0 0 #c5c5c5,
+    0 0 0 #ffffff,
+    inset 20px 20px 60px #c5c5c5,
+    inset -20px -20px 60px #ffffff;
 }
 

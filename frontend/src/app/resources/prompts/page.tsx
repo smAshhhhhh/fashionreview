@@ -80,12 +80,12 @@ export default function PromptsPage() {
   const selected = templates.find((t) => t.id === selectedId) ?? null;
 
   return (
-    <div className="flex min-h-screen bg-white text-[#0f1419]">
+    <div className="flex min-h-screen bg-surface text-[#0f1419]">
       <Sidebar activeHref="/resources" />
 
       <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
         {/* 顶部栏 */}
-        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-white/80 backdrop-blur-md border-b border-[#eff3f4]">
+        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
           <Link href="/resources" className="flex items-center text-primary-container">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
@@ -132,7 +132,7 @@ export default function PromptsPage() {
                             className={`w-full text-left rounded-2xl border p-3 transition-colors ${
                               isSel
                                 ? "border-primary-container bg-surface-container-low"
-                                : "border-[#eff3f4] hover:bg-[#f7f9f9]"
+                                : "border-divider hover:bg-surface-container-low"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -178,7 +178,7 @@ export default function PromptsPage() {
                   onClearNotice={() => setNotice(null)}
                 />
               ) : (
-                <div className="grid place-items-center rounded-2xl border border-[#eff3f4] min-h-100 text-[#536471]">
+                <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-[#536471]">
                   <p className="text-[15px]">请选择左侧模板进行编辑。</p>
                 </div>
               )}
@@ -195,7 +195,7 @@ export default function PromptsPage() {
 /* ──────────────── 右侧：编辑器 ──────────────── */
 
 const inputClass =
-  "w-full bg-white border border-[#eff3f4] rounded-xl px-3 py-2 text-[15px] focus:border-primary-container focus:outline-none transition-colors";
+  "w-full bg-white border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary-container focus:outline-none transition-colors";
 
 function PromptEditor({
   template,
@@ -275,7 +275,7 @@ function PromptEditor({
   return (
     <div className="min-w-0">
       {/* 头部：名称 + 阶段/版本 + 启用开关 */}
-      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8 border-b border-[#eff3f4] pb-6">
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8 border-b border-divider pb-6">
         <div className="min-w-0">
           <p className="text-[13px] text-[#536471] mb-1">
             {STAGE_LABEL[template.stage] ?? template.stage} · 当前 v{template.version}
@@ -309,7 +309,7 @@ function PromptEditor({
             {placeholders.map((p) => (
               <code
                 key={p}
-                className="text-[12px] bg-surface-container-low text-[#0f1419] px-2 py-1 rounded-full border border-[#eff3f4]"
+                className="text-[12px] bg-surface-container-low text-[#0f1419] px-2 py-1 rounded-full border border-divider"
               >
                 {p}
               </code>
@@ -473,8 +473,8 @@ function HistoryPanel({
   };
 
   return (
-    <div className="border border-[#eff3f4] rounded-2xl overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#eff3f4]">
+    <div className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
+      <div className="px-5 py-4 border-b border-divider">
         <h5 className="text-[15px] font-bold text-[#0f1419]">版本历史</h5>
       </div>
 
@@ -483,11 +483,11 @@ function HistoryPanel({
       ) : history.length === 0 ? (
         <p className="px-5 py-6 text-[13px] text-[#536471]">暂无历史版本</p>
       ) : (
-        <div className="divide-y divide-[#eff3f4]">
+        <div className="divide-y divide-divider">
           {history.map((h) => (
             <div
               key={h.id}
-              className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-[#f7f9f9] transition-colors"
+              className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-surface-container-low transition-colors"
             >
               <div className="flex items-center gap-4 min-w-0">
                 <span className="font-bold text-[#536471] tabular-nums shrink-0">
@@ -516,7 +516,7 @@ function HistoryPanel({
           onClick={() => !rollingBack && setPendingVersion(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#eff3f4]"
+            className="bg-surface-container-lowest rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-divider"
             onClick={(e) => e.stopPropagation()}
           >
             <h4 className="text-xl font-bold mb-3">确认回滚版本？</h4>
@@ -562,13 +562,13 @@ function LoadingSkeleton() {
     <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
       <div className="space-y-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="rounded-2xl border border-[#eff3f4] p-4 animate-pulse">
+          <div key={i} className="rounded-2xl border border-divider bg-surface-container-lowest p-4 animate-pulse">
             <div className="h-3 bg-surface-container-high rounded w-2/3 mb-2" />
             <div className="h-2 bg-surface-container-high rounded w-1/3" />
           </div>
         ))}
       </div>
-      <div className="rounded-2xl border border-[#eff3f4] min-h-100 animate-pulse" />
+      <div className="rounded-2xl border border-divider bg-surface-container-lowest min-h-100 animate-pulse" />
     </div>
   );
 }

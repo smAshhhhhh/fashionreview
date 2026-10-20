@@ -16,7 +16,7 @@ export default function MobileBottomNav({
   activeHref?: string;
 }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 w-full h-16 bg-surface-container-lowest border-t border-outline-variant flex items-center justify-around z-50">
+    <nav className="lg:hidden fixed bottom-0 left-0 w-full h-16 bg-surface-container-lowest border-t border-divider flex items-center justify-around z-50">
       {navItems.map((item) => {
         const isActive = item.href === activeHref;
         return (
