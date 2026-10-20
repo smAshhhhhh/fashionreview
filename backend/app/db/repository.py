@@ -366,6 +366,24 @@ def get_or_create_street(
     return create_street(conn, name, city, district)
 
 
+def get_street_cover_url(
+    conn: pymysql.connections.Connection, street_id: int
+) -> str | None:
+    with conn.cursor() as cur:
+        cur.execute("SELECT cover_url FROM street WHERE id = %s", (street_id,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
+def set_street_cover_url(
+    conn: pymysql.connections.Connection, street_id: int, cover_url: str
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE street SET cover_url = %s WHERE id = %s", (cover_url, street_id)
+        )
+
+
 def get_street_profile(
     conn: pymysql.connections.Connection, street_id: int
 ) -> dict[str, Any] | None:
@@ -633,12 +651,16 @@ def list_evaluations(
     conn: pymysql.connections.Connection,
     limit: int = 50,
     status: str = "completed",
+    *,
+    with_cover: bool = False,
 ) -> list[dict[str, Any]]:
     """历史评价列表：JOIN street 取街道名/城市/区，按创建时间倒序。
 
     默认仅返回已完成的评价，供历史记录页展示。
+    :param with_cover: 无上传图时用街道封面兜底（「文字点评自动封面」开关）
     """
-    sql = """
+    image_col = "COALESCE(t.image_url, s.cover_url)" if with_cover else "t.image_url"
+    sql = f"""
         SELECT
             e.id            AS evaluation_id,
             e.total_score   AS total_score,
@@ -648,7 +670,7 @@ def list_evaluations(
             s.street_name   AS street_name,
             s.city          AS city,
             s.district      AS district,
-            t.image_url     AS image_url,
+            {image_col} AS image_url,
             t.input_type    AS input_type
         FROM street_evaluation e
         JOIN street s ON e.street_id = s.id

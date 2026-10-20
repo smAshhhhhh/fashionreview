@@ -88,7 +88,7 @@ export interface SimilarStreet {
   city: string | null;
   district: string | null;
   total_score: number | null;
-  /** 上传原图相对路径；文字点评为 null，用 assetUrl() 回退占位图 */
+  /** 上传原图相对路径；文字点评为街道封面 URL 或 null，用 assetUrl() 回退占位图 */
   image_url: string | null;
   /** 二级维度分的皮尔逊相关，-1~1 */
   similarity: number;
@@ -105,7 +105,7 @@ export interface EvaluationResult {
   total_score: number | null;
   /** AI 生成的街道画像 */
   summary: string | null;
-  /** 上传原图相对路径 /static/uploads/...，文字发起的点评为 null */
+  /** 上传原图相对路径；文字发起的点评为街道封面 URL 或 null */
   image_url?: string | null;
   /** 启用中的展示区块 block_key（后端按「分析管理」配置过滤后下发），前端据此渲染 */
   enabled_blocks: string[];
@@ -128,7 +128,7 @@ export interface HistoryItem {
   status: string;
   /** 截断后的 summary 摘要 */
   summary: string | null;
-  /** 上传原图相对路径，文字发起的点评为 null */
+  /** 上传原图相对路径；文字发起的点评为街道封面 URL 或 null */
   image_url?: string | null;
   /** 输入类型：text / image，供历史页筛选 */
   input_type?: string | null;

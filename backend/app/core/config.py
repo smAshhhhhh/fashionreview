@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     llm_timeout: int = 180
     llm_enable_search: bool = True
 
+    # 高德 Web 服务（文字点评自动取封面）；未配置 Key 时跳过
+    amap_key: str = ""
+    amap_timeout: int = 5
+
     # 图片上传落盘目录（相对后端工作目录）。对外仅暴露相对路径 /static/uploads/<uuid>.ext
     upload_dir: str = "static/uploads"
 

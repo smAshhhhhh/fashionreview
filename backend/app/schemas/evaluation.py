@@ -165,7 +165,7 @@ class EvaluationResult(BaseModel):
     status: str
     total_score: float | None = None
     summary: str | None = None
-    image_url: str | None = None  # 上传原图相对路径 /static/uploads/...，文字任务为 None
+    image_url: str | None = None  # 上传原图相对路径；文字任务为街道封面（高德图片 URL）或 None
     enabled_blocks: list[str] = []  # 启用中的展示区块 block_key，前端据此渲染
     dimension_scores: list[DimensionScoreOut] = []
     sub_dimension_scores: list[SubDimensionScoreOut] = []
@@ -186,7 +186,7 @@ class HistoryItemOut(BaseModel):
     total_score: float | None = None
     status: str
     summary: str | None = None
-    image_url: str | None = None  # 上传原图相对路径，文字任务为 None
+    image_url: str | None = None  # 上传原图相对路径；文字任务为街道封面或 None
     input_type: str | None = None  # text / image，供历史页筛选
     created_at: str | None = None
 

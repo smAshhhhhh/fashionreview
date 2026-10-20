@@ -27,7 +27,7 @@ export default function HistoryCard({
   const inner = (
     <div className="flex gap-4">
       <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 bg-surface-container">
-        {/* 图片发起的点评显示上传原图；文字发起的回退到 no_photo 占位 */}
+        {/* 图片点评显示上传原图；文字点评显示街道封面，没有则回退 no_photo 占位 */}
         <Image
           src={assetUrl(record.image_url)}
           alt={record.street}

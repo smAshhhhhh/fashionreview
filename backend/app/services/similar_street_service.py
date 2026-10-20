@@ -38,7 +38,7 @@ def _strengths(dims: dict[str, tuple[str, float]]) -> set[str]:
 
 
 def find_similar_streets(
-    conn, evaluation_id: int, *, top_n: int, min_score: float
+    conn, evaluation_id: int, *, top_n: int, min_score: float, with_cover: bool = False
 ) -> list[dict[str, Any]]:
     """返回与该评价最相似的历史街区（排除同一街区，每个街区只取最近一次）。"""
     subs: dict[int, dict[str, float]] = {}
@@ -63,7 +63,9 @@ def find_similar_streets(
     # list_evaluations 按时间倒序，同一街区先遇到的就是最近一次
     seen_streets: set[int] = set()
     scored: list[tuple[float, dict[str, Any]]] = []
-    for row in repo.list_evaluations(conn, limit=1000, status="completed"):
+    for row in repo.list_evaluations(
+        conn, limit=1000, status="completed", with_cover=with_cover
+    ):
         eid = row["evaluation_id"]
         sid = street_of.get(eid)
         if eid == evaluation_id or sid is None or sid == own_street:

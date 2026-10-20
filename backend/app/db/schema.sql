@@ -90,6 +90,7 @@ CREATE TABLE street (
     longitude   DECIMAL(10,6) NULL,
     latitude    DECIMAL(10,6) NULL,
     description TEXT          NULL,
+    cover_url   VARCHAR(1000) NULL COMMENT '封面图（文字点评自动获取，高德 POI 照片）',
     create_time DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_street_city_name (city, street_name)

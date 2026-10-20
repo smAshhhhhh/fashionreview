@@ -30,6 +30,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import repository as repo
 from app.db.session import connection_scope
+from app.services import amap_service
 from app.services import display_config_service
 from app.services import progress_service as progress
 from app.services import prompt_builder as pb
@@ -558,6 +559,8 @@ def submit_image_analysis(
 
 # 功能开关的 block_key（复用 analytics_display_config 的 flow 分组）
 CONFIRM_LOCATION_BLOCK = "image_confirm_location"
+# 文字点评自动封面开关（同属 flow 分组）
+TEXT_COVER_BLOCK = "text_auto_cover"
 
 
 def _run_recognize_phase(
@@ -1030,6 +1033,18 @@ def _run_scoring_phase(
                 conn, street_id, street_name
             )
             metric_tree = repo.fetch_metric_tree(conn)
+            has_cover = bool(repo.get_street_cover_url(conn, street_id))
+
+        # 文字点评没有上传图：用高德 POI 照片作街道封面（事务外请求，失败不影响评分）
+        if (
+            not image_path and not has_cover
+            and display_config_service.is_enabled(TEXT_COVER_BLOCK)
+        ):
+            cover_url = amap_service.fetch_place_photo(street_name, city)
+            if cover_url:
+                with connection_scope() as conn:
+                    repo.set_street_cover_url(conn, street_id, cover_url)
+                logger.info("任务 %s 已获取街道封面：%s", task_id, street_name)
 
         # ①.5 图片属性匹配（仅照片点评；文字点评整段跳过）
         if image_path:
@@ -1138,7 +1153,10 @@ def list_history(limit: int = 50) -> list[dict[str, Any]]:
     summary 截断为短摘要供卡片展示；完整内容在结果页按 eid 查询。
     """
     with connection_scope() as conn:
-        rows = repo.list_evaluations(conn, limit=limit, status="completed")
+        with_cover = TEXT_COVER_BLOCK in display_config_service.enabled_blocks(conn)
+        rows = repo.list_evaluations(
+            conn, limit=limit, status="completed", with_cover=with_cover
+        )
 
     items: list[dict[str, Any]] = []
     for r in rows:
@@ -1207,8 +1225,12 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         dim_rows = repo.fetch_dimension_scores(conn, evaluation_id, dim_level=1)
         sub_rows = repo.fetch_dimension_scores(conn, evaluation_id, dim_level=2)
         metric_rows = repo.fetch_metric_scores(conn, evaluation_id)
-        image_url = repo.get_task_image_url(conn, evaluation_id)
         blocks = display_config_service.enabled_blocks(conn)
+        with_cover = TEXT_COVER_BLOCK in blocks
+        image_url = repo.get_task_image_url(conn, evaluation_id) or (
+            repo.get_street_cover_url(conn, evaluation["street_id"])
+            if with_cover else None
+        )
         image_attr_rows = repo.fetch_evaluation_image_attributes(conn, evaluation_id)
         settings = get_settings()
         similar_rows = (
@@ -1217,6 +1239,7 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
                 evaluation_id,
                 top_n=settings.similar_street_top_n,
                 min_score=settings.similar_street_min_score,
+                with_cover=with_cover,
             )
             if "similar_streets" in blocks
             else []

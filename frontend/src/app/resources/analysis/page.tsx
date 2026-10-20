@@ -49,7 +49,7 @@ const GROUP_META: Record<string, GroupMeta> = {
   flow: {
     label: "流程控制",
     icon: "account_tree",
-    desc: "照片点评的地点确认等链路流程开关",
+    desc: "照片地点确认、文字点评自动封面等链路流程开关",
   },
 };
 const GROUP_ORDER = ["overview", "visual", "detail", "report", "flow"];
