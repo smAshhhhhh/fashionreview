@@ -75,25 +75,17 @@ class ImageAttributeOut(BaseModel):
     grade_word: str
 
 
-class SimilarAnnotationAttr(BaseModel):
-    """候选标注图自身的一条属性（用于缩略图下的风格标注）。"""
+class SimilarStreetOut(BaseModel):
+    """历史点评中维度画像相似的一个街区（「相似审美节点」区块）。"""
 
-    metric_name: str | None = None
-    grade_word: str | None = None
-
-
-class SimilarAnnotationOut(BaseModel):
-    """一个相似标注图候选（「相似审美节点」区块）。
-
-    相似度下限由 annotation_similar_min_similarity 控制，仅作展示过滤 ——
-    Top-1 赋属性不受其影响。
-    """
-
-    annotation_id: int
-    file_name: str
-    image_url: str
-    similarity: float
-    attributes: list[SimilarAnnotationAttr] = []
+    evaluation_id: int
+    street: str
+    city: str | None = None
+    district: str | None = None
+    total_score: float | None = None
+    image_url: str | None = None
+    similarity: float  # 二级维度分的皮尔逊相关
+    shared_strengths: list[str] = []  # 两条街都高于自身均分的一级维度名
 
 
 class AnalyzeAccepted(BaseModel):
@@ -180,8 +172,8 @@ class EvaluationResult(BaseModel):
     metric_scores: list[MetricScoreOut] = []
     # 图片属性标签（照片点评匹配标注库所得）；文字点评恒为空数组
     image_attributes: list[ImageAttributeOut] = []
-    # 相似标注图候选（Top-N 中过相似度下限的），供「相似审美节点」区块展示
-    similar_annotations: list[SimilarAnnotationOut] = []
+    # 历史点评中维度画像相似的街区，供「相似审美节点」区块展示
+    similar_streets: list[SimilarStreetOut] = []
 
 
 class HistoryItemOut(BaseModel):

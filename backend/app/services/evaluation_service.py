@@ -34,6 +34,7 @@ from app.services import display_config_service
 from app.services import progress_service as progress
 from app.services import prompt_builder as pb
 from app.services import scoring_service
+from app.services import similar_street_service
 from app.services import retriever
 from app.services.annotation import matcher
 from app.services.llm_client import chat, chat_vision
@@ -1209,11 +1210,13 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         image_url = repo.get_task_image_url(conn, evaluation_id)
         blocks = display_config_service.enabled_blocks(conn)
         image_attr_rows = repo.fetch_evaluation_image_attributes(conn, evaluation_id)
+        settings = get_settings()
         similar_rows = (
-            repo.fetch_evaluation_image_candidates(
+            similar_street_service.find_similar_streets(
                 conn,
                 evaluation_id,
-                min_similarity=get_settings().annotation_similar_min_similarity,
+                top_n=settings.similar_street_top_n,
+                min_score=settings.similar_street_min_score,
             )
             if "similar_streets" in blocks
             else []
@@ -1315,5 +1318,5 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         "sub_dimension_scores": sub_dimension_scores,
         "metric_scores": metric_scores,
         "image_attributes": image_attributes,
-        "similar_annotations": similar_rows,
+        "similar_streets": similar_rows,
     }

@@ -62,9 +62,9 @@ class Settings(BaseSettings):
     annotation_embed_max_px: int = 1280
     # 匹配留痕的候选数：Top-1 用于赋属性，其余仅供排查为何匹错
     annotation_match_top_n: int = 5
-    # 「相似审美节点」区块的展示下限：低于此相似度的候选不摆到结果页上。
-    # 注意这是**展示过滤**，与匹配判定无关 —— Top-1 赋属性始终不设阈值。
-    annotation_similar_min_similarity: float = 0.5
+    # 相似街道推荐：取前几个、皮尔逊相关下限
+    similar_street_top_n: int = 5
+    similar_street_min_score: float = 0.3
 
     @property
     def cors_origins_list(self) -> list[str]:

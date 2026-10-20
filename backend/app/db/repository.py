@@ -1547,91 +1547,27 @@ def fetch_evaluation_image_attributes(
         return cur.fetchall()
 
 
-def fetch_evaluation_image_candidates(
+def fetch_dimension_vectors(
     conn: pymysql.connections.Connection,
-    evaluation_id: int,
-    *,
-    min_similarity: float = 0.0,
 ) -> list[dict[str, Any]]:
-    """取某次点评的相似标注图候选（Top-N），按相似度降序。
+    """所有已完成评价的一、二级维度分（相似街道推荐用）。
 
-    候选本身存在 evaluation_image_match.candidates（JSON 留痕），但其中只有
-    annotation_id / file_name / similarity，**没有 image_url** —— 要显示缩略图
-    须回 annotation_image 取。这里顺带按 id 过滤掉已被删除的标注图（清空标注库后
-    历史点评的候选会指向不存在的行，此时不渲染缩略图而非给出 404 图）。
-
-    :param min_similarity: 相似度下限（不含）。这是**展示过滤**，与匹配无关 ——
-        Top-1 赋属性始终不设阈值，此处只是不把「勉强有点像」的图摆到结果页上。
+    按 code 对齐跨模板的维度：不同模板的维度 id 不同，但 code 相同。
+    返回 [{evaluation_id, street_id, dim_level, code, name, score}]。
+    """
+    sql = """
+        SELECT e.id AS evaluation_id, e.street_id, ds.dim_level,
+               COALESCE(d.code, sd.code) AS code,
+               COALESCE(d.name, sd.name) AS name,
+               ds.score
+        FROM street_evaluation e
+        JOIN street_dimension_score ds ON ds.evaluation_id = e.id
+        LEFT JOIN fashion_dimension d
+               ON ds.dim_level = 1 AND d.id = ds.ref_id
+        LEFT JOIN fashion_sub_dimension sd
+               ON ds.dim_level = 2 AND sd.id = ds.ref_id
+        WHERE e.status = 'completed'
     """
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
-        cur.execute(
-            "SELECT candidates FROM evaluation_image_match WHERE evaluation_id = %s",
-            (evaluation_id,),
-        )
-        row = cur.fetchone()
-        if not row or not row.get("candidates"):
-            return []
-
-        raw = row["candidates"]
-        if isinstance(raw, (str, bytes)):
-            try:
-                items = json.loads(raw)
-            except (TypeError, ValueError):
-                return []
-        else:
-            items = raw
-        if not isinstance(items, list):
-            return []
-
-        picked: list[dict[str, Any]] = []
-        for it in items:
-            if not isinstance(it, dict):
-                continue
-            try:
-                sim = float(it.get("similarity"))
-            except (TypeError, ValueError):
-                continue
-            aid = it.get("annotation_id")
-            if aid is None or sim <= min_similarity:
-                continue
-            picked.append({"annotation_id": int(aid), "similarity": sim})
-        if not picked:
-            return []
-
-        placeholders = ", ".join(["%s"] * len(picked))
-        cur.execute(
-            "SELECT id, file_name, image_url FROM annotation_image "
-            f"WHERE id IN ({placeholders})",
-            tuple(p["annotation_id"] for p in picked),
-        )
-        by_id = {r["id"]: r for r in cur.fetchall()}
-
-        # 同时带出各候选图的属性，供前端在缩略图上标注其风格
-        cur.execute(
-            "SELECT annotation_id, metric_name, grade_word FROM annotation_attribute "
-            f"WHERE annotation_id IN ({placeholders}) ORDER BY annotation_id, attr_index",
-            tuple(p["annotation_id"] for p in picked),
-        )
-        attrs_by_id: dict[int, list[dict[str, Any]]] = {}
-        for a in cur.fetchall():
-            attrs_by_id.setdefault(a["annotation_id"], []).append(
-                {"metric_name": a["metric_name"], "grade_word": a["grade_word"]}
-            )
-
-    out: list[dict[str, Any]] = []
-    for p in picked:
-        img = by_id.get(p["annotation_id"])
-        if not img:
-            continue  # 标注图已被删除，跳过而非渲染坏图
-        out.append(
-            {
-                "annotation_id": p["annotation_id"],
-                "file_name": img["file_name"],
-                "image_url": img["image_url"],
-                "similarity": round(p["similarity"], 5),
-                "attributes": attrs_by_id.get(p["annotation_id"], []),
-            }
-        )
-    out.sort(key=lambda x: x["similarity"], reverse=True)
-    return out
-
+        cur.execute(sql)
+        return cur.fetchall()

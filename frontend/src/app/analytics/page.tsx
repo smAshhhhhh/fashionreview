@@ -8,7 +8,7 @@ import HeaderCard from "../components/HeaderCard";
 import RadarChart from "../components/RadarChart";
 import MetricBreakdown from "../components/MetricBreakdown";
 import ReportSummary from "../components/ReportSummary";
-import SimilarAnnotations from "../components/SimilarAnnotations";
+import SimilarStreets from "../components/SimilarStreets";
 import { LAST_EVAL_KEY } from "../components/ActiveTaskGuard";
 import { getEvaluationResult } from "../../lib/api";
 import type { EvaluationResult } from "../types";
@@ -117,10 +117,9 @@ function ResultView({ data }: { data: EvaluationResult }) {
         />
       )}
 
-      {/* 相似审美节点：人工标注库里最相似的标注图（照片点评才有）。
-          组件在无候选时自行返回 null，故文字点评下该区块不占位。 */}
+      {/* 相似审美节点：历史点评中维度画像最相似的街区；无推荐时组件返回 null */}
       {show("similar_streets") && (
-        <SimilarAnnotations items={data.similar_annotations} />
+        <SimilarStreets items={data.similar_streets} />
       )}
     </div>
   );
