@@ -1,7 +1,7 @@
 """Prompt 构造。
 
 三类 Prompt：
-- 街巷识别（recognize）：从用户文本中提取规范街巷名 + 城市
+- 地点识别（recognize）：从用户文本中提取评价对象（街巷或具体场所）+ 城市
 - 指标评分（score）：按一级维度分批，让模型对该批三级指标各打 1~5 整数
 - 报告生成（report）：依据各维度得分写综合画像
 
@@ -17,8 +17,15 @@ from typing import Any
 # ──────────────── 街巷识别 ────────────────
 
 RECOGNIZE_SYSTEM = (
-    "你是一名中国城市街区识别专家。根据用户输入，判断其指向的街巷/街区。"
+    "你是一名中国城市地点识别专家。根据用户输入，判断其指向的评价对象。"
+    "评价对象可以是街巷/街区，也可以是具体的商场、购物中心、商业综合体、地标建筑或景区："
+    "用户指向具体场所时，保留该场所的规范名称，不要替换成它所在的街道或道路。"
     "只返回 JSON，不要多余文字。"
+)
+
+_STREET_NAME_DESC = (
+    "评价对象的规范名称：街道填街道名（如 南京东路），"
+    "具体场所填场所名（如 新嘉中心、IFC 国金中心）"
 )
 
 
@@ -28,7 +35,7 @@ def build_recognize_prompt(content: str, city_hint: str | None) -> str:
         f"用户输入：{content}{hint}\n\n"
         "请识别并返回如下 JSON：\n"
         "{\n"
-        '  "streetName": "规范的街巷名称，如 南京东路",\n'
+        f'  "streetName": "{_STREET_NAME_DESC}",\n'
         '  "city": "所属城市，如 上海，未知填 null",\n'
         '  "district": "所属行政区，如 黄浦区，未知填 null",\n'
         '  "confidence": 0~1 的置信度数字\n'
@@ -179,7 +186,7 @@ _DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             "用户输入：{content}{city_hint}\n\n"
             "请识别并返回如下 JSON：\n"
             "{{\n"
-            '  "streetName": "规范的街巷名称，如 南京东路",\n'
+            f'  "streetName": "{_STREET_NAME_DESC}",\n'
             '  "city": "所属城市，如 上海，未知填 null",\n'
             '  "district": "所属行政区，如 黄浦区，未知填 null",\n'
             '  "confidence": 0~1 的置信度数字\n'

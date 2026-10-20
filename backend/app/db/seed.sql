@@ -118,11 +118,11 @@ INSERT INTO fashion_metric (id, sub_dimension_id, code, name, metric_desc, weigh
 INSERT INTO fashion_metric (id, sub_dimension_id, code, name, metric_desc, weight, sort_no) VALUES (75, 25, 'INFLUENCE_S5_M3', '学术研究/出版物引用', '观察是否有建筑、城市规划、社会学等领域的学者将街区作为研究案例', 0.3333, 3);
 
 -- ============ AI Prompt 模板初始数据（7 条）============
-INSERT INTO ai_prompt_template (id, stage, dim_code, name, system_prompt, user_template, placeholders, version) VALUES (1, 'recognize', NULL, '街巷识别', '你是一名中国城市街区识别专家。根据用户输入，判断其指向的街巷/街区。只返回 JSON，不要多余文字。', '用户输入：{content}{city_hint}
+INSERT INTO ai_prompt_template (id, stage, dim_code, name, system_prompt, user_template, placeholders, version) VALUES (1, 'recognize', NULL, '街巷识别', '你是一名中国城市地点识别专家。根据用户输入，判断其指向的评价对象。评价对象可以是街巷/街区，也可以是具体的商场、购物中心、商业综合体、地标建筑或景区：用户指向具体场所时，保留该场所的规范名称，不要替换成它所在的街道或道路。只返回 JSON，不要多余文字。', '用户输入：{content}{city_hint}
 
 请识别并返回如下 JSON：
 {{
-  "streetName": "规范的街巷名称，如 南京东路",
+  "streetName": "评价对象的规范名称：街道填街道名（如 南京东路），具体场所填场所名（如 新嘉中心、IFC 国金中心）",
   "city": "所属城市，如 上海，未知填 null",
   "district": "所属行政区，如 黄浦区，未知填 null",
   "confidence": 0~1 的置信度数字
