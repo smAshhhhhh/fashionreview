@@ -4,6 +4,10 @@ import MobileBottomNav from "./components/MobileBottomNav";
 import SearchBar from "./components/SearchBar";
 import RecentInsights from "./components/RecentInsights";
 import ActiveTaskGuard from "./components/ActiveTaskGuard";
+import ContactUs from "./components/ContactUs";
+
+const footerLinkClass =
+  "text-xs text-on-surface-variant hover:text-primary hover:underline transition-colors";
 
 /* ──── Page ──── */
 
@@ -38,19 +42,17 @@ export default function Home() {
               Fashion Street AI
             </span>
             <span className="text-xs text-on-surface-variant">
-              © 2024 Fashion Street AI
+              © 2026 Fashion Street AI
             </span>
           </div>
           <div className="flex gap-4">
-            {["关于我们", "联系我们", "数据源"].map((link) => (
-              <a
-                key={link}
-                href="#"
-                className="text-xs text-on-surface-variant hover:text-primary hover:underline transition-colors"
-              >
-                {link}
-              </a>
-            ))}
+            <a href="#" className={footerLinkClass}>
+              关于我们
+            </a>
+            <ContactUs className={`${footerLinkClass} cursor-pointer`} />
+            <a href="#" className={footerLinkClass}>
+              数据源
+            </a>
           </div>
         </footer>
       </main>

@@ -48,12 +48,6 @@ export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
           );
         })}
       </nav>
-
-      {/* CTA Button */}
-      <button className="mt-auto bg-primary text-white font-bold text-sm py-3 px-4 rounded-full flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-        <span className="material-symbols-outlined">add</span>
-        开始新分析
-      </button>
     </aside>
   );
 }
