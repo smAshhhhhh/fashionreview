@@ -356,11 +356,16 @@ function AnalysisProgressInner() {
       <Sidebar activeHref="/" />
 
       <main className="lg:ml-64 flex flex-col items-center min-h-screen justify-center">
-        <div className="w-full max-w-200 px-4 flex flex-col py-12">
-          {/* 顶部标题（左对齐） */}
-          <div className="mb-10">
-            <div className="flex items-center gap-2">
-              <h2 className="text-3xl font-extrabold text-brand">
+        {/* 待确认：抵消侧栏占位（lg:ml-64 的一半），让标题与卡片在整屏水平居中 */}
+        <div
+          className={`w-full max-w-200 px-4 flex flex-col py-12 ${
+            awaitingConfirm ? "items-center lg:-translate-x-32" : ""
+          }`}
+        >
+          {/* 顶部标题：常规左对齐；待确认时与卡片同宽居中 */}
+          <div className={awaitingConfirm ? "mb-8 w-full max-w-105 text-center" : "mb-10"}>
+            <div className={`flex items-center gap-2 ${awaitingConfirm ? "relative justify-center" : ""}`}>
+              <h2 className={`text-3xl font-extrabold text-brand ${awaitingConfirm ? "px-10" : ""}`}>
                 {cancelled
                   ? `已取消分析「${title}」`
                   : awaitingConfirm
@@ -375,7 +380,9 @@ function AnalysisProgressInner() {
                   disabled={cancelling}
                   aria-label="取消分析"
                   title="取消分析"
-                  className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-error transition-colors disabled:opacity-50"
+                  className={`shrink-0 flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-error transition-colors disabled:opacity-50 ${
+                    awaitingConfirm ? "absolute right-0 top-1/2 -translate-y-1/2" : ""
+                  }`}
                 >
                   <span className="material-symbols-outlined text-[22px]">
                     {cancelling ? "progress_activity" : "close"}
