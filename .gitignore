@@ -72,5 +72,9 @@ yarn-error.log*
 .DS_Store
 
 .claude/
+.agents/
+.codex/
+frontend/.impeccable/
+PRODUCT.md
 
 图片匹配数据/
