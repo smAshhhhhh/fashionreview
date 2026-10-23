@@ -6,6 +6,7 @@ import ResourceFeedback from "../../components/ResourceFeedback";
 import ResourceShell from "../../components/ResourceShell";
 import ResourceContentCard from "../../components/ResourceContentCard";
 import {
+  API_BASE,
   assetUrl,
   clearAnnotations,
   fetchAnnotationJob,
@@ -605,7 +606,16 @@ function Warn({
 
 function AnnotationCard({ item }: { item: AnnotationItem }) {
   const attrs = item.attributes ?? [];
+  const originalUrl = assetUrl(item.image_url);
+  const fileName = item.image_url.match(
+    /^\/static\/annotations\/([0-9a-f]{32}\.(?:jpg|jpeg|png|webp))$/,
+  )?.[1];
+  const thumbnailUrl = fileName
+    ? `${API_BASE}/resource/annotations/${fileName}/thumbnail`
+    : null;
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const useThumbnail = thumbnailUrl && !thumbnailFailed;
   return (
     <div className="resource-panel resource-scroll-card">
       {imageFailed ? (
@@ -613,21 +623,41 @@ function AnnotationCard({ item }: { item: AnnotationItem }) {
           role="img"
           aria-label={`${item.file_name}，图片暂不可用`}
           className={`
-            grid h-44 place-items-center bg-surface-container-low p-4 text-center text-sm
-            text-on-surface-variant
+            resource-annotation-placeholder grid place-items-center
+            bg-surface-container-low p-4 text-center text-sm text-on-surface-variant
           `}
         >
           图片暂不可用
         </div>
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element -- 后端静态图
-        <img
-          src={assetUrl(item.image_url)}
-          alt={item.file_name}
-          className="w-full h-44 object-cover bg-surface-container-low"
-          loading="lazy"
-          onError={() => setImageFailed(true)}
-        />
+        <a
+          href={originalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`查看 ${item.file_name} 原图（新标签页）`}
+          className="resource-annotation-image"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- 后端提供响应式缩略图 */}
+          <img
+            src={useThumbnail ? `${thumbnailUrl}?width=384` : originalUrl}
+            srcSet={
+              useThumbnail
+                ? [384, 768, 1152]
+                  .map((width) => `${thumbnailUrl}?width=${width} ${width}w`)
+                  .join(", ")
+                : undefined
+            }
+            sizes="auto, (min-width: 64rem) 33vw, (min-width: 35rem) 50vw, 100vw"
+            alt={item.file_name}
+            className="w-full object-cover bg-surface-container-low"
+            loading="lazy"
+            decoding="async"
+            onError={() => {
+              if (useThumbnail) setThumbnailFailed(true);
+              else setImageFailed(true);
+            }}
+          />
+        </a>
       )}
       <div className="p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">

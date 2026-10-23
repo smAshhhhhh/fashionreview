@@ -588,6 +588,10 @@ input:checked + .resource-switch::after {
     --resource-font-display: 1.875rem;
   }
 
+  .resource-workspace :is(input, textarea, select).resource-field {
+    font-size: 1rem;
+  }
+
   .resource-content {
     padding-inline: var(--resource-space-4);
   }

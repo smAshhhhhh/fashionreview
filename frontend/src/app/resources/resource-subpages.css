@@ -750,8 +750,36 @@
   border-start-end-radius: inherit;
 }
 
+.resource-annotation-image,
+.resource-annotation-placeholder {
+  height: var(--resource-thumbnail-height);
+  border-start-start-radius: inherit;
+  border-start-end-radius: inherit;
+}
+
+.resource-annotation-image {
+  display: block;
+}
+
+.resource-annotation-image:focus-visible {
+  outline-offset: -3px;
+}
+
 .resource-table-viewport {
   border-radius: inherit;
+}
+
+.resource-subdimension-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--resource-space-3);
+}
+
+.resource-subdimension-name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .resource-annotation-heading,
@@ -906,6 +934,10 @@
 
   .resource-document {
     padding-top: var(--resource-space-4);
+  }
+
+  .resource-subdimension-name {
+    flex-basis: 100%;
   }
 
   .resource-back-link {

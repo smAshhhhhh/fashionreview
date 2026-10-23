@@ -941,9 +941,7 @@ function TreeEditor({
                     className="resource-section"
                   >
                     {/* 二级维度头部 */}
-                    <div className={`
-                      flex flex-wrap items-center gap-3
-                    `}>
+                    <div className="resource-subdimension-header">
                       {editMode ? (
                         <input
                           aria-label={`${d.dim_name} · 第 ${si + 1} 个二级维度名称`}
@@ -952,11 +950,17 @@ function TreeEditor({
                           onChange={(e) =>
                             onEditSub(di, si, { sub_name: e.target.value })
                           }
-                          className={`${editInputClass} resource-detail font-bold`}
+                          className={`
+                            ${editInputClass} resource-subdimension-name
+                            resource-detail font-bold
+                          `}
                           placeholder="二级维度名称"
                         />
                       ) : (
-                        <span className="flex-1 min-w-0 resource-detail font-bold text-on-surface truncate">
+                        <span className={`
+                          resource-subdimension-name resource-detail
+                          font-bold text-on-surface
+                        `}>
                           {s.sub_name}
                         </span>
                       )}
@@ -981,13 +985,13 @@ function TreeEditor({
                     </div>
 
                     {/* 三级指标表格 */}
-                    <div
-                      tabIndex={0}
-                      role="region"
-                      aria-label={`${s.sub_name} · 指标表，可横向滚动`}
-                      className="resource-panel resource-scroll-card"
-                    >
-                      <div className="overflow-x-auto resource-table-viewport">
+                    <div className="resource-panel resource-scroll-card">
+                      <div
+                        tabIndex={0}
+                        role="region"
+                        aria-label={`${s.sub_name} · 指标表，可横向滚动`}
+                        className="overflow-x-auto resource-table-viewport"
+                      >
                         <table className="w-full min-w-80 text-left">
                           <thead className={`
                             bg-surface-container-low resource-caption font-bold

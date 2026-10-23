@@ -10,6 +10,8 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import Response
+from PIL import UnidentifiedImageError
 
 from app.db import repository as repo
 from app.db.session import connection_scope
@@ -24,6 +26,7 @@ from app.schemas.resource import (
     StreetProfileDetail,
 )
 from app.services import annotation_import_service, poi_import_service, profile_service
+from app.services.annotation.thumbnail import annotation_thumbnail
 from app.services.retriever import StreetFacts
 
 router = APIRouter(prefix="/resource", tags=["resource"])
@@ -235,6 +238,27 @@ def list_annotations(
     """标注图列表（带属性与向量状态）+ 库概览计数。"""
     data = annotation_import_service.list_annotations(limit=limit, offset=offset)
     return AnnotationListOut(**data)
+
+
+@router.get("/annotations/{file_name}/thumbnail")
+def get_annotation_thumbnail(
+    file_name: str,
+    width: int = Query(384, enum=[384, 768, 1152]),
+) -> Response:
+    """按需缩图，缓存与原图的访问边界一致。"""
+    try:
+        content = annotation_thumbnail(file_name, width)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="标注图片不存在") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(status_code=422, detail="标注图片无法读取") from exc
+    return Response(
+        content=content,
+        media_type="image/webp",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.post("/annotations/embeddings/rebuild", response_model=AnnotationJobOut)
