@@ -17,7 +17,7 @@ export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
         <Logo />
       </Link>
 
-      {/* Navigation */}
+      {/* 导航 */}
       <nav aria-label="主导航" className="flex flex-col gap-1 grow">
         {navItems.map((item) => {
           const isActive = item.href === activeHref;
@@ -36,9 +36,7 @@ export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
                 aria-hidden="true"
                 className="material-symbols-outlined"
                 style={
-                  isActive
-                    ? { fontVariationSettings: "'FILL' 1" }
-                    : undefined
+                  isActive ? { fontVariationSettings: "'FILL' 1" } : undefined
                 }
               >
                 {item.icon}

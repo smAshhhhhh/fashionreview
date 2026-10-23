@@ -47,12 +47,22 @@ export default function RadarChart({
         viewBox="0 0 100 100"
         className="h-full w-full overflow-visible"
         role="img"
-        aria-label={dimensions.map((d) => `${d.dim_name} ${d.score.toFixed(1)} 分`).join("，")}
+        aria-label={dimensions
+          .map((d) => `${d.dim_name} ${d.score.toFixed(1)} 分`)
+          .join("，")}
       >
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.45} />
-            <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.1} />
+            <stop
+              offset="0%"
+              stopColor="var(--color-primary)"
+              stopOpacity={0.45}
+            />
+            <stop
+              offset="100%"
+              stopColor="var(--color-primary)"
+              stopOpacity={0.1}
+            />
           </linearGradient>
           <filter id={glowId} x="-15%" y="-15%" width="130%" height="130%">
             <feGaussianBlur stdDeviation="1.7" result="blur" />
@@ -61,11 +71,18 @@ export default function RadarChart({
         </defs>
 
         {/* 网格：每 1 分一圈虚线多边形 + 放射线 */}
-        <g fill="none" stroke="var(--color-divider)" strokeWidth="0.35" strokeDasharray="1 1">
+        <g
+          fill="none"
+          stroke="var(--color-divider)"
+          strokeWidth="0.35"
+          strokeDasharray="1 1"
+        >
           {Array.from({ length: LEVELS }, (_, k) => (
             <polygon
               key={k}
-              points={toPoints(angles.map((a) => polar(a, (R * (k + 1)) / LEVELS)))}
+              points={toPoints(
+                angles.map((a) => polar(a, (R * (k + 1)) / LEVELS)),
+              )}
             />
           ))}
           {angles.map((a, i) => {
@@ -89,7 +106,9 @@ export default function RadarChart({
               cx={p.x}
               cy={p.y}
               r={active === i ? 1.9 : 1.3}
-              fill={active === i ? "var(--color-primary)" : "var(--color-surface)"}
+              fill={
+                active === i ? "var(--color-primary)" : "var(--color-surface)"
+              }
               stroke="var(--color-primary)"
               strokeWidth="0.85"
             />
@@ -99,7 +118,8 @@ export default function RadarChart({
         {dimensions.map((d, i) => {
           const p = polar(angles[i], LABEL_R);
           const cos = Math.cos((angles[i] * Math.PI) / 180);
-          const anchor = Math.abs(cos) < 0.2 ? "middle" : cos < 0 ? "end" : "start";
+          const anchor =
+            Math.abs(cos) < 0.2 ? "middle" : cos < 0 ? "end" : "start";
           return (
             <text
               key={d.dim_id}
@@ -109,10 +129,16 @@ export default function RadarChart({
               dominantBaseline="middle"
               fontSize="3.8"
               fontWeight={active === i ? 600 : 500}
-              fill={active === i ? "var(--color-on-surface)" : "var(--color-on-surface-variant)"}
+              fill={
+                active === i
+                  ? "var(--color-on-surface)"
+                  : "var(--color-on-surface-variant)"
+              }
             >
               <title>{d.dim_name}</title>
-              {Array.from(d.dim_name).length > 6 ? `${Array.from(d.dim_name).slice(0, 6).join("")}…` : d.dim_name}
+              {Array.from(d.dim_name).length > 6
+                ? `${Array.from(d.dim_name).slice(0, 6).join("")}…`
+                : d.dim_name}
             </text>
           );
         })}
@@ -142,7 +168,9 @@ export default function RadarChart({
           }}
         >
           <div className="fx-pop-in w-max max-w-48 rounded-lg bg-surface-container-lowest px-2.5 py-1.5 text-xs shadow-lg">
-            <span className="text-on-surface-variant">{dimensions[active].dim_name}</span>
+            <span className="text-on-surface-variant">
+              {dimensions[active].dim_name}
+            </span>
             <span className="ml-2 font-semibold tabular-nums text-primary">
               {dimensions[active].score.toFixed(1)}
             </span>

@@ -57,19 +57,28 @@ export default function ProfilesPage() {
       const data = await getStreetProfile(id);
       if (alive.current && request === requestRef.current) setDetail(data);
     } catch (e) {
-      if (alive.current && request === requestRef.current) setError(e instanceof Error ? e.message : "加载画像失败，请重试。");
-    } finally { if (alive.current && request === requestRef.current) setLoadingDetail(false); }
+      if (alive.current && request === requestRef.current)
+        setError(e instanceof Error ? e.message : "加载画像失败，请重试。");
+    } finally {
+      if (alive.current && request === requestRef.current)
+        setLoadingDetail(false);
+    }
   };
 
   const loadStreets = async () => {
-    setLoading(true); setListError(null);
+    setLoading(true);
+    setListError(null);
     try {
       const list = await listResourceStreets();
       if (!alive.current) return;
       setStreets(list);
       if (list.length > 0) await selectStreet(list[0].street_id);
-    } catch (e) { if (alive.current) setListError(e instanceof Error ? e.message : "加载街区失败，请重试。"); }
-    finally { if (alive.current) setLoading(false); }
+    } catch (e) {
+      if (alive.current)
+        setListError(e instanceof Error ? e.message : "加载街区失败，请重试。");
+    } finally {
+      if (alive.current) setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -82,10 +91,21 @@ export default function ProfilesPage() {
         if (cancelled) return;
         setStreets(list);
         if (list.length > 0) await selectStreet(list[0].street_id);
-      } catch (e) { if (!cancelled) setListError(e instanceof Error ? e.message : "加载街区失败，请重试。"); }
-      finally { if (!cancelled) setLoading(false); }
+      } catch (e) {
+        if (!cancelled)
+          setListError(
+            e instanceof Error ? e.message : "加载街区失败，请重试。",
+          );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-    return () => { cancelled = true; alive.current = false; ++requests.current; if (pollRef.current) clearTimeout(pollRef.current); };
+    return () => {
+      cancelled = true;
+      alive.current = false;
+      ++requests.current;
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
   }, []);
 
   const pollJob = async () => {
@@ -98,28 +118,43 @@ export default function ProfilesPage() {
       if (result.status === "running") {
         pollRef.current = setTimeout(() => void pollJob(), 1200);
       } else {
-        jobRef.current = null; setJobStatus(null);
-        if (result.status === "failed") setError("画像生成失败，请核对 POI 数据后重试。");
+        jobRef.current = null;
+        setJobStatus(null);
+        if (result.status === "failed")
+          setError("画像生成失败，请核对 POI 数据后重试。");
         else await selectStreet(current.streetId);
       }
     } catch (e) {
       if (!alive.current) return;
       setPollPaused(true);
-      setError(e instanceof Error ? e.message : "无法获取画像任务进度，请重新查询。");
+      setError(
+        e instanceof Error ? e.message : "无法获取画像任务进度，请重新查询。",
+      );
     }
   };
 
   const rebuild = async () => {
     if (selectedId == null || jobStatus != null) return;
-    setError(null); setJobStatus("画像生成中…");
+    setError(null);
+    setJobStatus("画像生成中…");
     try {
       const job = await startRebuildStreetProfile(selectedId);
       if (!alive.current) return;
-      if (job.status === "completed") { setJobStatus(null); await selectStreet(selectedId); }
-      else if (job.status === "failed") { setJobStatus(null); setError("画像生成失败，请核对 POI 数据后重试。"); }
-      else { jobRef.current = { id: job.job_id, streetId: selectedId }; void pollJob(); }
+      if (job.status === "completed") {
+        setJobStatus(null);
+        await selectStreet(selectedId);
+      } else if (job.status === "failed") {
+        setJobStatus(null);
+        setError("画像生成失败，请核对 POI 数据后重试。");
+      } else {
+        jobRef.current = { id: job.job_id, streetId: selectedId };
+        void pollJob();
+      }
     } catch (e) {
-      if (alive.current) { setJobStatus(null); setError(e instanceof Error ? e.message : "启动失败，请重试。"); }
+      if (alive.current) {
+        setJobStatus(null);
+        setError(e instanceof Error ? e.message : "启动失败，请重试。");
+      }
     }
   };
 
@@ -135,7 +170,9 @@ export default function ProfilesPage() {
         <div className="mx-auto w-full max-w-7xl px-4 lg:px-6 py-6 grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-6">
           {/* 街区列表 */}
           <aside className="min-w-0 space-y-2 xl:sticky xl:top-20 self-start">
-            <h2 className="text-[13px] font-bold text-on-surface-variant uppercase mb-1">街区</h2>
+            <h2 className="text-[13px] font-bold text-on-surface-variant uppercase mb-1">
+              街区
+            </h2>
             {streets.map((s) => {
               const active = selectedId === s.street_id;
               return (
@@ -151,27 +188,62 @@ export default function ProfilesPage() {
                       : "border-divider hover:bg-surface-container-low"
                   }`}
                 >
-                  <div className="text-[14px] font-bold text-on-surface">{s.street_name}</div>
+                  <div className="text-[14px] font-bold text-on-surface">
+                    {s.street_name}
+                  </div>
                   <div className="text-[11px] text-on-surface-variant mt-0.5">
-                    共 {s.poi_total} · 高德 {s.amap_count} · 点评 {s.dianping_count}
+                    共 {s.poi_total} · 高德 {s.amap_count} · 点评{" "}
+                    {s.dianping_count}
                     {s.has_profile ? " · 有画像" : ""}
                   </div>
                 </button>
               );
             })}
-            {loading && <p role="status" className="text-on-surface-variant">正在加载街区…</p>}
-            {listError && <ResourceFeedback error={listError} onRetry={() => void loadStreets()} />}
+            {loading && (
+              <p role="status" className="text-on-surface-variant">
+                正在加载街区…
+              </p>
+            )}
+            {listError && (
+              <ResourceFeedback
+                error={listError}
+                onRetry={() => void loadStreets()}
+              />
+            )}
             {!loading && !listError && streets.length === 0 && (
-              <p className="text-[13px] text-on-surface-variant">暂无街区，先在 POI 管理导入。</p>
+              <p className="text-[13px] text-on-surface-variant">
+                暂无街区，先在 POI 管理导入。
+              </p>
             )}
           </aside>
 
           {/* 画像详情 */}
           <section className="space-y-6 min-w-0">
-            <ResourceFeedback error={error} onRetry={pollPaused ? () => { setError(null); void pollJob(); } : selectedId != null ? () => void selectStreet(selectedId) : undefined} />
-            {loadingDetail ? <p role="status" className="py-12 text-center text-on-surface-variant">正在加载街巷画像…</p> : detail == null ? (
+            <ResourceFeedback
+              error={error}
+              onRetry={
+                pollPaused
+                  ? () => {
+                      setError(null);
+                      void pollJob();
+                    }
+                  : selectedId != null
+                    ? () => void selectStreet(selectedId)
+                    : undefined
+              }
+            />
+            {loadingDetail ? (
+              <p
+                role="status"
+                className="py-12 text-center text-on-surface-variant"
+              >
+                正在加载街巷画像…
+              </p>
+            ) : detail == null ? (
               <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-60 p-6 text-center text-on-surface-variant">
-                <p className="text-[15px]">选择街区后可查看画像；没有数据时，请先前往 POI 管理导入。</p>
+                <p className="text-[15px]">
+                  选择街区后可查看画像；没有数据时，请先前往 POI 管理导入。
+                </p>
               </div>
             ) : (
               <>
@@ -181,48 +253,83 @@ export default function ProfilesPage() {
                       {detail.street.name}
                     </h2>
                     <p className="text-[13px] text-on-surface-variant mt-1">
-                      事实层 共 {detail.poi_total} · 高德 {detail.amap_count} · 点评 {detail.dianping_count}
+                      事实层 共 {detail.poi_total} · 高德 {detail.amap_count} ·
+                      点评 {detail.dianping_count}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={rebuild}
                     disabled={jobStatus != null}
-                    className="flex items-center gap-2 bg-primary text-white font-bold text-[15px] px-5 py-2 rounded-full shadow-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:active:scale-100"
+                    className="flex items-center gap-2 bg-primary text-on-primary font-bold text-[15px] px-5 py-2 rounded-full shadow-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:active:scale-100"
                   >
                     {jobStatus != null && (
-                      <span aria-hidden="true" className="material-symbols-outlined animate-spin text-[18px]">
+                      <span
+                        aria-hidden="true"
+                        className="material-symbols-outlined animate-spin text-[18px]"
+                      >
                         progress_activity
                       </span>
                     )}
-                    {jobStatus ?? (detail.has_profile ? "刷新画像" : "生成画像")}
+                    {jobStatus ??
+                      (detail.has_profile ? "刷新画像" : "生成画像")}
                   </button>
                 </div>
 
                 {!detail.has_profile ? (
                   <div className="grid place-items-center rounded-2xl border border-dashed border-divider p-10 text-center text-on-surface-variant">
-                    <p className="text-[15px]">该街区尚无画像，点击「生成画像」从事实层聚合。</p>
+                    <p className="text-[15px]">
+                      该街区尚无画像，点击「生成画像」从事实层聚合。
+                    </p>
                   </div>
                 ) : (
                   <>
                     {/* 关键指标 */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Metric label="POI 去重总数" value={asNum(detail.profile?.poi_count)} />
-                      <Metric label="连锁占比" value={pctText(detail.profile?.chain_ratio)} />
-                      <Metric label="平均评分" value={asNum(detail.profile?.avg_rating)} />
-                      <Metric label="人均(元)" value={asNum(detail.profile?.avg_price)} />
+                      <Metric
+                        label="POI 去重总数"
+                        value={asNum(detail.profile?.poi_count)}
+                      />
+                      <Metric
+                        label="连锁占比"
+                        value={pctText(detail.profile?.chain_ratio)}
+                      />
+                      <Metric
+                        label="平均评分"
+                        value={asNum(detail.profile?.avg_rating)}
+                      />
+                      <Metric
+                        label="人均(元)"
+                        value={asNum(detail.profile?.avg_price)}
+                      />
                     </div>
 
-                    <BarBlock title="业态分布(高德一级分类)" data={distToBars(extra.category_distribution)} />
-                    <BarBlock title="菜系 Top(大众点评)" data={topToBars(extra.cuisine_top)} />
-                    <BarBlock title="价格带分布" data={bandToBars(extra.price_profile)} />
-                    <TagBlock title="时尚标签" tags={extra.fashion_tags} density={extra.fashion_density} />
+                    <BarBlock
+                      title="业态分布(高德一级分类)"
+                      data={distToBars(extra.category_distribution)}
+                    />
+                    <BarBlock
+                      title="菜系 Top(大众点评)"
+                      data={topToBars(extra.cuisine_top)}
+                    />
+                    <BarBlock
+                      title="价格带分布"
+                      data={bandToBars(extra.price_profile)}
+                    />
+                    <TagBlock
+                      title="时尚标签"
+                      tags={extra.fashion_tags}
+                      density={extra.fashion_density}
+                    />
                     <HighlightBlock highlights={extra.poi_highlights} />
 
                     {/* facts 预览 */}
                     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
                       <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2">
-                        <span aria-hidden="true" className="material-symbols-outlined text-primary text-[18px]">
+                        <span
+                          aria-hidden="true"
+                          className="material-symbols-outlined text-primary text-[18px]"
+                        >
                           smart_toy
                         </span>
                         点评时进入 LLM 的 facts 预览
@@ -245,7 +352,9 @@ export default function ProfilesPage() {
 
 function asNum(v: unknown): string {
   if (v == null || (typeof v === "number" && !Number.isFinite(v))) return "—";
-  return typeof v === "number" ? new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(v) : String(v);
+  return typeof v === "number"
+    ? new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(v)
+    : String(v);
 }
 function pctText(v: unknown): string {
   if (v == null) return "—";
@@ -260,22 +369,54 @@ function distToBars(d: unknown): Bar[] {
   return Object.entries(d).flatMap(([label, value]) => {
     if (!value || typeof value !== "object") return [];
     const { count, pct } = value as Record<string, unknown>;
-    return typeof count === "number" && Number.isFinite(count) && count >= 0 ? [{ label, count, pct: typeof pct === "number" && Number.isFinite(pct) ? pct : 0 }] : [];
+    return typeof count === "number" && Number.isFinite(count) && count >= 0
+      ? [
+          {
+            label,
+            count,
+            pct: typeof pct === "number" && Number.isFinite(pct) ? pct : 0,
+          },
+        ]
+      : [];
   });
 }
 function topToBars(d: unknown): Bar[] {
   if (!Array.isArray(d)) return [];
   return d.flatMap((item) => {
-    if (!item || typeof item !== "object" || typeof item.name !== "string" || typeof item.count !== "number" || !Number.isFinite(item.count) || item.count < 0) return [];
-    return [{ label: item.name, count: item.count, pct: typeof item.pct === "number" && Number.isFinite(item.pct) ? item.pct : 0 }];
+    if (
+      !item ||
+      typeof item !== "object" ||
+      typeof item.name !== "string" ||
+      typeof item.count !== "number" ||
+      !Number.isFinite(item.count) ||
+      item.count < 0
+    )
+      return [];
+    return [
+      {
+        label: item.name,
+        count: item.count,
+        pct:
+          typeof item.pct === "number" && Number.isFinite(item.pct)
+            ? item.pct
+            : 0,
+      },
+    ];
   });
 }
 function bandToBars(d: unknown): Bar[] {
   const bands = (d as Record<string, unknown>)?.price_band_counts;
   if (!bands || typeof bands !== "object") return [];
-  const entries = Object.entries(bands as Record<string, number>).filter(([, value]) => typeof value === "number" && Number.isFinite(value) && value >= 0);
+  const entries = Object.entries(bands as Record<string, number>).filter(
+    ([, value]) =>
+      typeof value === "number" && Number.isFinite(value) && value >= 0,
+  );
   const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
-  return entries.map(([k, v]) => ({ label: k, count: v, pct: Math.round((v / total) * 100) }));
+  return entries.map(([k, v]) => ({
+    label: k,
+    count: v,
+    pct: Math.round((v / total) * 100),
+  }));
 }
 
 function BarBlock({ title, data }: { title: string; data: Bar[] }) {
@@ -287,7 +428,9 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
       <div className="space-y-2">
         {data.slice(0, 12).map((d) => (
           <div key={d.label} className="flex items-center gap-2 text-[12px]">
-            <span className="w-20 sm:w-28 shrink-0 text-on-surface-variant">{d.label}</span>
+            <span className="w-20 sm:w-28 shrink-0 text-on-surface-variant">
+              {d.label}
+            </span>
             <div className="min-w-0 flex-1 bg-surface-container-low rounded-full h-2">
               <div
                 className="bg-primary h-2 rounded-full"
@@ -316,7 +459,9 @@ function TagBlock({
   if (!tags || typeof tags !== "object") return null;
   const t = tags as Record<string, number>;
   const d = (density ?? {}) as Record<string, number>;
-  const entries = Object.entries(t).filter(([, v]) => typeof v === "number" && Number.isFinite(v) && v > 0);
+  const entries = Object.entries(t).filter(
+    ([, v]) => typeof v === "number" && Number.isFinite(v) && v > 0,
+  );
   if (entries.length === 0) return null;
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
@@ -351,8 +496,12 @@ function HighlightBlock({ highlights }: { highlights: unknown }) {
       <div className="space-y-2">
         {entries.map(([k, names]) => (
           <div key={k} className="text-[12px]">
-            <span className="font-semibold text-on-surface-variant">{TAG_CN[k] ?? k}: </span>
-            <span className="text-on-surface">{names.filter((name) => typeof name === "string").join("、")}</span>
+            <span className="font-semibold text-on-surface-variant">
+              {TAG_CN[k] ?? k}:{" "}
+            </span>
+            <span className="text-on-surface">
+              {names.filter((name) => typeof name === "string").join("、")}
+            </span>
           </div>
         ))}
       </div>
@@ -364,7 +513,9 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-container-low border border-divider rounded-2xl p-3">
       <div className="text-[11px] text-on-surface-variant">{label}</div>
-      <div className="text-[18px] font-bold tabular-nums text-on-surface">{value}</div>
+      <div className="text-[18px] font-bold tabular-nums text-on-surface">
+        {value}
+      </div>
     </div>
   );
 }

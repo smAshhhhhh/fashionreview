@@ -60,9 +60,9 @@ export default function ActiveTaskGuard({
   const router = useRouter();
   // 初值在 SSR / CSR 两端都确定为 checking，避免 hydration 不匹配；
   // localStorage 是浏览器专属 API，只能在 effect（仅客户端）里读取。
-  const [phase, setPhase] = useState<"checking" | "redirecting" | "ready" | "error">(
-    "checking",
-  );
+  const [phase, setPhase] = useState<
+    "checking" | "redirecting" | "ready" | "error"
+  >("checking");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
 
@@ -80,7 +80,10 @@ export default function ActiveTaskGuard({
 
     (async () => {
       try {
-        const snap = await fetchTaskProgress(taskId, { signal: controller.signal, timeoutMs: 8_000 });
+        const snap = await fetchTaskProgress(taskId, {
+          signal: controller.signal,
+          timeoutMs: 8_000,
+        });
         if (cancelled) return;
         if (
           snap.status === "pending" ||
@@ -103,8 +106,12 @@ export default function ActiveTaskGuard({
           clearActiveTaskId();
           setPhase("ready");
         } else {
-          // An unavailable service is not evidence that the task has ended.
-          setError(cause instanceof Error ? cause.message : "任务状态暂时无法加载，请重试查询。");
+          // 服务暂时不可用不代表任务已结束，保留任务记录。
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "任务状态暂时无法加载，请重试查询。",
+          );
           setPhase("error");
         }
       }
@@ -119,28 +126,55 @@ export default function ActiveTaskGuard({
   if (phase !== "ready") {
     return (
       <>
-      <Sidebar activeHref="/" />
-      <main className="lg:ml-64 flex min-h-screen items-center justify-center px-6 pb-24 lg:pb-6">
-        <div className="flex max-w-md flex-col items-center gap-3 text-center text-on-surface">
-          {phase !== "error" && <span aria-hidden="true" className="material-symbols-outlined motion-safe:animate-spin text-3xl text-on-surface-variant">
-            progress_activity
-          </span>}
-          <p className="text-sm" role={phase === "error" ? "alert" : "status"}>
-            {phase === "error" ? error : phase === "redirecting" ? "检测到进行中的分析，正在跳转…" : "正在检查上次评价…"}
-          </p>
-          {phase === "error" && <>
-            <p className="text-sm">上次任务的状态尚未确认，暂不发起新的评价。你仍可查看历史记录或浏览其他页面。</p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button type="button" className="min-h-11 rounded-full bg-primary px-5 text-sm text-on-primary" onClick={() => {
-                setPhase("checking");
-                setAttempt((value) => value + 1);
-              }}>重新查询任务</button>
-              <Link href="/history" className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">查看历史记录</Link>
-            </div>
-          </>}
-        </div>
-      </main>
-      <MobileBottomNav activeHref="/" />
+        <Sidebar activeHref="/" />
+        <main className="lg:ml-64 flex min-h-screen items-center justify-center px-6 pb-24 lg:pb-6">
+          <div className="flex max-w-md flex-col items-center gap-3 text-center text-on-surface">
+            {phase !== "error" && (
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined motion-safe:animate-spin text-3xl text-on-surface-variant"
+              >
+                progress_activity
+              </span>
+            )}
+            <p
+              className="text-sm"
+              role={phase === "error" ? "alert" : "status"}
+            >
+              {phase === "error"
+                ? error
+                : phase === "redirecting"
+                  ? "检测到进行中的分析，正在跳转…"
+                  : "正在检查上次评价…"}
+            </p>
+            {phase === "error" && (
+              <>
+                <p className="text-sm">
+                  上次任务的状态尚未确认，暂不发起新的评价。你仍可查看历史记录或浏览其他页面。
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-full bg-primary px-5 text-sm text-on-primary"
+                    onClick={() => {
+                      setPhase("checking");
+                      setAttempt((value) => value + 1);
+                    }}
+                  >
+                    重新查询任务
+                  </button>
+                  <Link
+                    href="/history"
+                    className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4"
+                  >
+                    查看历史记录
+                  </Link>
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+        <MobileBottomNav activeHref="/" />
       </>
     );
   }

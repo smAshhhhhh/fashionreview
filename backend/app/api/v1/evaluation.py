@@ -185,8 +185,7 @@ def page_history(
     created_after: datetime | None = None,
     sort: Literal["latest", "score"] = "latest",
 ) -> HistoryPageOut:
-    # Stored timestamps and the existing UI use local wall time. The client sends
-    # its local calendar boundary without converting it to a different timezone.
+    # 库中时间与现有界面都按本地时间处理；前端直接传本地日历边界，不做时区换算。
     if created_after is not None and created_after.tzinfo is not None:
         raise HTTPException(status_code=422, detail="请使用不含时区的本地时间")
     return HistoryPageOut(**evaluation_service.page_history(

@@ -89,19 +89,30 @@ export async function submitTextAnalysis(
   city?: string,
   options?: RequestOptions,
 ): Promise<AnalyzeAccepted> {
-  const accepted = await requestJson<AnalyzeAccepted>(`${API_BASE}/analyze/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, city: city ?? null }),
-  }, options);
+  const accepted = await requestJson<AnalyzeAccepted>(
+    `${API_BASE}/analyze/text`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, city: city ?? null }),
+    },
+    options,
+  );
   return validateAccepted(accepted);
 }
 
 function validateAccepted(accepted: AnalyzeAccepted): AnalyzeAccepted {
-  if (!accepted || !Number.isSafeInteger(accepted.task_id) || accepted.task_id <= 0) {
-    throw new ApiRequestError("未能确认评价任务，请先核对历史记录，避免重复提交。", {
-      outcomeUnknown: true,
-    });
+  if (
+    !accepted ||
+    !Number.isSafeInteger(accepted.task_id) ||
+    accepted.task_id <= 0
+  ) {
+    throw new ApiRequestError(
+      "未能确认评价任务，请先核对历史记录，避免重复提交。",
+      {
+        outcomeUnknown: true,
+      },
+    );
   }
   return accepted;
 }
@@ -116,10 +127,14 @@ export async function submitImageAnalysis(
   fd.append("file", file);
   if (city) fd.append("city", city);
   // 不手动设 Content-Type，浏览器会自动带上 multipart boundary
-  const accepted = await requestJson<AnalyzeAccepted>(`${API_BASE}/analyze/image`, {
-    method: "POST",
-    body: fd,
-  }, options);
+  const accepted = await requestJson<AnalyzeAccepted>(
+    `${API_BASE}/analyze/image`,
+    {
+      method: "POST",
+      body: fd,
+    },
+    options,
+  );
   return validateAccepted(accepted);
 }
 
@@ -129,11 +144,27 @@ export function progressStreamUrl(taskId: number): string {
 }
 
 /** 轮询查询一次进度（SSE 不可用时降级使用）。 */
-export async function fetchTaskProgress(taskId: number, options?: RequestOptions): Promise<TaskProgress> {
-  const snapshot = await requestJson<TaskProgress>(`${API_BASE}/task/${taskId}`, {}, options);
-  if (!snapshot || snapshot.task_id !== taskId || ![
-    "pending", "analyzing", "awaiting_confirm", "completed", "failed", "cancelled",
-  ].includes(snapshot.status)) {
+export async function fetchTaskProgress(
+  taskId: number,
+  options?: RequestOptions,
+): Promise<TaskProgress> {
+  const snapshot = await requestJson<TaskProgress>(
+    `${API_BASE}/task/${taskId}`,
+    {},
+    options,
+  );
+  if (
+    !snapshot ||
+    snapshot.task_id !== taskId ||
+    ![
+      "pending",
+      "analyzing",
+      "awaiting_confirm",
+      "completed",
+      "failed",
+      "cancelled",
+    ].includes(snapshot.status)
+  ) {
     throw new ApiRequestError("暂时无法确认任务状态，请重试查询。");
   }
   return snapshot;
@@ -256,19 +287,40 @@ export async function getEvaluationResult(
   evaluationId: number,
   options?: RequestOptions,
 ): Promise<EvaluationResult> {
-  const data = await requestJson<unknown>(`${API_BASE}/analyze/result/${evaluationId}`, {}, options);
+  const data = await requestJson<unknown>(
+    `${API_BASE}/analyze/result/${evaluationId}`,
+    {},
+    options,
+  );
   return parseEvaluationResult(data, evaluationId);
 }
 
 /** 历史记录列表（已完成评价，按时间倒序）。 */
-export async function listHistory(limit = 50, options?: RequestOptions): Promise<HistoryItem[]> {
-  const records = await requestJson<HistoryItem[]>(`${API_BASE}/analyze/history?limit=${limit}`, {}, options);
-  if (!Array.isArray(records) || !records.every(validHistoryItem)) throw new ApiRequestError("历史记录暂时无法读取，请重试加载。");
+export async function listHistory(
+  limit = 50,
+  options?: RequestOptions,
+): Promise<HistoryItem[]> {
+  const records = await requestJson<HistoryItem[]>(
+    `${API_BASE}/analyze/history?limit=${limit}`,
+    {},
+    options,
+  );
+  if (!Array.isArray(records) || !records.every(validHistoryItem))
+    throw new ApiRequestError("历史记录暂时无法读取，请重试加载。");
   return records;
 }
 
-export async function getHistoryPage(params: URLSearchParams, options?: RequestOptions) {
-  return parseHistoryPage(await requestJson<unknown>(`${API_BASE}/analyze/history/page?${params}`, {}, options));
+export async function getHistoryPage(
+  params: URLSearchParams,
+  options?: RequestOptions,
+) {
+  return parseHistoryPage(
+    await requestJson<unknown>(
+      `${API_BASE}/analyze/history/page?${params}`,
+      {},
+      options,
+    ),
+  );
 }
 
 /** 物理删除一条评价记录（含关联明细/维度分/AI任务）。 */
@@ -287,20 +339,38 @@ export async function batchDeleteEvaluations(
   evaluationIds: number[],
 ): Promise<number> {
   try {
-    const data = await requestJson<{ deleted: number }>(`${API_BASE}/analyze/results/batch-delete`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evaluation_ids: evaluationIds }),
-    });
-    if (!data || !Number.isSafeInteger(data.deleted) || data.deleted < 0 || data.deleted > evaluationIds.length) {
+    const data = await requestJson<{ deleted: number }>(
+      `${API_BASE}/analyze/results/batch-delete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evaluation_ids: evaluationIds }),
+      },
+    );
+    if (
+      !data ||
+      !Number.isSafeInteger(data.deleted) ||
+      data.deleted < 0 ||
+      data.deleted > evaluationIds.length
+    ) {
       throw new ApiRequestError("删除结果无法确认。", { outcomeUnknown: true });
     }
     return data.deleted;
   } catch (error) {
     if (error instanceof ApiRequestError && error.outcomeUnknown) {
-      throw new ApiRequestError("暂时无法确认删除结果，请先重新加载历史记录核对，避免重复删除。", { status: error.status, outcomeUnknown: true });
+      throw new ApiRequestError(
+        "暂时无法确认删除结果，请先重新加载历史记录核对，避免重复删除。",
+        { status: error.status, outcomeUnknown: true },
+      );
     }
-    if (error instanceof ApiRequestError && [400, 422].includes(error.status ?? 0)) {
-      throw new ApiRequestError("删除请求未能通过校验，请核对所选记录后重试。", { status: error.status });
+    if (
+      error instanceof ApiRequestError &&
+      [400, 422].includes(error.status ?? 0)
+    ) {
+      throw new ApiRequestError(
+        "删除请求未能通过校验，请核对所选记录后重试。",
+        { status: error.status },
+      );
     }
     throw error;
   }
@@ -393,9 +463,12 @@ export async function rollbackPrompt(
   id: number,
   version: number,
 ): Promise<PromptTemplate> {
-  const res = await resourceFetch(`${API_BASE}/prompts/${id}/rollback/${version}`, {
-    method: "POST",
-  });
+  const res = await resourceFetch(
+    `${API_BASE}/prompts/${id}/rollback/${version}`,
+    {
+      method: "POST",
+    },
+  );
   return res.json();
 }
 
@@ -568,9 +641,12 @@ export async function saveMetricTemplateTree(
 export async function activateMetricTemplate(
   id: number,
 ): Promise<MetricTemplateMeta> {
-  const res = await resourceFetch(`${API_BASE}/metric-templates/${id}/activate`, {
-    method: "POST",
-  });
+  const res = await resourceFetch(
+    `${API_BASE}/metric-templates/${id}/activate`,
+    {
+      method: "POST",
+    },
+  );
   return res.json();
 }
 
@@ -596,7 +672,12 @@ export interface ResourceStreet {
 }
 
 export interface PoiImportResult {
-  street: { id: number; name: string; city: string | null; district: string | null };
+  street: {
+    id: number;
+    name: string;
+    city: string | null;
+    district: string | null;
+  };
   detected_format: string;
   source: string;
   total_rows: number;
@@ -614,7 +695,12 @@ export interface PoiListResult {
 }
 
 export interface StreetProfileDetail {
-  street: { id: number; name: string; city: string | null; district: string | null };
+  street: {
+    id: number;
+    name: string;
+    city: string | null;
+    district: string | null;
+  };
   has_profile: boolean;
   poi_total: number;
   amap_count: number;
@@ -690,13 +776,18 @@ export async function getStreetProfile(
 export async function startRebuildStreetProfile(
   streetId: number,
 ): Promise<ProfileJobStatus> {
-  const res = await resourceFetch(`${API_BASE}/resource/profiles/${streetId}/rebuild`, {
-    method: "POST",
-  });
+  const res = await resourceFetch(
+    `${API_BASE}/resource/profiles/${streetId}/rebuild`,
+    {
+      method: "POST",
+    },
+  );
   return res.json();
 }
 
-export async function fetchProfileJob(jobId: string): Promise<ProfileJobStatus> {
+export async function fetchProfileJob(
+  jobId: string,
+): Promise<ProfileJobStatus> {
   const res = await resourceFetch(`${API_BASE}/resource/profile-jobs/${jobId}`);
   return res.json();
 }
@@ -772,10 +863,12 @@ export async function importAnnotationXlsx(
   return res.json();
 }
 
-export async function listAnnotations(params: {
-  limit?: number;
-  offset?: number;
-} = {}): Promise<AnnotationListResult> {
+export async function listAnnotations(
+  params: {
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<AnnotationListResult> {
   const qs = new URLSearchParams();
   qs.set("limit", String(params.limit ?? 50));
   qs.set("offset", String(params.offset ?? 0));
@@ -797,7 +890,9 @@ export async function startAnnotationEmbedding(
 export async function fetchAnnotationJob(
   jobId: string,
 ): Promise<AnnotationJobStatus> {
-  const res = await resourceFetch(`${API_BASE}/resource/annotation-jobs/${jobId}`);
+  const res = await resourceFetch(
+    `${API_BASE}/resource/annotation-jobs/${jobId}`,
+  );
   return res.json();
 }
 

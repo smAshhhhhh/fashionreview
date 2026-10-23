@@ -15,16 +15,35 @@ export default function useResourceDraft(dirty: boolean) {
 
   useEffect(() => {
     if (!dirty) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
     const beforeNavigate = (event: MouseEvent) => {
-      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
-      if (!(link instanceof HTMLAnchorElement) || link.target === "_blank" || link.hasAttribute("download") || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link =
+        event.target instanceof Element
+          ? event.target.closest("a[href]")
+          : null;
+      if (
+        !(link instanceof HTMLAnchorElement) ||
+        link.target === "_blank" ||
+        link.hasAttribute("download") ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
       const destination = new URL(link.href, window.location.href);
-      if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+      if (
+        destination.pathname === window.location.pathname &&
+        destination.search === window.location.search
+      )
+        return;
       event.preventDefault();
       event.stopPropagation();
       setPendingAction(() => () => {
-        if (destination.origin === window.location.origin) router.push(destination.href);
+        if (destination.origin === window.location.origin)
+          router.push(destination.href);
         else window.location.assign(destination.href);
       });
     };
@@ -37,11 +56,31 @@ export default function useResourceDraft(dirty: boolean) {
   }, [dirty, router]);
 
   const dialog = pendingAction && (
-    <ResourceDialog title="放弃未保存的修改？" onClose={() => setPendingAction(null)}>
-      <p className="text-sm leading-relaxed text-on-surface-variant">当前修改还未保存。继续操作将丢弃这些修改。</p>
+    <ResourceDialog
+      title="放弃未保存的修改？"
+      onClose={() => setPendingAction(null)}
+    >
+      <p className="text-sm leading-relaxed text-on-surface-variant">
+        当前修改还未保存。继续操作将丢弃这些修改。
+      </p>
       <div className="mt-6 flex flex-wrap justify-end gap-3">
-        <button type="button" className="rounded-full border border-divider px-4 py-2 font-semibold" onClick={() => setPendingAction(null)}>继续编辑</button>
-        <button type="button" className="rounded-full bg-primary px-4 py-2 font-semibold text-white" onClick={() => { setPendingAction(null); pendingAction(); }}>放弃修改并继续</button>
+        <button
+          type="button"
+          className="rounded-full border border-divider px-4 py-2 font-semibold"
+          onClick={() => setPendingAction(null)}
+        >
+          继续编辑
+        </button>
+        <button
+          type="button"
+          className="rounded-full bg-primary px-4 py-2 font-semibold text-on-primary"
+          onClick={() => {
+            setPendingAction(null);
+            pendingAction();
+          }}
+        >
+          放弃修改并继续
+        </button>
       </div>
     </ResourceDialog>
   );

@@ -410,7 +410,7 @@ function AnalysisProgressInner() {
               <button
                 type="button"
                 onClick={() => router.push("/")}
-                className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-on-primary hover:opacity-90 transition-opacity"
               >
                 返回重试
               </button>
@@ -437,7 +437,7 @@ function AnalysisProgressInner() {
               <button
                 type="button"
                 onClick={() => router.push("/")}
-                className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-on-primary hover:opacity-90 transition-opacity"
               >
                 重新发起分析
               </button>
@@ -492,7 +492,7 @@ function AnalysisProgressInner() {
       {/* 取消二次确认弹窗 */}
       {showCancelConfirm && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-60 flex items-center justify-center bg-scrim p-4"
           onClick={() => setShowCancelConfirm(false)}
         >
           <div
@@ -517,7 +517,7 @@ function AnalysisProgressInner() {
               <button
                 type="button"
                 onClick={handleCancelConfirmed}
-                className="rounded-full bg-error px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                className="rounded-full bg-error px-5 py-2 text-sm font-bold text-on-error hover:opacity-90 transition-opacity"
               >
                 取消并返回
               </button>

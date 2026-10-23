@@ -704,7 +704,9 @@ def page_evaluations(
     conditions = ["e.status = %s"]
     params: list[Any] = ["completed"]
     if query.strip():
-        conditions.append("LOCATE(%s, CONCAT_WS(' ', s.street_name, s.city, s.district, e.ai_summary)) > 0")
+        conditions.append(
+            "LOCATE(%s, CONCAT_WS(' ', s.street_name, s.city, s.district, e.ai_summary)) > 0"
+        )
         params.append(query.strip())
     if score_band == "high":
         conditions.append("e.total_score >= 4")
@@ -719,21 +721,35 @@ def page_evaluations(
         conditions.append("e.create_time >= %s")
         params.append(created_after)
     where = " AND ".join(conditions)
-    order = "e.total_score DESC, e.create_time DESC, e.id DESC" if sort == "score" else "e.create_time DESC, e.id DESC"
+    order = (
+        "e.total_score DESC, e.create_time DESC, e.id DESC"
+        if sort == "score"
+        else "e.create_time DESC, e.id DESC"
+    )
     image = "COALESCE(t.image_url, s.cover_url)" if with_cover else "t.image_url"
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
-        cur.execute("SELECT COUNT(*) AS total FROM street_evaluation e JOIN street s ON s.id = e.street_id WHERE e.status = %s", ("completed",))
+        cur.execute(
+            "SELECT COUNT(*) AS total FROM street_evaluation e"
+            " JOIN street s ON s.id = e.street_id WHERE e.status = %s",
+            ("completed",),
+        )
         total_all = cur.fetchone()["total"]
         cur.execute(f"SELECT COUNT(*) AS total {source} WHERE {where}", tuple(params))
         total = cur.fetchone()["total"]
-        # Deletion or concurrent changes can empty the requested last page.
+        # 删除或并发变更可能让请求的最后一页变空，此时退回实际的最后一页。
         offset = min(offset, max(0, (total - 1) // limit) * limit)
         cur.execute(f"""SELECT e.id AS evaluation_id, e.total_score, e.status, e.ai_summary,
             e.create_time, s.street_name, s.city, s.district, {image} AS image_url,
             t.input_type {source} WHERE {where} ORDER BY {order} LIMIT %s OFFSET %s""",
             (*params, limit, offset))
         items = cur.fetchall()
-    return {"items": items, "total": total, "total_all": total_all, "offset": offset, "limit": limit}
+    return {
+        "items": items,
+        "total": total,
+        "total_all": total_all,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 def delete_evaluation(

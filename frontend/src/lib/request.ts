@@ -7,7 +7,10 @@ export class ApiRequestError extends Error {
   readonly status?: number;
   readonly outcomeUnknown: boolean;
 
-  constructor(message: string, options: { status?: number; outcomeUnknown?: boolean } = {}) {
+  constructor(
+    message: string,
+    options: { status?: number; outcomeUnknown?: boolean } = {},
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.status = options.status;
@@ -37,22 +40,27 @@ function statusMessage(status: number): string {
   }
 }
 
-/** Bound both the response and body read. Mutations are never retried automatically. */
+/** 超时同时覆盖等待响应和读取响应体；写操作从不自动重试。 */
 export async function requestJson<T>(
   url: string,
   init: RequestInit = {},
   options: RequestOptions = {},
 ): Promise<T> {
-  const mutation = !["GET", "HEAD"].includes((init.method ?? "GET").toUpperCase());
+  const mutation = !["GET", "HEAD"].includes(
+    (init.method ?? "GET").toUpperCase(),
+  );
   const controller = new AbortController();
   let timedOut = false;
   const abort = () => controller.abort();
   if (options.signal?.aborted) abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, options.timeoutMs ?? (mutation ? 30_000 : 10_000));
+  const timer = setTimeout(
+    () => {
+      timedOut = true;
+      controller.abort();
+    },
+    options.timeoutMs ?? (mutation ? 30_000 : 10_000),
+  );
 
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
@@ -62,10 +70,11 @@ export async function requestJson<T>(
         outcomeUnknown: mutation && response.status >= 500,
       });
     }
-    return await response.json() as T;
+    return (await response.json()) as T;
   } catch (error) {
     if (error instanceof ApiRequestError) throw error;
-    if (options.signal?.aborted) throw new DOMException("Request cancelled", "AbortError");
+    if (options.signal?.aborted)
+      throw new DOMException("Request cancelled", "AbortError");
     throw new ApiRequestError(
       mutation
         ? "暂时无法确认是否已创建评价，请先核对历史记录，避免重复提交。"

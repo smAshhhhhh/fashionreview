@@ -140,7 +140,7 @@ export default function LocationConfirmCard({
               />
             )}
             {info?.confidence != null && (
-              <span className="absolute bottom-2.5 right-2.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold tabular-nums text-on-surface shadow-sm backdrop-blur-md">
+              <span className="absolute bottom-2.5 right-2.5 rounded-full bg-surface-container-lowest/90 px-2 py-0.5 text-[10px] font-bold tabular-nums text-on-surface shadow-sm backdrop-blur-md">
                 {(info.confidence * 100).toFixed(0)}% 置信度
               </span>
             )}
@@ -194,7 +194,7 @@ export default function LocationConfirmCard({
               title={
                 recognized ? "确认该地点并继续" : "未识别出地点，请改用手动输入"
               }
-              className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+              className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-[24px] transition-transform group-hover:translate-x-0.5">
                 {busy ? "progress_activity" : "arrow_forward"}
@@ -299,7 +299,7 @@ export default function LocationConfirmCard({
               disabled={busy || !draft.trim()}
               aria-label="按此地点继续"
               title="按此地点继续"
-              className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+              className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-[24px] transition-transform group-hover:translate-x-0.5">
                 {busy ? "progress_activity" : "arrow_forward"}

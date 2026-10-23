@@ -1,28 +1,17 @@
 @import "tailwindcss";
 
-/* ──── Custom Theme ──── */
+/* ──── 自定义主题 ──── */
 @theme inline {
-  /* Colors (custom namespace, does not override Tailwind builtins) */
+  /* 颜色（自定义命名空间，不覆盖 Tailwind 内置色） */
   /* 品牌深蓝：Logo、导航、标题 */
   --color-brand: #243b63;
   /* 交互亮蓝：主按钮、链接、选中状态；浅色底用 bg-primary/10 这类透明度派生 */
   --color-primary: #1e5be0;
 
-  --color-secondary: #5e5e5e;
-  --color-secondary-container: #e2e2e2;
-  --color-secondary-fixed: #e2e2e2;
-  --color-secondary-fixed-dim: #c6c6c6;
-
-  --color-tertiary: #8d4f00;
-  --color-tertiary-container: #db7e00;
-  --color-tertiary-fixed: #ffdcc0;
-  --color-tertiary-fixed-dim: #ffb875;
-
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
 
-  /* 状态色：短板/低分、通过、待处理告警 */
-  --color-danger: #f4212e;
+  /* 状态色：通过、待处理告警 */
   --color-success: #1b5e20;
   --color-success-container: #e8f5e9;
   --color-warning: #8d6e00;
@@ -30,9 +19,6 @@
   --color-warning-border: #ffb300;
 
   --color-surface: #faf9f5;
-  --color-surface-bright: #faf9f5;
-  --color-surface-dim: #d6dae1;
-  --color-surface-variant: #e3e1d9;
   --color-surface-container: #efede7;
   --color-surface-container-low: #f4f3ee;
   /* 卡片背景：图片信息卡、浮层 */
@@ -40,49 +26,42 @@
   --color-surface-container-high: #e9e7e0;
   --color-surface-container-highest: #e3e1d9;
 
-  --color-background: #faf9f5;
-  --color-inverse-surface: #2c3136;
-  --color-inverse-on-surface: #edf1f8;
+  --color-inverse-surface: #323029;
+  --color-inverse-on-surface: #f4f1e3;
 
   --color-on-primary: #ffffff;
 
-  --color-on-secondary: #ffffff;
-  --color-on-secondary-container: #646464;
-  --color-on-secondary-fixed: #1b1b1b;
-  --color-on-secondary-fixed-variant: #474747;
-
-  --color-on-tertiary: #ffffff;
-  --color-on-tertiary-container: #472500;
-  --color-on-tertiary-fixed: #2d1600;
-  --color-on-tertiary-fixed-variant: #6b3b00;
-
   --color-on-error: #ffffff;
-  --color-on-error-container: #93000a;
 
   --color-on-surface: #171c21;
   /* 次级文字：说明、时间、辅助信息 */
   --color-on-surface-variant: #5c6574;
-  --color-on-background: #171c21;
 
-  --color-outline: #6f7883;
-  --color-outline-variant: #bfc7d3;
+  --color-outline: #7b7768;
+  --color-outline-variant: #cbc7b4;
   /* 分割线与容器描边 */
   --color-divider: #e8e5dd;
+  /* 弹窗遮罩：品牌深蓝 30% */
+  --color-scrim: rgb(36 59 99 / 30%);
 }
 
 /* ──── Material Symbols ──── */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
 }
 
-/* ──── Base Styles ──── */
+/* ──── 基础样式 ──── */
 body {
   font-size: 15px;
   line-height: 20px;
 }
 
-/* ──── Line Clamp ──── */
+/* ──── 多行截断 ──── */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -90,7 +69,7 @@ body {
   overflow: hidden;
 }
 
-/* ──── Hide Scrollbar ──── */
+/* ──── 隐藏滚动条 ──── */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -99,7 +78,7 @@ body {
   scrollbar-width: none;
 }
 
-/* ──── Analysis Progress Timeline ──── */
+/* ──── 分析进度时间线 ──── */
 .active-pulse {
   animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -128,7 +107,12 @@ body {
 .resource-main :where(input, textarea, select) {
   caret-color: var(--color-primary);
 }
-.resource-main :where(input:not([type="checkbox"]):not([type="file"]), textarea, select).border-divider:not(:focus):not([aria-invalid="true"]) {
+.resource-main
+  :where(
+    input:not([type="checkbox"]):not([type="file"]),
+    textarea,
+    select
+  ).border-divider:not(:focus):not([aria-invalid="true"]) {
   border-color: var(--color-outline);
 }
 .resource-main :where(input, textarea, select):focus-visible,
@@ -136,7 +120,9 @@ body {
   outline: 2px solid var(--color-brand);
   outline-offset: 3px;
 }
-.resource-main [role="region"][tabindex="0"]:focus-visible { outline-offset: -3px; }
+.resource-main [role="region"][tabindex="0"]:focus-visible {
+  outline-offset: -3px;
+}
 .resource-main :where(input, textarea)::placeholder {
   color: var(--color-on-surface-variant);
   opacity: 1;
@@ -156,7 +142,9 @@ body {
   outline: 2px solid var(--color-brand);
   outline-offset: 4px;
 }
-.resource-main input[type="checkbox"]:disabled + .resource-switch { opacity: 0.5; }
+.resource-main input[type="checkbox"]:disabled + .resource-switch {
+  opacity: 0.5;
+}
 .resource-dialog {
   margin: auto;
   width: calc(100% - 1.5rem);
@@ -170,8 +158,12 @@ body {
   background: var(--color-surface-container-lowest);
   box-shadow: 0 16px 48px rgb(0 0 0 / 20%);
 }
-.resource-dialog::backdrop { background: rgb(0 0 0 / 40%); }
-.resource-dialog button { min-height: 44px; }
+.resource-dialog::backdrop {
+  background: var(--color-scrim);
+}
+.resource-dialog button {
+  min-height: 44px;
+}
 
 @media (forced-colors: active) {
   .resource-switch {
@@ -179,13 +171,23 @@ body {
     border: 1px solid ButtonText;
     background: Canvas;
   }
-  .resource-switch::after { background: ButtonText; border-color: ButtonText; }
-  input:checked + .resource-switch { background: Highlight; border-color: Highlight; }
-  input:checked + .resource-switch::after { background: HighlightText; border-color: HighlightText; }
+  .resource-switch::after {
+    background: ButtonText;
+    border-color: ButtonText;
+  }
+  input:checked + .resource-switch {
+    background: Highlight;
+    border-color: Highlight;
+  }
+  input:checked + .resource-switch::after {
+    background: HighlightText;
+    border-color: HighlightText;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .resource-main *, .resource-dialog * {
+  .resource-main *,
+  .resource-dialog * {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
@@ -201,7 +203,8 @@ body {
 }
 
 @media (width < 40rem) {
-  .resource-main :where(input:not([type="checkbox"]):not([type="file"]), textarea, select) {
+  .resource-main
+    :where(input:not([type="checkbox"]):not([type="file"]), textarea, select) {
     font-size: 16px;
   }
 }
@@ -217,18 +220,42 @@ body {
   min-height: 100dvh;
   padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
-.history-main :where(button, a, [tabindex]) { scroll-margin-block: 6rem; }
-.history-main [role="group"] button:focus-visible { outline-offset: -3px; }
-.history-main ::selection { color: var(--color-brand); background: var(--color-surface-container-high); }
-.history-main :where(input, [role="group"]) { caret-color: var(--color-primary); }
-.history-main [role="group"] { scrollbar-width: thin; scrollbar-color: var(--color-outline) var(--color-surface-container); }
-.history-delete-list { scrollbar-width: thin; scrollbar-color: var(--color-outline) var(--color-surface-container); }
-.history-delete-list:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+.history-main :where(button, a, [tabindex]) {
+  scroll-margin-block: 6rem;
+}
+.history-main [role="group"] button:focus-visible {
+  outline-offset: -3px;
+}
+.history-main ::selection {
+  color: var(--color-brand);
+  background: var(--color-surface-container-high);
+}
+.history-main :where(input, [role="group"]) {
+  caret-color: var(--color-primary);
+}
+.history-main [role="group"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-outline) var(--color-surface-container);
+}
+.history-delete-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-outline) var(--color-surface-container);
+}
+.history-delete-list:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
 @media (min-width: 64rem) {
-  .history-main { padding-bottom: 3rem; }
+  .history-main {
+    padding-bottom: 3rem;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .history-main * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .history-main * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .analytics-main {
@@ -236,21 +263,34 @@ body {
   padding-bottom: calc(6rem + env(safe-area-inset-bottom));
   overflow-wrap: anywhere;
 }
-.analytics-main :where(button, a, [tabindex]) { scroll-margin-block: 6rem; }
+.analytics-main :where(button, a, [tabindex]) {
+  scroll-margin-block: 6rem;
+}
 .analytics-main [role="region"][tabindex="0"]:focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: -3px;
 }
-.analytics-main [role="group"] button:focus-visible { outline-offset: -4px; }
-.analytics-main ::selection { color: var(--color-brand); background: var(--color-surface-container-high); }
+.analytics-main [role="group"] button:focus-visible {
+  outline-offset: -4px;
+}
+.analytics-main ::selection {
+  color: var(--color-brand);
+  background: var(--color-surface-container-high);
+}
 .analytics-main :where([role="region"], [role="group"]) {
   scrollbar-color: var(--color-outline) var(--color-surface-container-low);
 }
 @media (min-width: 64rem) {
-  .analytics-main { padding-bottom: 3rem; }
+  .analytics-main {
+    padding-bottom: 3rem;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .analytics-main * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .analytics-main * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ──── 首页网格背景（底部显示，向上渐隐）──── */
@@ -274,13 +314,21 @@ body {
 .grid-background {
   bottom: var(--home-bottom-inset);
   background-image:
-    linear-gradient(to right, #e2e8f0 1px, transparent 1px),
-    linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+    linear-gradient(to right, var(--color-divider) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-divider) 1px, transparent 1px);
   background-size: 20px var(--home-grid-row-height);
   /* 网格从底边起算，页脚才能稳定落在倒数第二行 */
   background-position: left bottom;
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
+  -webkit-mask-image: radial-gradient(
+    ellipse 70% 60% at 50% 100%,
+    #000 60%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 70% 60% at 50% 100%,
+    #000 60%,
+    transparent 100%
+  );
 }
 
 /* ──── 浮起式输入框（聚焦转内凹）──── */
@@ -288,7 +336,7 @@ body {
 /* 底色用容器色；暗部阴影与背景同色相，只降低亮度 */
 .neu-input {
   --neu-dark: hsl(48 18% 82%);
-  --neu-light: #ffffff;
+  --neu-light: var(--color-surface-container-lowest);
   background: var(--color-surface-container-lowest);
   caret-color: var(--color-primary);
   box-shadow:

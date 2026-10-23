@@ -16,7 +16,10 @@ export default function MobileBottomNav({
   activeHref?: string;
 }) {
   return (
-    <nav aria-label="主导航" className="lg:hidden fixed bottom-0 left-0 w-full min-h-16 pb-[env(safe-area-inset-bottom)] bg-surface-container-lowest border-t border-divider flex items-stretch justify-around z-50">
+    <nav
+      aria-label="主导航"
+      className="lg:hidden fixed bottom-0 left-0 w-full min-h-16 pb-[env(safe-area-inset-bottom)] bg-surface-container-lowest border-t border-divider flex items-stretch justify-around z-50"
+    >
       {navItems.map((item) => {
         const isActive = item.href === activeHref;
         return (
@@ -32,9 +35,7 @@ export default function MobileBottomNav({
               aria-hidden="true"
               className="material-symbols-outlined"
               style={
-                isActive
-                  ? { fontVariationSettings: "'FILL' 1" }
-                  : undefined
+                isActive ? { fontVariationSettings: "'FILL' 1" } : undefined
               }
             >
               {item.icon}

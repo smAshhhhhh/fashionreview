@@ -94,7 +94,9 @@ export default function ReportSummary({ summary }: { summary: string | null }) {
           </p>
         ) : (
           !hasSections && (
-            <p className="text-base text-on-surface-variant">暂无 AI 画像内容。</p>
+            <p className="text-base text-on-surface-variant">
+              暂无 AI 画像内容。
+            </p>
           )
         )}
       </div>

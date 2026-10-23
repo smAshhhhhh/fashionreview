@@ -23,7 +23,12 @@ export default function Logo({ className = "" }: { className?: string }) {
           <tspan x="232" fontWeight="300" letterSpacing="-2.6">
             Street
           </tspan>
-          <tspan x="408" fontWeight="900" letterSpacing="-2.5" className="fill-primary">
+          <tspan
+            x="408"
+            fontWeight="900"
+            letterSpacing="-2.5"
+            className="fill-primary"
+          >
             AI
           </tspan>
         </text>

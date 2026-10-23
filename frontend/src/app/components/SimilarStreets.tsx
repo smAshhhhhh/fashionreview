@@ -12,9 +12,7 @@ export default function SimilarStreets({ items }: { items: SimilarStreet[] }) {
   return (
     <section>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
-        <h2 className="text-xl font-black text-on-surface">
-          相似审美节点
-        </h2>
+        <h2 className="text-xl font-black text-on-surface">相似审美节点</h2>
         <span className="text-[13px] text-on-surface-variant">
           历史点评中最相似的 {items.length} 个街区
         </span>
@@ -59,7 +57,20 @@ export default function SimilarStreets({ items }: { items: SimilarStreet[] }) {
 
 function StreetThumbnail({ imageUrl }: { imageUrl: string | null }) {
   const [failed, setFailed] = useState(false);
-  if (failed) return <div className="grid h-28 place-items-center bg-surface-container-low px-3 text-center text-xs text-on-surface-variant">图片无法加载</div>;
-  // eslint-disable-next-line @next/next/no-img-element -- 后端街景图保留固定高度并延迟加载。
-  return <img src={assetUrl(imageUrl)} alt="" className="h-28 w-full object-cover bg-surface-container-low" loading="lazy" onError={() => setFailed(true)} />;
+  if (failed)
+    return (
+      <div className="grid h-28 place-items-center bg-surface-container-low px-3 text-center text-xs text-on-surface-variant">
+        图片无法加载
+      </div>
+    );
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- 后端街景图保留固定高度并延迟加载。
+    <img
+      src={assetUrl(imageUrl)}
+      alt=""
+      className="h-28 w-full object-cover bg-surface-container-low"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
 }

@@ -34,8 +34,14 @@ export default function RecentInsights() {
 
   if (loading) {
     return (
-      <div role="status" className="flex items-center justify-center gap-2 py-10 text-on-surface-variant">
-        <span aria-hidden="true" className="material-symbols-outlined motion-safe:animate-spin text-2xl">
+      <div
+        role="status"
+        className="flex items-center justify-center gap-2 py-10 text-on-surface-variant"
+      >
+        <span
+          aria-hidden="true"
+          className="material-symbols-outlined motion-safe:animate-spin text-2xl"
+        >
           progress_activity
         </span>
         <span className="text-sm">加载中…</span>
@@ -47,11 +53,17 @@ export default function RecentInsights() {
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-center text-sm text-on-surface">
         <p role="alert">{error}</p>
-        <button type="button" className="min-h-11 rounded-full border border-outline-variant px-5 hover:bg-surface-container" onClick={() => {
-          setLoading(true);
-          setError(null);
-          setAttempt((value) => value + 1);
-        }}>重新加载最近洞察</button>
+        <button
+          type="button"
+          className="min-h-11 rounded-full border border-outline-variant px-5 hover:bg-surface-container"
+          onClick={() => {
+            setLoading(true);
+            setError(null);
+            setAttempt((value) => value + 1);
+          }}
+        >
+          重新加载最近洞察
+        </button>
       </div>
     );
   }

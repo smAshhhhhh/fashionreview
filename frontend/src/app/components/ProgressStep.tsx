@@ -6,7 +6,7 @@ interface ProgressStepProps {
   status: ProgressStatus;
   /**
    * done 节点的色调。warn = 完成了但结果需注意（维度评分失败、已兜底中位分）。
-   * 用琥珀 tertiary 而非红 error：该维度确实产出了分数，只是兜底值，不是流程失败。
+   * 用琥珀 warning 而非红 error：该维度确实产出了分数，只是兜底值，不是流程失败。
    * 仅对 done 生效 —— 状态机保持三态，不因此变成四态。
    */
   tone?: ProgressTone;
@@ -41,7 +41,7 @@ export default function ProgressStep({
       {status === "done" && (
         <div
           className={`z-10 mt-1 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-            isWarn ? "bg-tertiary/10 text-tertiary" : "bg-primary/10 text-primary"
+            isWarn ? "bg-warning-container text-warning" : "bg-primary/10 text-primary"
           }`}
         >
           <span
@@ -53,7 +53,7 @@ export default function ProgressStep({
         </div>
       )}
       {isActive && (
-        <div className="z-10 -ml-1 shrink-0 w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center active-pulse shadow-lg">
+        <div className="z-10 -ml-1 shrink-0 w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center active-pulse shadow-lg">
           <span className="material-symbols-outlined text-[24px] animate-spin">
             sync
           </span>
@@ -79,7 +79,7 @@ export default function ProgressStep({
             <span
               className={`text-sm font-bold ${
                 isWarn
-                  ? "text-tertiary"
+                  ? "text-warning"
                   : status === "done"
                     ? "text-on-surface-variant/80"
                     : ""
@@ -90,7 +90,7 @@ export default function ProgressStep({
             <span
               className={`text-xs ${
                 isWarn
-                  ? "text-tertiary/80"
+                  ? "text-warning/80"
                   : status === "done"
                     ? "text-on-surface-variant/60"
                     : "text-on-surface-variant"

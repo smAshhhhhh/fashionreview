@@ -28,20 +28,29 @@ export default function HeaderCard({
       <div className="flex flex-1 items-center gap-3 sm:gap-5 min-w-0">
         {imageUrl && (
           <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-divider bg-divider">
-            {failedUrl === imageUrl ? <span className="grid h-full place-items-center text-xs text-on-surface-variant">图片无法加载</span> : <Image
-              src={assetUrl(imageUrl)}
-              alt={streetName}
-              width={96}
-              height={96}
-              className="w-full h-full object-cover"
-              unoptimized
-              onError={() => setFailedUrl(imageUrl)}
-            />}
+            {failedUrl === imageUrl ? (
+              <span className="grid h-full place-items-center text-xs text-on-surface-variant">
+                图片无法加载
+              </span>
+            ) : (
+              <Image
+                src={assetUrl(imageUrl)}
+                alt={streetName}
+                width={96}
+                height={96}
+                className="w-full h-full object-cover"
+                unoptimized
+                onError={() => setFailedUrl(imageUrl)}
+              />
+            )}
           </div>
         )}
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 text-sm">
-            <span aria-hidden="true" className="material-symbols-outlined text-primary text-[16px] shrink-0">
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-primary text-[16px] shrink-0"
+            >
               location_on
             </span>
             <span className="font-bold text-primary">AI 街巷时尚度评价</span>
@@ -61,7 +70,9 @@ export default function HeaderCard({
             <span className="text-[48px] leading-none font-black tabular-nums text-primary">
               {totalScore !== null ? totalScore.toFixed(1) : "—"}
             </span>
-            <span className="text-lg font-bold text-on-surface-variant">/ 5</span>
+            <span className="text-lg font-bold text-on-surface-variant">
+              / 5
+            </span>
           </div>
         </div>
       )}

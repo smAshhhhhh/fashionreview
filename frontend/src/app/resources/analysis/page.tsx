@@ -65,16 +65,32 @@ export default function AnalysisConfigPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try { setConfigs(await listAnalyticsConfig()); }
-    catch (e) { setError(e instanceof Error ? e.message : "加载显示配置失败，请重试。"); }
-    finally { setLoading(false); }
+    try {
+      setConfigs(await listAnalyticsConfig());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "加载显示配置失败，请重试。");
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useEffect(() => {
     let cancelled = false;
-    void listAnalyticsConfig().then((data) => { if (!cancelled) setConfigs(data); }).catch((e) => {
-      if (!cancelled) setError(e instanceof Error ? e.message : "加载显示配置失败，请重试。");
-    }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    void listAnalyticsConfig()
+      .then((data) => {
+        if (!cancelled) setConfigs(data);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setError(
+            e instanceof Error ? e.message : "加载显示配置失败，请重试。",
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 本地乐观更新单个区块的 enabled
@@ -98,10 +114,30 @@ export default function AnalysisConfigPage() {
 
   const renderGroups = () => {
     if (loading) return <LoadingSkeleton />;
-    if (error) return <ResourceFeedback error={error} onRetry={() => void load()} />;
-    if (configs.length === 0) return <div className="py-12 text-center text-on-surface-variant"><p>暂无分析配置。</p><button type="button" onClick={() => void load()} className="mt-3 rounded-full border border-divider px-4 py-2 font-semibold text-primary">重新加载</button></div>;
-    return [...GROUP_ORDER, ...Array.from(grouped.keys()).filter((key) => !GROUP_ORDER.includes(key))].map((group) => {
-      const meta = GROUP_META[group] ?? { label: group, icon: "tune", desc: "其他分析配置" };
+    if (error)
+      return <ResourceFeedback error={error} onRetry={() => void load()} />;
+    if (configs.length === 0)
+      return (
+        <div className="py-12 text-center text-on-surface-variant">
+          <p>暂无分析配置。</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-3 rounded-full border border-divider px-4 py-2 font-semibold text-primary"
+          >
+            重新加载
+          </button>
+        </div>
+      );
+    return [
+      ...GROUP_ORDER,
+      ...Array.from(grouped.keys()).filter((key) => !GROUP_ORDER.includes(key)),
+    ].map((group) => {
+      const meta = GROUP_META[group] ?? {
+        label: group,
+        icon: "tune",
+        desc: "其他分析配置",
+      };
       const items = grouped.get(group) ?? [];
       if (items.length === 0) return null;
       const isCollapsed = collapsed[group] ?? false;
@@ -113,47 +149,59 @@ export default function AnalysisConfigPage() {
         >
           {/* 组头 */}
           <h2>
-          <button
-            type="button"
-            aria-label={meta.label}
-            aria-expanded={!isCollapsed}
-            aria-controls={`analysis-group-${group}`}
-            onClick={() => toggleGroup(group)}
-            className="w-full flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-surface-container-low transition-colors text-left"
-          >
-            <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
-              <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
-                <span aria-hidden="true" className="material-symbols-outlined">{meta.icon}</span>
-              </span>
-              <div className="min-w-0">
-                <span className="block text-[17px] font-bold text-on-surface">{meta.label}</span>
-                <p className="text-[13px] text-on-surface-variant">{meta.desc}</p>
+            <button
+              type="button"
+              aria-label={meta.label}
+              aria-expanded={!isCollapsed}
+              aria-controls={`analysis-group-${group}`}
+              onClick={() => toggleGroup(group)}
+              className="w-full flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-surface-container-low transition-colors text-left"
+            >
+              <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
+                <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
+                  <span
+                    aria-hidden="true"
+                    className="material-symbols-outlined"
+                  >
+                    {meta.icon}
+                  </span>
+                </span>
+                <div className="min-w-0">
+                  <span className="block text-[17px] font-bold text-on-surface">
+                    {meta.label}
+                  </span>
+                  <p className="text-[13px] text-on-surface-variant">
+                    {meta.desc}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
-              <span className="whitespace-nowrap px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-on-surface-variant">
-                {activeCount}/{items.length} 启用
-              </span>
-              <span aria-hidden="true"
-                className="material-symbols-outlined text-on-surface-variant transition-transform duration-300"
-                style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}
-              >
-                expand_more
-              </span>
-            </div>
-          </button>
+              <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
+                <span className="whitespace-nowrap px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-on-surface-variant">
+                  {activeCount}/{items.length} 启用
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined text-on-surface-variant transition-transform duration-300"
+                  style={{
+                    transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)",
+                  }}
+                >
+                  expand_more
+                </span>
+              </div>
+            </button>
           </h2>
 
           {/* 组内容 */}
-          <div id={`analysis-group-${group}`} hidden={isCollapsed} className="border-t border-divider divide-y divide-divider">
-              {items.map((c) => (
-                <BlockItem
-                  key={c.block_key}
-                  config={c}
-                  onApply={applyEnabled}
-                />
-              ))}
-            </div>
+          <div
+            id={`analysis-group-${group}`}
+            hidden={isCollapsed}
+            className="border-t border-divider divide-y divide-divider"
+          >
+            {items.map((c) => (
+              <BlockItem key={c.block_key} config={c} onApply={applyEnabled} />
+            ))}
+          </div>
         </div>
       );
     });
@@ -170,10 +218,18 @@ export default function AnalysisConfigPage() {
         <section className="p-4 lg:p-6 max-w-300 mx-auto w-full flex-1 space-y-6">
           {/* 说明条 */}
           <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
-            <span aria-hidden="true" className="material-symbols-outlined text-primary">info</span>
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-primary"
+            >
+              info
+            </span>
             <p className="text-[13px] leading-relaxed text-on-surface-variant">
               这里的开关控制
-              <Link href="/analytics" className="text-primary font-semibold mx-1 hover:underline">
+              <Link
+                href="/analytics"
+                className="text-primary font-semibold mx-1 hover:underline"
+              >
                 分析中心
               </Link>
               结果页展示哪些内容区块。关闭后该区块对所有评价结果统一隐藏；「得分依据」依赖「三级指标得分」开启才会出现。
@@ -204,14 +260,20 @@ function BlockItem({
   const checked = config.enabled === 1;
   const verify = async () => {
     if (busy) return;
-    setBusy(true); setSaveError(null);
+    setBusy(true);
+    setSaveError(null);
     try {
       const configs = await listAnalyticsConfig();
-      const current = configs.find((item) => item.block_key === config.block_key);
+      const current = configs.find(
+        (item) => item.block_key === config.block_key,
+      );
       if (!current) setSaveError("此配置已不存在，请重新加载页面。");
       else onApply(config.block_key, current.enabled);
-    } catch (e) { setSaveError(e instanceof Error ? e.message : "无法核对状态，请重试。"); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "无法核对状态，请重试。");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handle = async () => {
@@ -234,9 +296,16 @@ function BlockItem({
     <div className="p-4 hover:bg-surface-container-low transition-colors">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h3 id={labelId} className="text-[15px] font-bold text-on-surface">{config.name}</h3>
+          <h3 id={labelId} className="text-[15px] font-bold text-on-surface">
+            {config.name}
+          </h3>
           {config.description && (
-            <p id={descriptionId} className="text-[13px] text-on-surface-variant mt-1">{config.description}</p>
+            <p
+              id={descriptionId}
+              className="text-[13px] text-on-surface-variant mt-1"
+            >
+              {config.description}
+            </p>
           )}
         </div>
         <label className="inline-flex min-h-11 min-w-11 items-center justify-center cursor-pointer shrink-0">
@@ -252,7 +321,9 @@ function BlockItem({
           <div className="resource-switch relative w-9 h-5 bg-outline rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-on-primary after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-full" />
         </label>
       </div>
-      {saveError && <ResourceFeedback error={saveError} onRetry={() => void verify()} />}
+      {saveError && (
+        <ResourceFeedback error={saveError} onRetry={() => void verify()} />
+      )}
     </div>
   );
 }

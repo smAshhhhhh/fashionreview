@@ -48,25 +48,39 @@ export default function MetricTemplatesPage() {
   const { confirmDiscard, dialog: draftDialog } = useResourceDraft(dirty);
   const selectTemplate = (id: number) => {
     if (id === selectedId || busy) return;
-    confirmDiscard(() => { setNotice(null); setError(null); setSelectedId(id); });
+    confirmDiscard(() => {
+      setNotice(null);
+      setError(null);
+      setSelectedId(id);
+    });
   };
   const retryList = async () => {
-    setLoadingList(true); setListError(null);
-    try { await reloadList(); }
-    catch (e) { setListError(e instanceof Error ? e.message : "加载模板失败，请重试。"); }
-    finally { setLoadingList(false); }
+    setLoadingList(true);
+    setListError(null);
+    try {
+      await reloadList();
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : "加载模板失败，请重试。");
+    } finally {
+      setLoadingList(false);
+    }
   };
 
   const reloadList = async (keepId?: number) => {
     const data = await listMetricTemplates();
     setTemplates(data);
-    if (data.length === 0) { setSelectedId(null); setDims([]); setSnapshot("[]"); return; }
+    if (data.length === 0) {
+      setSelectedId(null);
+      setDims([]);
+      setSnapshot("[]");
+      return;
+    }
     const pick =
       keepId != null && data.some((t) => t.id === keepId)
         ? keepId
-        : (selectedId != null && data.some((t) => t.id === selectedId)
-            ? selectedId
-            : data[0].id);
+        : selectedId != null && data.some((t) => t.id === selectedId)
+          ? selectedId
+          : data[0].id;
     setSelectedId(pick);
   };
 
@@ -80,7 +94,10 @@ export default function MetricTemplatesPage() {
         setTemplates(data);
         setSelectedId(data[0]?.id ?? null);
       } catch (e: unknown) {
-        if (!cancelled) setListError(e instanceof Error ? e.message : "加载模板失败，请重试。");
+        if (!cancelled)
+          setListError(
+            e instanceof Error ? e.message : "加载模板失败，请重试。",
+          );
       } finally {
         if (!cancelled) setLoadingList(false);
       }
@@ -97,7 +114,8 @@ export default function MetricTemplatesPage() {
     (async () => {
       setLoadingTree(true);
       setTreeError(null);
-      setDims([]); setSnapshot("[]");
+      setDims([]);
+      setSnapshot("[]");
       setNotice(null);
       try {
         const t = await getMetricTemplateTree(selectedId);
@@ -106,7 +124,10 @@ export default function MetricTemplatesPage() {
         setSnapshot(JSON.stringify(t.tree));
         setInUse(t.in_use);
       } catch (e: unknown) {
-        if (!cancelled) setTreeError(e instanceof Error ? e.message : "加载模板内容失败，请重试。");
+        if (!cancelled)
+          setTreeError(
+            e instanceof Error ? e.message : "加载模板内容失败，请重试。",
+          );
       } finally {
         if (!cancelled) setLoadingTree(false);
       }
@@ -119,8 +140,13 @@ export default function MetricTemplatesPage() {
   const selected = templates.find((t) => t.id === selectedId) ?? null;
 
   const refreshAfterMutation = async (id?: number) => {
-    try { await reloadList(id); }
-    catch { setError("操作已完成，但模板列表刷新失败。请重新加载后核对，避免重复提交。"); }
+    try {
+      await reloadList(id);
+    } catch {
+      setError(
+        "操作已完成，但模板列表刷新失败。请重新加载后核对，避免重复提交。",
+      );
+    }
   };
 
   /* ── 模板级操作 ── */
@@ -182,10 +208,32 @@ export default function MetricTemplatesPage() {
     try {
       const r = await saveMetricTemplateTree(selectedId, dims);
       setSnapshot(JSON.stringify(dims));
-      const localTemplate: MetricTemplate = { ...r.template, in_use: r.is_new ? 0 : Number(inUse), dim_count: dims.length, sub_count: dims.reduce((sum, dim) => sum + dim.subs.length, 0), metric_count: dims.reduce((sum, dim) => sum + dim.subs.reduce((count, sub) => count + sub.metrics.length, 0), 0) };
-      setTemplates((items) => items.some((item) => item.id === localTemplate.id) ? items.map((item) => item.id === localTemplate.id ? localTemplate : item) : [...items, localTemplate]);
-      try { await reloadList(r.template.id); }
-      catch { setError("内容已保存，但模板列表刷新失败。请重新加载后核对，避免重复保存。"); }
+      const localTemplate: MetricTemplate = {
+        ...r.template,
+        in_use: r.is_new ? 0 : Number(inUse),
+        dim_count: dims.length,
+        sub_count: dims.reduce((sum, dim) => sum + dim.subs.length, 0),
+        metric_count: dims.reduce(
+          (sum, dim) =>
+            sum +
+            dim.subs.reduce((count, sub) => count + sub.metrics.length, 0),
+          0,
+        ),
+      };
+      setTemplates((items) =>
+        items.some((item) => item.id === localTemplate.id)
+          ? items.map((item) =>
+              item.id === localTemplate.id ? localTemplate : item,
+            )
+          : [...items, localTemplate],
+      );
+      try {
+        await reloadList(r.template.id);
+      } catch {
+        setError(
+          "内容已保存，但模板列表刷新失败。请重新加载后核对，避免重复保存。",
+        );
+      }
       setSelectedId(r.template.id);
       setNotice(
         r.is_new
@@ -213,7 +261,10 @@ export default function MetricTemplatesPage() {
     setDims((ds) =>
       ds.map((d, i) =>
         i === di
-          ? { ...d, subs: d.subs.map((s, j) => (j === si ? { ...s, ...patch } : s)) }
+          ? {
+              ...d,
+              subs: d.subs.map((s, j) => (j === si ? { ...s, ...patch } : s)),
+            }
           : d,
       ),
     );
@@ -254,10 +305,17 @@ export default function MetricTemplatesPage() {
           <button
             type="button"
             onClick={() => confirmDiscard(() => void handleClone())}
-            disabled={busy || loadingList || loadingTree || !!listError || !!treeError}
-            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-primary text-white px-4 sm:px-5 py-2 text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+            disabled={
+              busy || loadingList || loadingTree || !!listError || !!treeError
+            }
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-primary text-on-primary px-4 sm:px-5 py-2 text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
           >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-[18px]"
+            >
+              add
+            </span>
             新建模板
           </button>
         </ResourceHeader>
@@ -265,18 +323,36 @@ export default function MetricTemplatesPage() {
         <section className="@container p-4 lg:p-6 max-w-7xl mx-auto w-full flex-1 space-y-6">
           {/* 说明条 */}
           <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
-            <span aria-hidden="true" className="material-symbols-outlined text-primary">info</span>
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-primary"
+            >
+              info
+            </span>
             <p className="text-[13px] leading-relaxed text-on-surface-variant">
-              左侧管理指标模板（启用 / 克隆 / 删除），右侧编辑所选模板的一/二/三级维度。启用的模板将影响后续
-              <Link href="/analytics" className="text-primary font-semibold mx-1 hover:underline">
+              左侧管理指标模板（启用 / 克隆 /
+              删除），右侧编辑所选模板的一/二/三级维度。启用的模板将影响后续
+              <Link
+                href="/analytics"
+                className="text-primary font-semibold mx-1 hover:underline"
+              >
                 分析中心
               </Link>
-              的 AI 点评与新评价的维度展示；被历史评价引用的模板保存时会自动另存为新模板。
+              的 AI
+              点评与新评价的维度展示；被历史评价引用的模板保存时会自动另存为新模板。
             </p>
           </div>
 
-          <ResourceFeedback error={!selected || treeError ? error : null} message={!error ? notice : null} />
-          {listError && <ResourceFeedback error={listError} onRetry={() => void retryList()} />}
+          <ResourceFeedback
+            error={!selected || treeError ? error : null}
+            message={!error ? notice : null}
+          />
+          {listError && (
+            <ResourceFeedback
+              error={listError}
+              onRetry={() => void retryList()}
+            />
+          )}
 
           <div className="grid grid-cols-1 @[52rem]:grid-cols-[16rem_minmax(0,1fr)] gap-6">
             <TemplateList
@@ -286,55 +362,76 @@ export default function MetricTemplatesPage() {
               busy={busy}
               onSelect={selectTemplate}
               onActivate={(id) => confirmDiscard(() => void handleActivate(id))}
-              onDelete={(id) => { const open = () => { setDeleteError(null); setPendingDeleteId(id); }; if (id === selectedId) confirmDiscard(open); else open(); }}
+              onDelete={(id) => {
+                const open = () => {
+                  setDeleteError(null);
+                  setPendingDeleteId(id);
+                };
+                if (id === selectedId) confirmDiscard(open);
+                else open();
+              }}
             />
-            {treeError ? <ResourceFeedback error={treeError} onRetry={() => setTreeRevision((revision) => revision + 1)} /> : <TreeEditor
-              key={selectedId}
-              selected={selected}
-              dims={dims}
-              inUse={inUse}
-              loading={loadingTree}
-              saveError={error}
-              busy={busy}
-              onEditDim={editDim}
-              onEditSub={editSub}
-              onEditMetric={editMetric}
-              onSave={handleSave}
-            />}
+            {treeError ? (
+              <ResourceFeedback
+                error={treeError}
+                onRetry={() => setTreeRevision((revision) => revision + 1)}
+              />
+            ) : (
+              <TreeEditor
+                key={selectedId}
+                selected={selected}
+                dims={dims}
+                inUse={inUse}
+                loading={loadingTree}
+                saveError={error}
+                busy={busy}
+                onEditDim={editDim}
+                onEditSub={editSub}
+                onEditMetric={editMetric}
+                onSave={handleSave}
+              />
+            )}
           </div>
         </section>
       </main>
 
       {/* 删除确认 Modal */}
       {pendingDeleteId != null && (
-        <ResourceDialog title="确认删除模板？" busy={busy} onClose={() => setPendingDeleteId(null)}>
-            <p className="text-[15px] text-on-surface-variant mb-6">
-              删除后该模板将无法恢复。历史评价已生成的维度结果不受影响。
-            </p>
-            <ResourceFeedback error={deleteError} />
-            <div className="mt-4 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setPendingDeleteId(null)}
-                disabled={busy}
-                className="px-4 py-3 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(pendingDeleteId)}
-                disabled={busy}
-                className="px-6 py-3 rounded-full text-[15px] font-bold bg-error text-white shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
-              >
-                {busy && (
-                  <span aria-hidden="true" className="material-symbols-outlined animate-spin text-[18px]">
-                    progress_activity
-                  </span>
-                )}
-                确认删除
-              </button>
-            </div>
+        <ResourceDialog
+          title="确认删除模板？"
+          busy={busy}
+          onClose={() => setPendingDeleteId(null)}
+        >
+          <p className="text-[15px] text-on-surface-variant mb-6">
+            删除后该模板将无法恢复。历史评价已生成的维度结果不受影响。
+          </p>
+          <ResourceFeedback error={deleteError} />
+          <div className="mt-4 flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setPendingDeleteId(null)}
+              disabled={busy}
+              className="px-4 py-3 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDelete(pendingDeleteId)}
+              disabled={busy}
+              className="px-6 py-3 rounded-full text-[15px] font-bold bg-error text-on-error shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              {busy && (
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined animate-spin text-[18px]"
+                >
+                  progress_activity
+                </span>
+              )}
+              确认删除
+            </button>
+          </div>
         </ResourceDialog>
       )}
 
@@ -382,8 +479,14 @@ function TemplateList({
     );
   }
   return (
-    <div role="group" aria-label="指标模板" className="min-w-0 space-y-3 @[52rem]:sticky @[52rem]:top-20 self-start">
-      {templates.length === 0 && <p className="p-4 text-sm text-on-surface-variant">暂无指标模板。</p>}
+    <div
+      role="group"
+      aria-label="指标模板"
+      className="min-w-0 space-y-3 @[52rem]:sticky @[52rem]:top-20 self-start"
+    >
+      {templates.length === 0 && (
+        <p className="p-4 text-sm text-on-surface-variant">暂无指标模板。</p>
+      )}
       {templates.map((t) => {
         const active = t.is_active === 1;
         const isSel = t.id === selectedId;
@@ -396,20 +499,26 @@ function TemplateList({
                 : "border-divider hover:bg-surface-container-low"
             }`}
           >
-            <button type="button" disabled={busy} aria-pressed={isSel} onClick={() => onSelect(t.id)} className="w-full rounded-lg text-left">
-            <div className="flex items-center justify-between gap-2">
-              <span className="min-w-0 text-[15px] font-bold text-on-surface [overflow-wrap:anywhere]">
-                {t.name}
-              </span>
-              {active && (
-                <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  启用中
+            <button
+              type="button"
+              disabled={busy}
+              aria-pressed={isSel}
+              onClick={() => onSelect(t.id)}
+              className="w-full rounded-lg text-left"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 text-[15px] font-bold text-on-surface [overflow-wrap:anywhere]">
+                  {t.name}
                 </span>
-              )}
-            </div>
-            <p className="text-[12px] text-on-surface-variant mt-1">
-              {t.dim_count} 一级 · {t.sub_count} 二级 · {t.metric_count} 三级
-            </p>
+                {active && (
+                  <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                    启用中
+                  </span>
+                )}
+              </div>
+              <p className="text-[12px] text-on-surface-variant mt-1">
+                {t.dim_count} 一级 · {t.sub_count} 二级 · {t.metric_count} 三级
+              </p>
             </button>
             <div className="flex items-center gap-2 mt-3">
               {!active && (
@@ -429,14 +538,25 @@ function TemplateList({
                 type="button"
                 disabled={busy || active || t.in_use === 1}
                 aria-label={`删除模板：${t.name}`}
-                title={active ? "启用中的模板不可删除" : t.in_use === 1 ? "已被历史评价引用的模板不可删除" : "删除模板"}
+                title={
+                  active
+                    ? "启用中的模板不可删除"
+                    : t.in_use === 1
+                      ? "已被历史评价引用的模板不可删除"
+                      : "删除模板"
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete(t.id);
                 }}
                 className="h-11 w-11 grid place-items-center rounded-full text-on-surface-variant hover:bg-error/10 hover:text-error disabled:opacity-30 transition-colors"
               >
-                <span aria-hidden="true" className="material-symbols-outlined text-[18px]">delete</span>
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined text-[18px]"
+                >
+                  delete
+                </span>
               </button>
             </div>
           </div>
@@ -450,7 +570,7 @@ function TemplateList({
 
 // 编辑态文本输入统一样式：明显的边框 + 浅背景，聚焦时主色高亮，一眼可辨可编辑
 const editInputClass =
-  "flex-1 min-w-0 rounded-xl border border-divider bg-white px-2.5 py-1.5 text-on-surface outline-none focus:border-primary transition-colors";
+  "flex-1 min-w-0 rounded-xl border border-divider bg-surface-container-lowest px-2.5 py-1.5 text-on-surface outline-none focus:border-primary transition-colors";
 
 // 一级维度图标：按名称关键词匹配，回退到顺序色板
 const DIM_ICON_BY_KEYWORD: Array<[RegExp, string]> = [
@@ -461,7 +581,14 @@ const DIM_ICON_BY_KEYWORD: Array<[RegExp, string]> = [
   [/传播|影响|社交|媒体|品牌/, "hub"],
   [/环境|品质|卫生|绿化|设施/, "eco"],
 ];
-const DIM_ICON_FALLBACK = ["architecture", "storefront", "theater_comedy", "bolt", "hub", "category"];
+const DIM_ICON_FALLBACK = [
+  "architecture",
+  "storefront",
+  "theater_comedy",
+  "bolt",
+  "hub",
+  "category",
+];
 
 function dimIcon(name: string, index: number): string {
   for (const [re, icon] of DIM_ICON_BY_KEYWORD) {
@@ -535,7 +662,9 @@ function TreeEditor({
       for (const s of d.subs) {
         const ms = metricSums.get(s.sub_id);
         if (s.metrics.length > 0 && ms != null && !isOneHundred(ms)) {
-          problems.push(`「${d.dim_name}」→「${s.sub_name}」的三级指标合计 ${pct(ms)}%`);
+          problems.push(
+            `「${d.dim_name}」→「${s.sub_name}」的三级指标合计 ${pct(ms)}%`,
+          );
         }
       }
     }
@@ -562,7 +691,9 @@ function TreeEditor({
   if (!selected) {
     return (
       <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-60 p-6 text-center text-on-surface-variant">
-        <p className="text-[15px]">选择指标模板，或使用「新建模板」创建一个模板。</p>
+        <p className="text-[15px]">
+          选择指标模板，或使用「新建模板」创建一个模板。
+        </p>
       </div>
     );
   }
@@ -594,12 +725,17 @@ function TreeEditor({
             type="button"
             onClick={() =>
               setOpenDims(
-                allOpen ? {} : Object.fromEntries(dims.map((d) => [d.dim_id, true])),
+                allOpen
+                  ? {}
+                  : Object.fromEntries(dims.map((d) => [d.dim_id, true])),
               )
             }
             className="flex items-center gap-1 rounded-full border border-divider px-3 py-2 text-[13px] font-semibold text-on-surface-variant hover:bg-surface-container-low transition-colors"
           >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-[18px]"
+            >
               {allOpen ? "unfold_less" : "unfold_more"}
             </span>
             {allOpen ? "全部收起" : "全部展开"}
@@ -614,9 +750,14 @@ function TreeEditor({
                   ? "权重合计不为 100%，请先修正后再保存"
                   : undefined
               }
-              className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+              className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-bold text-on-primary shadow-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
             >
-              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">save</span>
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined text-[18px]"
+              >
+                save
+              </span>
               {inUse ? "另存为新模板" : "保存更改"}
             </button>
           ) : (
@@ -625,14 +766,21 @@ function TreeEditor({
               onClick={() => setEditMode(true)}
               className="flex items-center gap-2 rounded-full border border-divider px-5 py-2 text-sm font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95"
             >
-              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">edit</span>
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined text-[18px]"
+              >
+                edit
+              </span>
               点击修改
             </button>
           )}
         </div>
       </div>
 
-      <div className="mb-4"><ResourceFeedback error={saveError} /></div>
+      <div className="mb-4">
+        <ResourceFeedback error={saveError} />
+      </div>
       {/* 权重合计提示：仅编辑态显示。合计失真不会报错（后端按实际和归一化），
           所以必须在界面上说清楚，否则填错了页面显示的百分比与真实生效的权重不一致。 */}
       {editMode && (
@@ -670,7 +818,8 @@ function TreeEditor({
                   ))}
                   {weightCheck.problems.length > 8 && (
                     <li className="text-[13px] text-warning">
-                      · 另有 {weightCheck.problems.length - 8} 组，展开对应维度查看
+                      · 另有 {weightCheck.problems.length - 8}{" "}
+                      组，展开对应维度查看
                     </li>
                   )}
                 </ul>
@@ -680,205 +829,256 @@ function TreeEditor({
         </div>
       )}
 
-      {dims.length === 0 && <p className="py-10 text-center text-on-surface-variant">此模板暂无维度配置。</p>}
+      {dims.length === 0 && (
+        <p className="py-10 text-center text-on-surface-variant">
+          此模板暂无维度配置。
+        </p>
+      )}
       {/* 维度手风琴（发丝线分隔） */}
       <div className="border border-divider rounded-2xl overflow-hidden divide-y divide-divider">
         {dims.map((d, di) => {
           const open = !!openDims[d.dim_id];
           const dimPct = Math.round(d.dim_weight * 1000) / 10;
           return (
-          <div key={d.dim_id} className="bg-surface-container-lowest">
-            {/* 一级维度（手风琴头部） */}
-            <div
-              className="w-full flex flex-wrap items-center justify-between gap-3 p-3 sm:p-5 hover:bg-surface-container-low transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0 flex-1 basis-32">
-                <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
-                  <span aria-hidden="true" className="material-symbols-outlined">
-                    {dimIcon(d.dim_name, di)}
-                  </span>
-                </span>
-                {editMode ? (
-                  <input
-                    aria-label={`第 ${di + 1} 个一级维度名称`}
-                    maxLength={100}
-                    value={d.dim_name}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => onEditDim(di, { dim_name: e.target.value })}
-                    className={`${editInputClass} text-[17px] font-bold max-w-md`}
-                    placeholder="一级维度名称"
-                  />
-                ) : (
-                  <h3 className="text-[17px] font-bold text-on-surface [overflow-wrap:anywhere]">
-                    {d.dim_name}
-                  </h3>
-                )}
-              </div>
-              <div className="ml-auto flex items-center gap-3 sm:gap-6 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-on-surface-variant uppercase hidden sm:inline">
-                    权重占比
+            <div key={d.dim_id} className="bg-surface-container-lowest">
+              {/* 一级维度（手风琴头部） */}
+              <div className="w-full flex flex-wrap items-center justify-between gap-3 p-3 sm:p-5 hover:bg-surface-container-low transition-colors">
+                <div className="flex items-center gap-3 min-w-0 flex-1 basis-32">
+                  <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className="material-symbols-outlined"
+                    >
+                      {dimIcon(d.dim_name, di)}
+                    </span>
                   </span>
                   {editMode ? (
-                    <PercentInput
-                      label={`${d.dim_name} · 一级维度权重百分比`}
-                      value={d.dim_weight}
-                      onChange={(v) => onEditDim(di, { dim_weight: v })}
-                      invalid={!isOneHundred(weightCheck.dimSum)}
+                    <input
+                      aria-label={`第 ${di + 1} 个一级维度名称`}
+                      maxLength={100}
+                      value={d.dim_name}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) =>
+                        onEditDim(di, { dim_name: e.target.value })
+                      }
+                      className={`${editInputClass} text-[17px] font-bold max-w-md`}
+                      placeholder="一级维度名称"
                     />
                   ) : (
-                    <span className="text-[20px] font-black text-primary tabular-nums">
-                      {dimPct}%
-                    </span>
+                    <h3 className="text-[17px] font-bold text-on-surface [overflow-wrap:anywhere]">
+                      {d.dim_name}
+                    </h3>
                   )}
                 </div>
-                <button type="button" aria-label={`${open ? "收起" : "展开"}${d.dim_name}`} aria-expanded={open} aria-controls={`dimension-${d.dim_id}`} onClick={() => toggleDim(d.dim_id)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-surface-container">
-                  <span aria-hidden="true" className="material-symbols-outlined" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>expand_more</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 展开内容 */}
-            <div id={`dimension-${d.dim_id}`} hidden={!open} className="border-t border-divider bg-surface-container-low/40 p-2 sm:p-5 space-y-5">
-              {/* 该维度下二级权重合计，便于就地定位是哪一组填错 */}
-              {editMode && (
-                <SumBadge
-                  label="二级维度合计"
-                  total={weightCheck.subSums.get(d.dim_id) ?? 0}
-                />
-              )}
-              {d.subs.map((s, si) => (
-                <div
-                  key={s.sub_id}
-                  className="rounded-2xl border border-divider bg-surface-container-lowest overflow-hidden"
-                >
-                  {/* 二级维度头部 */}
-                  <div className="flex flex-wrap items-center gap-3 bg-surface-container-low px-3 sm:px-4 py-3 border-b border-divider">
+                <div className="ml-auto flex items-center gap-3 sm:gap-6 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-on-surface-variant uppercase hidden sm:inline">
+                      权重占比
+                    </span>
                     {editMode ? (
-                      <input
-                        aria-label={`${d.dim_name} · 第 ${si + 1} 个二级维度名称`}
-                        maxLength={100}
-                        value={s.sub_name}
-                        onChange={(e) => onEditSub(di, si, { sub_name: e.target.value })}
-                        className={`${editInputClass} text-[14px] font-bold`}
-                        placeholder="二级维度名称"
+                      <PercentInput
+                        label={`${d.dim_name} · 一级维度权重百分比`}
+                        value={d.dim_weight}
+                        onChange={(v) => onEditDim(di, { dim_weight: v })}
+                        invalid={!isOneHundred(weightCheck.dimSum)}
                       />
                     ) : (
-                      <span className="flex-1 min-w-0 text-[14px] font-bold text-on-surface truncate">
-                        {s.sub_name}
+                      <span className="text-[20px] font-black text-primary tabular-nums">
+                        {dimPct}%
                       </span>
                     )}
-                    <div className="ml-auto flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] font-bold text-on-surface-variant uppercase">
-                        权重占比
-                      </span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`${open ? "收起" : "展开"}${d.dim_name}`}
+                    aria-expanded={open}
+                    aria-controls={`dimension-${d.dim_id}`}
+                    onClick={() => toggleDim(d.dim_id)}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-surface-container"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="material-symbols-outlined"
+                      style={{
+                        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+                      }}
+                    >
+                      expand_more
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 展开内容 */}
+              <div
+                id={`dimension-${d.dim_id}`}
+                hidden={!open}
+                className="border-t border-divider bg-surface-container-low/40 p-2 sm:p-5 space-y-5"
+              >
+                {/* 该维度下二级权重合计，便于就地定位是哪一组填错 */}
+                {editMode && (
+                  <SumBadge
+                    label="二级维度合计"
+                    total={weightCheck.subSums.get(d.dim_id) ?? 0}
+                  />
+                )}
+                {d.subs.map((s, si) => (
+                  <div
+                    key={s.sub_id}
+                    className="rounded-2xl border border-divider bg-surface-container-lowest overflow-hidden"
+                  >
+                    {/* 二级维度头部 */}
+                    <div className="flex flex-wrap items-center gap-3 bg-surface-container-low px-3 sm:px-4 py-3 border-b border-divider">
                       {editMode ? (
-                        <PercentInput
-                          label={`${s.sub_name} · 二级维度权重百分比`}
-                          value={s.sub_weight}
-                          onChange={(v) => onEditSub(di, si, { sub_weight: v })}
+                        <input
+                          aria-label={`${d.dim_name} · 第 ${si + 1} 个二级维度名称`}
+                          maxLength={100}
+                          value={s.sub_name}
+                          onChange={(e) =>
+                            onEditSub(di, si, { sub_name: e.target.value })
+                          }
+                          className={`${editInputClass} text-[14px] font-bold`}
+                          placeholder="二级维度名称"
                         />
                       ) : (
-                        <span className="text-[16px] font-black text-primary tabular-nums">
-                          {Math.round(s.sub_weight * 1000) / 10}%
+                        <span className="flex-1 min-w-0 text-[14px] font-bold text-on-surface truncate">
+                          {s.sub_name}
                         </span>
                       )}
+                      <div className="ml-auto flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] font-bold text-on-surface-variant uppercase">
+                          权重占比
+                        </span>
+                        {editMode ? (
+                          <PercentInput
+                            label={`${s.sub_name} · 二级维度权重百分比`}
+                            value={s.sub_weight}
+                            onChange={(v) =>
+                              onEditSub(di, si, { sub_weight: v })
+                            }
+                          />
+                        ) : (
+                          <span className="text-[16px] font-black text-primary tabular-nums">
+                            {Math.round(s.sub_weight * 1000) / 10}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 三级指标表格 */}
+                    <div
+                      tabIndex={0}
+                      role="region"
+                      aria-label={`${s.sub_name} · 指标表，可横向滚动`}
+                      className="overflow-x-auto"
+                    >
+                      <table className="w-full min-w-80 text-left">
+                        <thead className="bg-surface-container-low text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                          <tr>
+                            <th scope="col" className="px-4 py-2 font-bold">
+                              三级指标
+                            </th>
+                            <th
+                              scope="col"
+                              className="px-4 py-2 font-bold text-right w-28"
+                            >
+                              权重 (%)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-divider">
+                          {s.metrics.map((m, mi) => (
+                            <tr key={m.metric_id} className="align-top">
+                              <td className="px-4 py-3">
+                                {editMode ? (
+                                  <>
+                                    <input
+                                      aria-label={`${s.sub_name} · 第 ${mi + 1} 个指标名称`}
+                                      maxLength={200}
+                                      value={m.metric_name}
+                                      onChange={(e) =>
+                                        onEditMetric(di, si, mi, {
+                                          metric_name: e.target.value,
+                                        })
+                                      }
+                                      className={`${editInputClass} w-full text-[13px] font-medium`}
+                                      placeholder="指标名称"
+                                    />
+                                    <textarea
+                                      aria-label={`${m.metric_name} · 指标说明`}
+                                      value={m.metric_desc ?? ""}
+                                      onChange={(e) =>
+                                        onEditMetric(di, si, mi, {
+                                          metric_desc: e.target.value,
+                                        })
+                                      }
+                                      placeholder="指标说明（用于 AI 点评参考）"
+                                      rows={2}
+                                      className="mt-2 w-full resize-y rounded-xl border border-divider bg-surface-container-lowest p-2 text-[12px] text-on-surface-variant outline-none focus:border-primary transition-colors"
+                                    />
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-[13px] font-medium text-on-surface">
+                                      {m.metric_name}
+                                    </p>
+                                    {m.metric_desc && (
+                                      <p className="mt-1 text-[12px] text-on-surface-variant leading-relaxed">
+                                        {m.metric_desc}
+                                      </p>
+                                    )}
+                                  </>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {editMode ? (
+                                  <input
+                                    aria-label={`${m.metric_name} · 权重百分比`}
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="100"
+                                    value={
+                                      Math.round(m.metric_weight * 1000) / 10
+                                    }
+                                    onChange={(e) =>
+                                      onEditMetric(di, si, mi, {
+                                        metric_weight:
+                                          Number(e.target.value) / 100,
+                                      })
+                                    }
+                                    className="w-20 text-right rounded-xl border border-divider bg-surface-container-lowest px-2 py-1.5 text-[13px] font-bold text-on-surface outline-none focus:border-primary transition-colors"
+                                  />
+                                ) : (
+                                  <span className="text-[13px] font-bold text-on-surface tabular-nums">
+                                    {Math.round(m.metric_weight * 1000) / 10}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {/* 三级权重合计行：紧跟在输入框下方，改一格立刻看到合计变化 */}
+                          {editMode && (
+                            <tr className="bg-surface-container-low/60">
+                              <td className="px-4 py-2 text-[12px] font-bold text-on-surface-variant">
+                                合计
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <SumText
+                                  total={
+                                    weightCheck.metricSums.get(s.sub_id) ?? 0
+                                  }
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-
-                  {/* 三级指标表格 */}
-                  <div tabIndex={0} role="region" aria-label={`${s.sub_name} · 指标表，可横向滚动`} className="overflow-x-auto">
-                    <table className="w-full min-w-80 text-left">
-                      <thead className="bg-surface-container-low text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-                        <tr>
-                          <th scope="col" className="px-4 py-2 font-bold">三级指标</th>
-                          <th scope="col" className="px-4 py-2 font-bold text-right w-28">权重 (%)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-divider">
-                        {s.metrics.map((m, mi) => (
-                          <tr key={m.metric_id} className="align-top">
-                            <td className="px-4 py-3">
-                              {editMode ? (
-                                <>
-                                  <input
-                                    aria-label={`${s.sub_name} · 第 ${mi + 1} 个指标名称`}
-                                    maxLength={200}
-                                    value={m.metric_name}
-                                    onChange={(e) =>
-                                      onEditMetric(di, si, mi, { metric_name: e.target.value })
-                                    }
-                                    className={`${editInputClass} w-full text-[13px] font-medium`}
-                                    placeholder="指标名称"
-                                  />
-                                  <textarea
-                                    aria-label={`${m.metric_name} · 指标说明`}
-                                    value={m.metric_desc ?? ""}
-                                    onChange={(e) =>
-                                      onEditMetric(di, si, mi, { metric_desc: e.target.value })
-                                    }
-                                    placeholder="指标说明（用于 AI 点评参考）"
-                                    rows={2}
-                                    className="mt-2 w-full resize-y rounded-xl border border-divider bg-white p-2 text-[12px] text-on-surface-variant outline-none focus:border-primary transition-colors"
-                                  />
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-[13px] font-medium text-on-surface">
-                                    {m.metric_name}
-                                  </p>
-                                  {m.metric_desc && (
-                                    <p className="mt-1 text-[12px] text-on-surface-variant leading-relaxed">
-                                      {m.metric_desc}
-                                    </p>
-                                  )}
-                                </>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              {editMode ? (
-                                <input
-                                  aria-label={`${m.metric_name} · 权重百分比`}
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  max="100"
-                                  value={Math.round(m.metric_weight * 1000) / 10}
-                                  onChange={(e) =>
-                                    onEditMetric(di, si, mi, {
-                                      metric_weight: Number(e.target.value) / 100,
-                                    })
-                                  }
-                                  className="w-20 text-right rounded-xl border border-divider bg-white px-2 py-1.5 text-[13px] font-bold text-on-surface outline-none focus:border-primary transition-colors"
-                                />
-                              ) : (
-                                <span className="text-[13px] font-bold text-on-surface tabular-nums">
-                                  {Math.round(m.metric_weight * 1000) / 10}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        {/* 三级权重合计行：紧跟在输入框下方，改一格立刻看到合计变化 */}
-                        {editMode && (
-                          <tr className="bg-surface-container-low/60">
-                            <td className="px-4 py-2 text-[12px] font-bold text-on-surface-variant">
-                              合计
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              <SumText
-                                total={weightCheck.metricSums.get(s.sub_id) ?? 0}
-                              />
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
           );
         })}
       </div>
@@ -936,14 +1136,16 @@ function PercentInput({
     <label className="shrink-0 flex items-center gap-1 text-[12px] font-bold text-on-surface-variant">
       <input
         aria-label={label}
-        aria-invalid={invalid || !Number.isFinite(value) || value < 0 || value > 1}
+        aria-invalid={
+          invalid || !Number.isFinite(value) || value < 0 || value > 1
+        }
         type="number"
         step="0.1"
         min="0"
         max="100"
         value={Math.round(value * 1000) / 10}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
-        className={`w-16 rounded-xl border bg-white px-2 py-1.5 text-[13px] font-bold text-on-surface text-right outline-none transition-colors ${
+        className={`w-16 rounded-xl border bg-surface-container-lowest px-2 py-1.5 text-[13px] font-bold text-on-surface text-right outline-none transition-colors ${
           invalid
             ? "border-warning-border focus:border-warning-border"
             : "border-divider focus:border-primary"
@@ -960,10 +1162,15 @@ function SumBadge({ label, total }: { label: string; total: number }) {
   return (
     <div
       className={`flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-bold ${
-        ok ? "bg-success-container text-success" : "bg-warning-container text-warning"
+        ok
+          ? "bg-success-container text-success"
+          : "bg-warning-container text-warning"
       }`}
     >
-      <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+      <span
+        aria-hidden="true"
+        className="material-symbols-outlined text-[16px]"
+      >
         {ok ? "check_circle" : "warning"}
       </span>
       {label} {pct(total)}%{!ok && "（应为 100%）"}

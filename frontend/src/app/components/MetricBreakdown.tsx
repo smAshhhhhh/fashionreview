@@ -44,8 +44,14 @@ export default function MetricBreakdown({
    */
   imageAttributes?: ImageAttribute[];
 }) {
-  const [selectedDim, setActiveDim] = useState<number>(dimensions[0]?.dim_id ?? 0);
-  const activeDim = dimensions.some((dimension) => dimension.dim_id === selectedDim) ? selectedDim : dimensions[0]?.dim_id;
+  const [selectedDim, setActiveDim] = useState<number>(
+    dimensions[0]?.dim_id ?? 0,
+  );
+  const activeDim = dimensions.some(
+    (dimension) => dimension.dim_id === selectedDim,
+  )
+    ? selectedDim
+    : dimensions[0]?.dim_id;
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const uid = useId();
 
@@ -97,10 +103,16 @@ export default function MetricBreakdown({
 
   return (
     <section aria-labelledby={`${uid}-title`} className="min-w-0 space-y-4">
-      <h2 id={`${uid}-title`} className="text-xl font-black text-on-surface">多维指标明细</h2>
+      <h2 id={`${uid}-title`} className="text-xl font-black text-on-surface">
+        多维指标明细
+      </h2>
 
       {/* 维度切换 tab */}
-      <div role="group" aria-label="选择指标维度" className="flex border-b border-divider overflow-x-auto">
+      <div
+        role="group"
+        aria-label="选择指标维度"
+        className="flex border-b border-divider overflow-x-auto"
+      >
         {dimensions.map((dim) => {
           const active = dim.dim_id === activeDim;
           return (
@@ -123,19 +135,44 @@ export default function MetricBreakdown({
       </div>
 
       {/* 指标表格 */}
-      <div id={`${uid}-table`} role="region" aria-label="指标明细表，可横向滚动" tabIndex={0} className="w-full overflow-x-auto border border-divider bg-surface-container-lowest">
+      <div
+        id={`${uid}-table`}
+        role="region"
+        aria-label="指标明细表，可横向滚动"
+        tabIndex={0}
+        className="w-full overflow-x-auto border border-divider bg-surface-container-lowest"
+      >
         <table className="w-full min-w-100 table-fixed text-left border-collapse">
-          <caption className="sr-only">{dimensions.find((dimension) => dimension.dim_id === activeDim)?.dim_name}的二级维度、权重与得分；可展开查看三级指标。</caption>
-          <colgroup><col className="w-[60%]" /><col className="w-[20%]" /><col className="w-[20%]" /></colgroup>
+          <caption className="sr-only">
+            {
+              dimensions.find((dimension) => dimension.dim_id === activeDim)
+                ?.dim_name
+            }
+            的二级维度、权重与得分；可展开查看三级指标。
+          </caption>
+          <colgroup>
+            <col className="w-[60%]" />
+            <col className="w-[20%]" />
+            <col className="w-[20%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-divider bg-surface-container-lowest">
-              <th scope="col" className="px-3 sm:px-6 py-4 font-bold text-sm text-on-surface-variant">
+              <th
+                scope="col"
+                className="px-3 sm:px-6 py-4 font-bold text-sm text-on-surface-variant"
+              >
                 指标名称
               </th>
-              <th scope="col" className="px-2 sm:px-3 py-4 font-bold text-sm text-on-surface-variant text-center">
+              <th
+                scope="col"
+                className="px-2 sm:px-3 py-4 font-bold text-sm text-on-surface-variant text-center"
+              >
                 权重
               </th>
-              <th scope="col" className="px-3 sm:px-6 py-4 font-bold text-sm text-on-surface-variant text-right">
+              <th
+                scope="col"
+                className="px-3 sm:px-6 py-4 font-bold text-sm text-on-surface-variant text-right"
+              >
                 得分
               </th>
             </tr>
@@ -206,16 +243,38 @@ function FragmentRow({
         }`}
       >
         <td className="px-3 sm:px-6 py-3">
-          {canExpand ? <button type="button" aria-expanded={isOpen} aria-controls={contentId} onClick={(event) => { event.stopPropagation(); onToggle(); }} className="flex min-h-11 w-full items-center gap-2 rounded-md py-1 text-left text-sm font-bold text-on-surface">
-            <span aria-hidden="true" className={`material-symbols-outlined shrink-0 text-xl text-on-surface-variant transition-transform ${isOpen ? "rotate-180" : ""}`}>expand_more</span>
-            <span className="min-w-0">{sub.sub_name}</span>
-          </button> : <div className="font-bold text-sm text-on-surface">{sub.sub_name}</div>}
+          {canExpand ? (
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              aria-controls={contentId}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle();
+              }}
+              className="flex min-h-11 w-full items-center gap-2 rounded-md py-1 text-left text-sm font-bold text-on-surface"
+            >
+              <span
+                aria-hidden="true"
+                className={`material-symbols-outlined shrink-0 text-xl text-on-surface-variant transition-transform ${isOpen ? "rotate-180" : ""}`}
+              >
+                expand_more
+              </span>
+              <span className="min-w-0">{sub.sub_name}</span>
+            </button>
+          ) : (
+            <div className="font-bold text-sm text-on-surface">
+              {sub.sub_name}
+            </div>
+          )}
         </td>
         <td className="px-2 sm:px-3 py-4 text-center text-on-surface-variant text-sm tabular-nums">
           {weightPct(sub.weight)}
         </td>
         <td className="px-3 sm:px-6 py-4 text-right">
-          <span className={`font-bold text-lg tabular-nums ${scoreColor(sub.score)}`}>
+          <span
+            className={`font-bold text-lg tabular-nums ${scoreColor(sub.score)}`}
+          >
             {sub.score.toFixed(1)}
           </span>
         </td>
