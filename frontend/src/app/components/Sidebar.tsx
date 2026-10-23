@@ -18,13 +18,14 @@ export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
       </Link>
 
       {/* Navigation */}
-      <nav className="flex flex-col gap-1 grow">
+      <nav aria-label="主导航" className="flex flex-col gap-1 grow">
         {navItems.map((item) => {
           const isActive = item.href === activeHref;
           return (
             <Link
               key={item.label}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={`flex items-center gap-3 rounded-full px-4 py-3 font-semibold transition-transform active:scale-95 ${
                 isActive
                   ? "bg-brand/[0.07] text-brand"
@@ -32,6 +33,7 @@ export default function Sidebar({ activeHref = "/" }: { activeHref?: string }) {
               }`}
             >
               <span
+                aria-hidden="true"
                 className="material-symbols-outlined"
                 style={
                   isActive

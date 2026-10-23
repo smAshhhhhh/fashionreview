@@ -1,9 +1,13 @@
+import { resourceFetch } from "./resource-request";
 /**
  * 后端 API 封装（FastAPI）。
  * 仅文本分析 + 进度订阅；识图与真实结果页暂不接入。
  */
 
 import type { EvaluationResult, HistoryItem } from "../app/types";
+import { ApiRequestError, requestJson, type RequestOptions } from "./request";
+import { parseEvaluationResult } from "./evaluation-result";
+import { parseHistoryPage, validHistoryItem } from "./history-data";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
@@ -83,37 +87,40 @@ export interface TaskProgress {
 export async function submitTextAnalysis(
   content: string,
   city?: string,
+  options?: RequestOptions,
 ): Promise<AnalyzeAccepted> {
-  const res = await fetch(`${API_BASE}/analyze/text`, {
+  const accepted = await requestJson<AnalyzeAccepted>(`${API_BASE}/analyze/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content, city: city ?? null }),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`提交分析失败 (${res.status})：${detail}`);
+  }, options);
+  return validateAccepted(accepted);
+}
+
+function validateAccepted(accepted: AnalyzeAccepted): AnalyzeAccepted {
+  if (!accepted || !Number.isSafeInteger(accepted.task_id) || accepted.task_id <= 0) {
+    throw new ApiRequestError("未能确认评价任务，请先核对历史记录，避免重复提交。", {
+      outcomeUnknown: true,
+    });
   }
-  return res.json();
+  return accepted;
 }
 
 /** 提交图片分析（multipart 上传），立即拿到 task_id。 */
 export async function submitImageAnalysis(
   file: File,
   city?: string,
+  options?: RequestOptions,
 ): Promise<AnalyzeAccepted> {
   const fd = new FormData();
   fd.append("file", file);
   if (city) fd.append("city", city);
   // 不手动设 Content-Type，浏览器会自动带上 multipart boundary
-  const res = await fetch(`${API_BASE}/analyze/image`, {
+  const accepted = await requestJson<AnalyzeAccepted>(`${API_BASE}/analyze/image`, {
     method: "POST",
     body: fd,
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`提交图片分析失败 (${res.status})：${detail}`);
-  }
-  return res.json();
+  }, options);
+  return validateAccepted(accepted);
 }
 
 /** SSE 进度流地址。 */
@@ -122,10 +129,14 @@ export function progressStreamUrl(taskId: number): string {
 }
 
 /** 轮询查询一次进度（SSE 不可用时降级使用）。 */
-export async function fetchTaskProgress(taskId: number): Promise<TaskProgress> {
-  const res = await fetch(`${API_BASE}/task/${taskId}`);
-  if (!res.ok) throw new Error(`查询进度失败 (${res.status})`);
-  return res.json();
+export async function fetchTaskProgress(taskId: number, options?: RequestOptions): Promise<TaskProgress> {
+  const snapshot = await requestJson<TaskProgress>(`${API_BASE}/task/${taskId}`, {}, options);
+  if (!snapshot || snapshot.task_id !== taskId || ![
+    "pending", "analyzing", "awaiting_confirm", "completed", "failed", "cancelled",
+  ].includes(snapshot.status)) {
+    throw new ApiRequestError("暂时无法确认任务状态，请重试查询。");
+  }
+  return snapshot;
 }
 
 /* ──────────────── 照片地点确认 ──────────────── */
@@ -243,20 +254,21 @@ export async function cancelTask(taskId: number): Promise<CancelTaskResult> {
 /** 按 evaluation_id 查询评价结果（分制 1.0~5.0）。 */
 export async function getEvaluationResult(
   evaluationId: number,
+  options?: RequestOptions,
 ): Promise<EvaluationResult> {
-  const res = await fetch(`${API_BASE}/analyze/result/${evaluationId}`);
-  if (!res.ok) {
-    if (res.status === 404) throw new Error("评价记录不存在");
-    throw new Error(`查询评价结果失败 (${res.status})`);
-  }
-  return res.json();
+  const data = await requestJson<unknown>(`${API_BASE}/analyze/result/${evaluationId}`, {}, options);
+  return parseEvaluationResult(data, evaluationId);
 }
 
 /** 历史记录列表（已完成评价，按时间倒序）。 */
-export async function listHistory(limit = 50): Promise<HistoryItem[]> {
-  const res = await fetch(`${API_BASE}/analyze/history?limit=${limit}`);
-  if (!res.ok) throw new Error(`查询历史记录失败 (${res.status})`);
-  return res.json();
+export async function listHistory(limit = 50, options?: RequestOptions): Promise<HistoryItem[]> {
+  const records = await requestJson<HistoryItem[]>(`${API_BASE}/analyze/history?limit=${limit}`, {}, options);
+  if (!Array.isArray(records) || !records.every(validHistoryItem)) throw new ApiRequestError("历史记录暂时无法读取，请重试加载。");
+  return records;
+}
+
+export async function getHistoryPage(params: URLSearchParams, options?: RequestOptions) {
+  return parseHistoryPage(await requestJson<unknown>(`${API_BASE}/analyze/history/page?${params}`, {}, options));
 }
 
 /** 物理删除一条评价记录（含关联明细/维度分/AI任务）。 */
@@ -274,14 +286,24 @@ export async function deleteEvaluation(evaluationId: number): Promise<void> {
 export async function batchDeleteEvaluations(
   evaluationIds: number[],
 ): Promise<number> {
-  const res = await fetch(`${API_BASE}/analyze/results/batch-delete`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ evaluation_ids: evaluationIds }),
-  });
-  if (!res.ok) throw new Error(`批量删除失败 (${res.status})`);
-  const data = await res.json();
-  return data.deleted ?? 0;
+  try {
+    const data = await requestJson<{ deleted: number }>(`${API_BASE}/analyze/results/batch-delete`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ evaluation_ids: evaluationIds }),
+    });
+    if (!data || !Number.isSafeInteger(data.deleted) || data.deleted < 0 || data.deleted > evaluationIds.length) {
+      throw new ApiRequestError("删除结果无法确认。", { outcomeUnknown: true });
+    }
+    return data.deleted;
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.outcomeUnknown) {
+      throw new ApiRequestError("暂时无法确认删除结果，请先重新加载历史记录核对，避免重复删除。", { status: error.status, outcomeUnknown: true });
+    }
+    if (error instanceof ApiRequestError && [400, 422].includes(error.status ?? 0)) {
+      throw new ApiRequestError("删除请求未能通过校验，请核对所选记录后重试。", { status: error.status });
+    }
+    throw error;
+  }
 }
 
 /* ──────────────── Prompt 模板管理 ──────────────── */
@@ -335,18 +357,13 @@ export interface PromptTemplateUpdate {
 
 /** Prompt 模板列表。 */
 export async function listPrompts(): Promise<PromptTemplate[]> {
-  const res = await fetch(`${API_BASE}/prompts`);
-  if (!res.ok) throw new Error(`查询模板列表失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/prompts`);
   return res.json();
 }
 
 /** 单个 Prompt 模板详情。 */
 export async function getPrompt(id: number): Promise<PromptTemplate> {
-  const res = await fetch(`${API_BASE}/prompts/${id}`);
-  if (!res.ok) {
-    if (res.status === 404) throw new Error("模板不存在");
-    throw new Error(`查询模板失败 (${res.status})`);
-  }
+  const res = await resourceFetch(`${API_BASE}/prompts/${id}`);
   return res.json();
 }
 
@@ -355,15 +372,11 @@ export async function updatePrompt(
   id: number,
   body: PromptTemplateUpdate,
 ): Promise<PromptTemplate> {
-  const res = await fetch(`${API_BASE}/prompts/${id}`, {
+  const res = await resourceFetch(`${API_BASE}/prompts/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`保存模板失败 (${res.status})：${detail}`);
-  }
   return res.json();
 }
 
@@ -371,8 +384,7 @@ export async function updatePrompt(
 export async function listPromptHistory(
   id: number,
 ): Promise<PromptTemplateHistory[]> {
-  const res = await fetch(`${API_BASE}/prompts/${id}/history`);
-  if (!res.ok) throw new Error(`查询历史版本失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/prompts/${id}/history`);
   return res.json();
 }
 
@@ -381,13 +393,9 @@ export async function rollbackPrompt(
   id: number,
   version: number,
 ): Promise<PromptTemplate> {
-  const res = await fetch(`${API_BASE}/prompts/${id}/rollback/${version}`, {
+  const res = await resourceFetch(`${API_BASE}/prompts/${id}/rollback/${version}`, {
     method: "POST",
   });
-  if (!res.ok) {
-    if (res.status === 404) throw new Error("模板或目标版本不存在");
-    throw new Error(`回滚失败 (${res.status})`);
-  }
   return res.json();
 }
 
@@ -409,8 +417,7 @@ export interface AnalyticsDisplayConfig {
 
 /** 全部显示区块配置（按分组与组内排序）。 */
 export async function listAnalyticsConfig(): Promise<AnalyticsDisplayConfig[]> {
-  const res = await fetch(`${API_BASE}/analytics-config`);
-  if (!res.ok) throw new Error(`查询显示配置失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/analytics-config`);
   return res.json();
 }
 
@@ -419,15 +426,11 @@ export async function updateAnalyticsConfig(
   blockKey: string,
   enabled: number,
 ): Promise<AnalyticsDisplayConfig> {
-  const res = await fetch(`${API_BASE}/analytics-config/${blockKey}`, {
+  const res = await resourceFetch(`${API_BASE}/analytics-config/${blockKey}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled }),
   });
-  if (!res.ok) {
-    if (res.status === 404) throw new Error("显示区块不存在");
-    throw new Error(`保存显示配置失败 (${res.status})`);
-  }
   return res.json();
 }
 
@@ -499,8 +502,7 @@ export interface MetricTemplateSaveResult {
 
 /** 模板列表（带计数与是否被引用）。 */
 export async function listMetricTemplates(): Promise<MetricTemplate[]> {
-  const res = await fetch(`${API_BASE}/metric-templates`);
-  if (!res.ok) throw new Error(`查询模板列表失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/metric-templates`);
   return res.json();
 }
 
@@ -508,8 +510,7 @@ export async function listMetricTemplates(): Promise<MetricTemplate[]> {
 export async function getMetricTemplateTree(
   id: number,
 ): Promise<MetricTemplateTree> {
-  const res = await fetch(`${API_BASE}/metric-templates/${id}/tree`);
-  if (!res.ok) throw new Error(`查询模板详情失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/metric-templates/${id}/tree`);
   return res.json();
 }
 
@@ -519,7 +520,7 @@ export async function createMetricTemplate(opts?: {
   description?: string;
   sourceTemplateId?: number;
 }): Promise<MetricTemplateMeta> {
-  const res = await fetch(`${API_BASE}/metric-templates`, {
+  const res = await resourceFetch(`${API_BASE}/metric-templates`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -528,7 +529,6 @@ export async function createMetricTemplate(opts?: {
       source_template_id: opts?.sourceTemplateId ?? null,
     }),
   });
-  if (!res.ok) throw new Error(`新建模板失败 (${res.status})`);
   return res.json();
 }
 
@@ -538,12 +538,11 @@ export async function updateMetricTemplateMeta(
   name: string,
   description: string | null,
 ): Promise<MetricTemplateMeta> {
-  const res = await fetch(`${API_BASE}/metric-templates/${id}`, {
+  const res = await resourceFetch(`${API_BASE}/metric-templates/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, description }),
   });
-  if (!res.ok) throw new Error(`保存模板信息失败 (${res.status})`);
   return res.json();
 }
 
@@ -553,7 +552,7 @@ export async function saveMetricTemplateTree(
   dims: DimensionNode[],
   opts?: { saveAsNew?: boolean; newName?: string },
 ): Promise<MetricTemplateSaveResult> {
-  const res = await fetch(`${API_BASE}/metric-templates/${id}/tree`, {
+  const res = await resourceFetch(`${API_BASE}/metric-templates/${id}/tree`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -562,21 +561,6 @@ export async function saveMetricTemplateTree(
       new_name: opts?.newName ?? null,
     }),
   });
-  if (!res.ok) {
-    // 422 = 权重校验未过，detail 带 {message, errors[]}，透出具体哪几组不合规。
-    // 前端已在编辑态拦住这种提交，这里是直调 API 或前后端容差不一致时的兜底。
-    if (res.status === 422) {
-      const body = await res.json().catch(() => null);
-      const d = body?.detail;
-      if (d?.message) {
-        const errs: string[] = Array.isArray(d.errors) ? d.errors : [];
-        throw new Error(
-          errs.length > 0 ? `${d.message}：${errs.join("；")}` : d.message,
-        );
-      }
-    }
-    throw new Error(`保存维度内容失败 (${res.status})`);
-  }
   return res.json();
 }
 
@@ -584,28 +568,17 @@ export async function saveMetricTemplateTree(
 export async function activateMetricTemplate(
   id: number,
 ): Promise<MetricTemplateMeta> {
-  const res = await fetch(`${API_BASE}/metric-templates/${id}/activate`, {
+  const res = await resourceFetch(`${API_BASE}/metric-templates/${id}/activate`, {
     method: "POST",
   });
-  if (!res.ok) throw new Error(`启用模板失败 (${res.status})`);
   return res.json();
 }
 
 /** 删除模板（启用中/已被引用会被后端拒绝，错误信息透传）。 */
 export async function deleteMetricTemplate(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/metric-templates/${id}`, {
+  await resourceFetch(`${API_BASE}/metric-templates/${id}`, {
     method: "DELETE",
   });
-  if (!res.ok) {
-    let detail = `删除模板失败 (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = body.detail;
-    } catch {
-      /* 忽略解析失败，用默认文案 */
-    }
-    throw new Error(detail);
-  }
 }
 
 /* ──────────────── 资源中心：POI / 街巷画像 ──────────────── */
@@ -659,8 +632,7 @@ export interface ProfileJobStatus {
 }
 
 export async function listResourceStreets(): Promise<ResourceStreet[]> {
-  const res = await fetch(`${API_BASE}/resource/streets`);
-  if (!res.ok) throw new Error(`查询街区资源失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/resource/streets`);
   return res.json();
 }
 
@@ -675,14 +647,10 @@ export async function importPoiFile(
   if (street.city) fd.append("city", street.city);
   if (street.district) fd.append("district", street.district);
   fd.append("clear_existing", String(clearExisting));
-  const res = await fetch(`${API_BASE}/resource/poi/import`, {
+  const res = await resourceFetch(`${API_BASE}/resource/poi/import`, {
     method: "POST",
     body: fd,
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`导入 POI 失败 (${res.status})：${detail}`);
-  }
   return res.json();
 }
 
@@ -697,8 +665,7 @@ export async function listPoiRows(params: {
   if (params.source) qs.set("source", params.source);
   qs.set("limit", String(params.limit ?? 50));
   qs.set("offset", String(params.offset ?? 0));
-  const res = await fetch(`${API_BASE}/resource/poi?${qs}`);
-  if (!res.ok) throw new Error(`查询 POI 明细失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/resource/poi?${qs}`);
   return res.json();
 }
 
@@ -706,35 +673,31 @@ export async function deletePoiByStreet(
   streetId: number,
   source = "all",
 ): Promise<{ deleted: number }> {
-  const res = await fetch(
+  const res = await resourceFetch(
     `${API_BASE}/resource/poi/by-street/${streetId}?source=${encodeURIComponent(source)}`,
     { method: "DELETE" },
   );
-  if (!res.ok) throw new Error(`删除 POI 失败 (${res.status})`);
   return res.json();
 }
 
 export async function getStreetProfile(
   streetId: number,
 ): Promise<StreetProfileDetail> {
-  const res = await fetch(`${API_BASE}/resource/profiles/${streetId}`);
-  if (!res.ok) throw new Error(`查询街巷画像失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/resource/profiles/${streetId}`);
   return res.json();
 }
 
 export async function startRebuildStreetProfile(
   streetId: number,
 ): Promise<ProfileJobStatus> {
-  const res = await fetch(`${API_BASE}/resource/profiles/${streetId}/rebuild`, {
+  const res = await resourceFetch(`${API_BASE}/resource/profiles/${streetId}/rebuild`, {
     method: "POST",
   });
-  if (!res.ok) throw new Error(`启动画像生成失败 (${res.status})`);
   return res.json();
 }
 
 export async function fetchProfileJob(jobId: string): Promise<ProfileJobStatus> {
-  const res = await fetch(`${API_BASE}/resource/profile-jobs/${jobId}`);
-  if (!res.ok) throw new Error(`查询画像任务失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/resource/profile-jobs/${jobId}`);
   return res.json();
 }
 
@@ -802,14 +765,10 @@ export async function importAnnotationXlsx(
   const fd = new FormData();
   fd.append("file", file);
   fd.append("clear_existing", String(clearExisting));
-  const res = await fetch(`${API_BASE}/resource/annotations/import`, {
+  const res = await resourceFetch(`${API_BASE}/resource/annotations/import`, {
     method: "POST",
     body: fd,
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`导入标注表格失败 (${res.status})：${detail}`);
-  }
   return res.json();
 }
 
@@ -820,8 +779,7 @@ export async function listAnnotations(params: {
   const qs = new URLSearchParams();
   qs.set("limit", String(params.limit ?? 50));
   qs.set("offset", String(params.offset ?? 0));
-  const res = await fetch(`${API_BASE}/resource/annotations?${qs}`);
-  if (!res.ok) throw new Error(`查询标注库失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/resource/annotations?${qs}`);
   return res.json();
 }
 
@@ -829,26 +787,23 @@ export async function listAnnotations(params: {
 export async function startAnnotationEmbedding(
   force = false,
 ): Promise<AnnotationJobStatus> {
-  const res = await fetch(
+  const res = await resourceFetch(
     `${API_BASE}/resource/annotations/embeddings/rebuild?force=${force}`,
     { method: "POST" },
   );
-  if (!res.ok) throw new Error(`启动向量生成失败 (${res.status})`);
   return res.json();
 }
 
 export async function fetchAnnotationJob(
   jobId: string,
 ): Promise<AnnotationJobStatus> {
-  const res = await fetch(`${API_BASE}/resource/annotation-jobs/${jobId}`);
-  if (!res.ok) throw new Error(`查询向量任务失败 (${res.status})`);
+  const res = await resourceFetch(`${API_BASE}/resource/annotation-jobs/${jobId}`);
   return res.json();
 }
 
 export async function clearAnnotations(): Promise<{ deleted: number }> {
-  const res = await fetch(`${API_BASE}/resource/annotations`, {
+  const res = await resourceFetch(`${API_BASE}/resource/annotations`, {
     method: "DELETE",
   });
-  if (!res.ok) throw new Error(`清空标注库失败 (${res.status})`);
   return res.json();
 }

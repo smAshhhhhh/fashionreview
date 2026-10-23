@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ──────────────── 请求 ────────────────
@@ -191,6 +191,14 @@ class HistoryItemOut(BaseModel):
     created_at: str | None = None
 
 
+class HistoryPageOut(BaseModel):
+    items: list[HistoryItemOut]
+    total: int
+    total_all: int
+    offset: int
+    limit: int
+
+
 # ──────────────── Prompt 模板 ────────────────
 
 class PromptTemplateOut(BaseModel):
@@ -213,13 +221,28 @@ class PromptTemplateOut(BaseModel):
 class PromptTemplateUpdate(BaseModel):
     """更新 Prompt 模板的可编辑字段（仅传需要改的字段）。"""
 
-    name: str | None = None
+    name: str | None = Field(None, min_length=1, max_length=100)
     system_prompt: str | None = None
     user_template: str | None = None
-    model: str | None = None
-    temperature: float | None = None
-    enabled: int | None = None
-    change_note: str | None = Field(None, description="本次变更说明，记入历史")
+    model: str | None = Field(None, max_length=100)
+    temperature: float | None = Field(None, ge=0, le=2)
+    enabled: int | None = Field(None, ge=0, le=1)
+    change_note: str | None = Field(None, max_length=500, description="本次变更说明，记入历史")
+
+    @field_validator("name", "user_template")
+    @classmethod
+    def nonblank_content(cls, value: str | None) -> str:
+        # 省略字段仍是部分更新；显式空值不能覆盖数据库中的必填内容。
+        if value is None or not value.strip():
+            raise ValueError("模板名称和用户模板不能留空")
+        return value
+
+    @field_validator("enabled")
+    @classmethod
+    def nonnull_enabled(cls, value: int | None) -> int:
+        if value is None:
+            raise ValueError("启用状态不能留空")
+        return value
 
 
 class PromptTemplateHistoryOut(BaseModel):

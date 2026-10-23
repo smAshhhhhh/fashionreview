@@ -74,7 +74,13 @@ yarn-error.log*
 .claude/
 .agents/
 .codex/
-frontend/.impeccable/
-PRODUCT.md
+
+# Markdown documents (keep README.md, regardless of casing)
+*.[mM][dD]
+![rR][eE][aA][dD][mM][eE].[mM][dD]
+
+# Impeccable metadata, caches, previews, and audit reports
+.impeccable/
+/audits/
 
 图片匹配数据/

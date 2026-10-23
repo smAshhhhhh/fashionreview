@@ -67,10 +67,10 @@ export default function ResourcesPage() {
     <>
       <Sidebar activeHref="/resources" />
 
-      <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0 pb-24 lg:pb-12 bg-surface text-on-surface">
-        <div className="mx-auto w-full max-w-5xl px-4 lg:px-8 py-10 space-y-10">
+      <main className="resource-main lg:ml-64 bg-surface text-on-surface">
+        <div className="mx-auto w-full max-w-5xl px-4 lg:px-8 py-6 sm:py-10 space-y-8 sm:space-y-10">
           <header>
-            <h2 className="text-brand text-[28px] leading-8 font-black tracking-tight">资源中心</h2>
+            <h1 className="text-brand text-[28px] leading-8 font-black tracking-tight">资源中心</h1>
             <p className="mt-2 text-[15px] text-on-surface-variant">
               管理点评所用的数据资源与分析配置。
             </p>
@@ -79,15 +79,15 @@ export default function ResourcesPage() {
           {SECTIONS.map((section) => (
             <section key={section.title}>
               <div className="mb-4 flex items-center gap-3">
-                <h3 className="text-lg font-bold tracking-tight">
+                <h2 className="text-lg font-bold tracking-tight">
                   {section.title}
-                  <span className="ml-2 text-[13px] font-normal text-on-surface-variant">
+                  <span aria-hidden="true" className="ml-2 text-[13px] font-normal text-on-surface-variant">
                     {section.subtitle}
                   </span>
-                </h3>
+                </h2>
                 <div className="h-px flex-1 bg-divider" />
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {section.entries.map((entry) => (
                   <EntryCard key={entry.href} entry={entry} />
                 ))}
@@ -106,16 +106,16 @@ function EntryCard({ entry }: { entry: Entry }) {
   return (
     <Link
       href={entry.href}
-      className="group flex h-full flex-col rounded-2xl border border-divider bg-surface-container-lowest p-6 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_8px_24px_rgb(0,0,0,0.05)]"
+      className="group grid h-full grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl border border-divider bg-surface-container-lowest p-4 sm:flex sm:flex-col sm:items-stretch sm:p-6 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_8px_24px_rgb(0,0,0,0.05)]"
     >
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-        <span className="material-symbols-outlined">{entry.icon}</span>
+      <div className="row-span-2 flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+        <span aria-hidden="true" className="material-symbols-outlined">{entry.icon}</span>
       </div>
-      <h4 className="mt-5 text-base font-bold">{entry.title}</h4>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-on-surface-variant">{entry.desc}</p>
-      <span className="mt-auto flex items-center gap-1 pt-5 text-[13px] font-bold text-primary">
+      <h3 className="col-start-2 sm:mt-5 text-base font-bold">{entry.title}</h3>
+      <p className="col-start-2 mt-1.5 text-[13px] leading-relaxed text-on-surface-variant">{entry.desc}</p>
+      <span className="col-start-3 row-start-1 row-span-2 flex items-center gap-1 sm:mt-auto sm:pt-5 text-[13px] font-bold text-primary">
         进入
-        <span className="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-0.5">
+        <span aria-hidden="true" className="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-0.5">
           arrow_forward
         </span>
       </span>

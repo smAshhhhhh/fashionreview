@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "../components/Sidebar";
@@ -11,262 +12,121 @@ import ReportSummary from "../components/ReportSummary";
 import SimilarStreets from "../components/SimilarStreets";
 import { LAST_EVAL_KEY } from "../components/ActiveTaskGuard";
 import { getEvaluationResult } from "../../lib/api";
+import { evaluationId } from "../../lib/evaluation-result";
 import type { EvaluationResult } from "../types";
 
-/* ──── 页面外壳：侧边栏 + 内容 + 底部导航 ──── */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar activeHref="/analytics" />
-      {/* mock 为纯白主内容区，故内容容器强制白底 */}
-      <main className="lg:ml-64 min-h-screen bg-surface text-on-surface">
-        <div className="py-8 px-4 md:px-8 max-w-247.5 mx-auto">{children}</div>
+      <main id="analytics-content" className="analytics-main lg:ml-64 bg-surface text-on-surface">
+        <div className="@container mx-auto max-w-247.5 px-4 py-6 sm:py-8 md:px-8">{children}</div>
       </main>
       <MobileBottomNav activeHref="/analytics" />
     </>
   );
 }
 
-/* ──── 居中提示（空态 / 加载 / 错误共用）──── */
-function CenteredNotice({
-  icon,
-  title,
-  desc,
-  action,
-  spin = false,
-}: {
+function CenteredNotice({ icon, title, desc, action, spin = false, error = false }: {
   icon: string;
   title: string;
   desc?: string;
   action?: { label: string; onClick: () => void };
   spin?: boolean;
+  error?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-      <span
-        className={`material-symbols-outlined text-5xl text-on-surface-variant ${
-          spin ? "animate-spin" : ""
-        }`}
-      >
-        {icon}
-      </span>
-      <div>
-        <h2 className="text-xl font-bold text-brand">{title}</h2>
-        {desc && (
-          <p className="text-sm text-on-surface-variant mt-1">{desc}</p>
-        )}
+    <div className="mx-auto flex max-w-lg flex-col items-center justify-center gap-4 py-16 text-center sm:py-24">
+      <span aria-hidden="true" className={`material-symbols-outlined text-5xl text-on-surface-variant ${spin ? "motion-safe:animate-spin" : ""}`}>{icon}</span>
+      <div role={error ? "alert" : "status"} aria-atomic="true">
+        <h1 className="text-xl font-bold text-brand">{title}</h1>
+        {desc && <p className="mt-2 text-base leading-relaxed text-on-surface-variant">{desc}</p>}
       </div>
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
-        >
-          {action.label}
-        </button>
-      )}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {action && <button type="button" onClick={action.onClick} className="min-h-11 rounded-full bg-primary px-5 py-2 text-sm font-bold text-on-primary hover:opacity-90 transition-opacity">{action.label}</button>}
+        {!spin && <Link href="/" className="inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm font-semibold text-primary hover:bg-surface-container">{error ? "返回首页" : "去首页发起分析"}</Link>}
+      </div>
     </div>
   );
 }
 
-/* ──── 结果内容区 ──── */
 function ResultView({ data }: { data: EvaluationResult }) {
-  // 后端已按「分析管理」配置过滤字段，并下发启用区块清单；前端据此渲染
   const enabled = new Set(data.enabled_blocks);
   const show = (key: string) => enabled.has(key);
-
-  const showRadar = show("radar_chart");
+  const showRadar = show("radar_chart") && data.dimension_scores.length >= 3;
   const showReport = show("ai_summary");
-  // 雷达 / 综合评价共用「中段」，任一开启才渲染该段
-  const showMidRow = showRadar || showReport;
-
   return (
-    <div className="space-y-8">
-      <HeaderCard
-        streetName={data.street}
-        totalScore={data.total_score}
-        imageUrl={show("header_image") ? data.image_url : null}
-        showScore={show("total_score")}
-      />
-
-      {/* 中段：雷达图（左） + 综合评价（右），对齐 mock 的 12 栏并排 */}
-      {showMidRow && (
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-x-20 gap-y-8 pb-6 border-b border-divider">
-          {showRadar && (
-            <div className="lg:col-span-5 flex items-center justify-center">
-              <RadarChart dimensions={data.dimension_scores} />
-            </div>
-          )}
-          {showReport && (
-            <div className={showRadar ? "lg:col-span-7" : "lg:col-span-12"}>
-              <ReportSummary summary={data.summary} />
-            </div>
-          )}
-        </section>
-      )}
-
-      {(show("sub_dimension") || show("metric_score")) && (
-        <MetricBreakdown
-          dimensions={data.dimension_scores}
-          subDimensions={data.sub_dimension_scores}
-          metrics={data.metric_scores}
-          showReason={show("metric_reason")}
-          imageAttributes={
-            show("image_attribute") ? data.image_attributes : []
-          }
-        />
-      )}
-
-      {/* 相似审美节点：历史点评中维度画像最相似的街区；无推荐时组件返回 null */}
-      {show("similar_streets") && (
-        <SimilarStreets items={data.similar_streets} />
-      )}
+    <div className="space-y-8 sm:space-y-10">
+      <p role="status" className="sr-only">已加载{data.street.trim() || "未命名街巷"}的分析结果。</p>
+      <HeaderCard streetName={data.street} totalScore={data.total_score} imageUrl={show("header_image") ? data.image_url : null} showScore={show("total_score")} />
+      {(showRadar || showReport) && <section aria-label="总体评价" className={`grid min-w-0 grid-cols-1 items-center gap-8 border-b border-divider pb-8 ${showRadar && showReport ? "@[48rem]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @[48rem]:gap-10" : ""}`}>
+        {showRadar && <div className="min-w-0 px-4"><RadarChart dimensions={data.dimension_scores} /></div>}
+        {showReport && <div className="min-w-0"><ReportSummary summary={data.summary} /></div>}
+      </section>}
+      {(show("sub_dimension") || show("metric_score")) && <MetricBreakdown dimensions={data.dimension_scores} subDimensions={data.sub_dimension_scores} metrics={data.metric_scores} showReason={show("metric_reason")} imageAttributes={show("image_attribute") ? data.image_attributes : []} />}
+      {show("similar_streets") && <SimilarStreets items={data.similar_streets} />}
     </div>
   );
 }
 
-/* ──── 数据装载：读 eid → 拉结果 → 分状态渲染 ──── */
-function AnalyticsInner() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const eidParam = searchParams.get("eid");
-  const eid = eidParam ? Number(eidParam) : NaN;
-  const hasValidEid = Number.isFinite(eid);
+type ResultState = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; data: EvaluationResult };
 
-  const [data, setData] = useState<EvaluationResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // 无 eid 时：尝试回退到上次结果。null=判定中，false=确无上次结果（显示空态）
-  const [fallbackResolved, setFallbackResolved] = useState(false);
-
-  // 无 eid 进入：回退读 lastEvaluationId，有则跳过去显示上次结果
+/** Keyed by record and retry attempt, so another record cannot inherit old state. */
+function ResultRequest({ eid, retry }: { eid: number; retry: () => void }) {
+  const [state, setState] = useState<ResultState>({ phase: "loading" });
   useEffect(() => {
-    if (hasValidEid) return;
-    let last: string | null = null;
-    try {
-      last = localStorage.getItem(LAST_EVAL_KEY);
-    } catch {
-      /* storage 不可用，按无上次结果处理 */
-    }
-    if (last && Number.isFinite(Number(last))) {
-      router.replace(`/analytics?eid=${last}`);
-    } else {
-      // 与外部系统（localStorage）同步：无法在渲染期读取，故此处同步置位。
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFallbackResolved(true);
-    }
-  }, [hasValidEid, router]);
-
-  useEffect(() => {
-    if (!hasValidEid) return; // 无 eid 由上面的回退 effect 处理
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await getEvaluationResult(eid);
-        if (cancelled) return;
-        setData(res);
-        // 成功展示的结果记为「上次结果」，供下次无 eid 进入时回退
-        if (res.status === "completed") {
-          try {
-            localStorage.setItem(LAST_EVAL_KEY, String(res.evaluation_id));
-          } catch {
-            /* storage 不可用，忽略 */
-          }
-        }
-      } catch (e: unknown) {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "加载评价结果失败");
-      } finally {
-        if (!cancelled) setLoading(false);
+    const controller = new AbortController();
+    void getEvaluationResult(eid, { signal: controller.signal }).then((data) => {
+      if (controller.signal.aborted) return;
+      setState({ phase: "ready", data });
+      if (data.status === "completed") {
+        try { localStorage.setItem(LAST_EVAL_KEY, String(data.evaluation_id)); } catch { /* Storage may be unavailable. */ }
       }
-    })();
+    }).catch((cause) => {
+      if (!controller.signal.aborted) setState({ phase: "error", message: cause instanceof Error ? cause.message : "加载评价结果失败，请重试。" });
+    });
+    return () => controller.abort();
+  }, [eid]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [eid, hasValidEid]);
+  if (state.phase === "loading") return <CenteredNotice icon="progress_activity" title="正在加载评价结果…" spin />;
+  if (state.phase === "error") return <CenteredNotice icon="error" title="加载失败" desc={state.message} action={{ label: "重新加载", onClick: retry }} error />;
+  if (state.data.status !== "completed") {
+    const ended = ["failed", "cancelled"].includes(state.data.status);
+    return <CenteredNotice icon={ended ? "error" : "hourglass_top"} title={ended ? "该分析未能完成" : "分析仍在进行中"} desc={ended ? "可返回首页重新发起分析，或查看历史记录中的其他结果。" : "本页不会自动刷新。稍候点击「核对分析状态」，完成后即可查看结果。"} action={ended ? undefined : { label: "核对分析状态", onClick: retry }} error={ended} />;
+  }
+  return <ResultView data={state.data} />;
+}
 
-  // 无 eid：回退判定中显示 loading；确无上次结果才显示空态
-  if (!hasValidEid) {
-    if (!fallbackResolved) {
-      return (
-        <Shell>
-          <CenteredNotice icon="progress_activity" title="正在加载…" spin />
-        </Shell>
-      );
+function RecordResult({ eid }: { eid: number }) {
+  const [attempt, setAttempt] = useState(0);
+  return <ResultRequest key={attempt} eid={eid} retry={() => setAttempt((value) => value + 1)} />;
+}
+
+function LastResult() {
+  const router = useRouter();
+  const [resolved, setResolved] = useState(false);
+  useEffect(() => {
+    let stored: number | null = null;
+    try { stored = evaluationId(localStorage.getItem(LAST_EVAL_KEY)); } catch { /* Use the empty state. */ }
+    if (stored !== null) router.replace(`/analytics?eid=${stored}`);
+    else {
+      // Browser storage resolves after hydration to avoid an SSR mismatch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setResolved(true);
     }
-    return (
-      <Shell>
-        <CenteredNotice
-          icon="analytics"
-          title="还没有可展示的分析"
-          desc="从首页搜索一条街道，发起一次时尚度分析吧"
-          action={{ label: "去首页发起分析", onClick: () => router.push("/") }}
-        />
-      </Shell>
-    );
-  }
+  }, [router]);
+  return resolved
+    ? <CenteredNotice icon="analytics" title="还没有可展示的分析" desc="从首页搜索一条街道，发起一次时尚度分析。" />
+    : <CenteredNotice icon="progress_activity" title="正在加载上次评价…" spin />;
+}
 
-  if (loading) {
-    return (
-      <Shell>
-        <CenteredNotice icon="progress_activity" title="正在加载评价结果…" spin />
-      </Shell>
-    );
-  }
-
-  if (error) {
-    return (
-      <Shell>
-        <CenteredNotice
-          icon="error"
-          title="加载失败"
-          desc={error}
-          action={{ label: "返回首页", onClick: () => router.push("/") }}
-        />
-      </Shell>
-    );
-  }
-
-  if (!data) {
-    return (
-      <Shell>
-        <CenteredNotice icon="help" title="未找到该评价记录" />
-      </Shell>
-    );
-  }
-
-  // 带 eid 但分析尚未完成（理论上守卫会先拦截，这里兜底）
-  if (data.status !== "completed") {
-    const isFailed = data.status === "failed";
-    return (
-      <Shell>
-        <CenteredNotice
-          icon={isFailed ? "error" : "hourglass_top"}
-          title={isFailed ? "该分析未能完成" : "分析仍在进行中"}
-          desc={
-            isFailed
-              ? "请返回首页重新发起分析"
-              : "稍候片刻，分析完成后即可查看结果"
-          }
-          action={{ label: "返回首页", onClick: () => router.push("/") }}
-        />
-      </Shell>
-    );
-  }
-
-  return (
-    <Shell>
-      <ResultView data={data} />
-    </Shell>
-  );
+function AnalyticsInner() {
+  const params = useSearchParams();
+  const rawId = params.get("eid");
+  const eid = evaluationId(rawId);
+  return <Shell>{rawId !== null && eid === null ? <CenteredNotice icon="error" title="评价地址无效" desc="请从历史记录打开已有评价，或返回首页发起分析。" error /> : eid !== null ? <RecordResult key={eid} eid={eid} /> : <LastResult />}</Shell>;
 }
 
 export default function AnalyticsPage() {
-  return (
-    <Suspense fallback={<div className="lg:ml-64 min-h-screen" />}>
-      <AnalyticsInner />
-    </Suspense>
-  );
+  return <Suspense fallback={<Shell><CenteredNotice icon="progress_activity" title="正在加载分析中心…" spin /></Shell>}><AnalyticsInner /></Suspense>;
 }

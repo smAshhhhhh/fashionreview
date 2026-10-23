@@ -1158,6 +1158,18 @@ def list_history(limit: int = 50) -> list[dict[str, Any]]:
             conn, limit=limit, status="completed", with_cover=with_cover
         )
 
+    return _history_items(rows)
+
+
+def page_history(**options: Any) -> dict[str, Any]:
+    """保留旧列表接口供首页使用；历史页使用完整范围的分页查询。"""
+    with connection_scope() as conn:
+        with_cover = TEXT_COVER_BLOCK in display_config_service.enabled_blocks(conn)
+        page = repo.page_evaluations(conn, with_cover=with_cover, **options)
+    return {**page, "items": _history_items(page["items"])}
+
+
+def _history_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for r in rows:
         summary = r.get("ai_summary") or ""

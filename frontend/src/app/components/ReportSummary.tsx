@@ -52,7 +52,7 @@ function parseSummary(summary: string): ParsedSummary {
   return result;
 }
 
-/** 三色边栏：优势 primary / 短板红(#f4212e) / 建议 on-surface-variant，对齐 mock。 */
+/** 三色边栏：优势 primary / 短板 error / 建议 warning。 */
 const SECTIONS = [
   {
     key: "strengths",
@@ -65,15 +65,15 @@ const SECTIONS = [
     key: "weaknesses",
     label: "短板",
     en: "Weakness",
-    border: "border-danger",
-    text: "text-danger",
+    border: "border-error",
+    text: "text-error",
   },
   {
     key: "suggestions",
     label: "建议",
     en: "Suggestions",
-    border: "border-on-surface-variant",
-    text: "text-on-surface-variant",
+    border: "border-warning",
+    text: "text-warning",
   },
 ] as const;
 
@@ -87,7 +87,7 @@ export default function ReportSummary({ summary }: { summary: string | null }) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-2xl font-black text-on-surface mb-3">综合评价</h3>
+        <h2 className="text-2xl font-black text-on-surface mb-3">综合评价</h2>
         {parsed.overview ? (
           <p className="text-[17px] leading-relaxed text-on-surface whitespace-pre-line">
             {parsed.overview}
@@ -105,7 +105,7 @@ export default function ReportSummary({ summary }: { summary: string | null }) {
             const items = parsed[sec.key];
             if (items.length === 0) return null;
             return (
-              <div key={sec.key} className={`border-l-2 ${sec.border} pl-4 py-1`}>
+              <div key={sec.key} className={`border-l ${sec.border} pl-4 py-1`}>
                 <span
                   className={`block font-bold text-[15px] uppercase tracking-wider mb-1 ${sec.text}`}
                 >

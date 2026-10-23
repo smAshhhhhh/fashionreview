@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
+import ResourceFeedback from "../../components/ResourceFeedback";
+import ResourceHeader from "../../components/ResourceHeader";
 import Sidebar from "../../components/Sidebar";
 import MobileBottomNav from "../../components/MobileBottomNav";
 import {
@@ -60,21 +62,19 @@ export default function AnalysisConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try { setConfigs(await listAnalyticsConfig()); }
+    catch (e) { setError(e instanceof Error ? e.message : "加载显示配置失败，请重试。"); }
+    finally { setLoading(false); }
+  }, []);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const data = await listAnalyticsConfig();
-        if (!cancelled) setConfigs(data);
-      } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "加载显示配置失败");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void listAnalyticsConfig().then((data) => { if (!cancelled) setConfigs(data); }).catch((e) => {
+      if (!cancelled) setError(e instanceof Error ? e.message : "加载显示配置失败，请重试。");
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   // 本地乐观更新单个区块的 enabled
@@ -98,16 +98,10 @@ export default function AnalysisConfigPage() {
 
   const renderGroups = () => {
     if (loading) return <LoadingSkeleton />;
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center gap-3 py-24 text-on-surface-variant">
-          <span className="material-symbols-outlined text-5xl text-error">error</span>
-          <p className="text-[15px]">{error}</p>
-        </div>
-      );
-    }
-    return GROUP_ORDER.map((group) => {
-      const meta = GROUP_META[group];
+    if (error) return <ResourceFeedback error={error} onRetry={() => void load()} />;
+    if (configs.length === 0) return <div className="py-12 text-center text-on-surface-variant"><p>暂无分析配置。</p><button type="button" onClick={() => void load()} className="mt-3 rounded-full border border-divider px-4 py-2 font-semibold text-primary">重新加载</button></div>;
+    return [...GROUP_ORDER, ...Array.from(grouped.keys()).filter((key) => !GROUP_ORDER.includes(key))].map((group) => {
+      const meta = GROUP_META[group] ?? { label: group, icon: "tune", desc: "其他分析配置" };
       const items = grouped.get(group) ?? [];
       if (items.length === 0) return null;
       const isCollapsed = collapsed[group] ?? false;
@@ -118,25 +112,29 @@ export default function AnalysisConfigPage() {
           className="bg-surface-container-lowest rounded-2xl border border-divider overflow-hidden"
         >
           {/* 组头 */}
+          <h2>
           <button
             type="button"
+            aria-label={meta.label}
+            aria-expanded={!isCollapsed}
+            aria-controls={`analysis-group-${group}`}
             onClick={() => toggleGroup(group)}
-            className="w-full flex items-center justify-between p-4 hover:bg-surface-container-low transition-colors text-left"
+            className="w-full flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-surface-container-low transition-colors text-left"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
               <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
-                <span className="material-symbols-outlined">{meta.icon}</span>
+                <span aria-hidden="true" className="material-symbols-outlined">{meta.icon}</span>
               </span>
-              <div>
-                <h3 className="text-[17px] font-bold text-on-surface">{meta.label}</h3>
+              <div className="min-w-0">
+                <span className="block text-[17px] font-bold text-on-surface">{meta.label}</span>
                 <p className="text-[13px] text-on-surface-variant">{meta.desc}</p>
               </div>
             </div>
-            <div className="flex items-center gap-6">
-              <span className="px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-on-surface-variant">
+            <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
+              <span className="whitespace-nowrap px-3 py-1 rounded-full text-[13px] font-semibold bg-surface-container-low text-on-surface-variant">
                 {activeCount}/{items.length} 启用
               </span>
-              <span
+              <span aria-hidden="true"
                 className="material-symbols-outlined text-on-surface-variant transition-transform duration-300"
                 style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}
               >
@@ -144,20 +142,18 @@ export default function AnalysisConfigPage() {
               </span>
             </div>
           </button>
+          </h2>
 
           {/* 组内容 */}
-          {!isCollapsed && (
-            <div className="border-t border-divider divide-y divide-divider">
+          <div id={`analysis-group-${group}`} hidden={isCollapsed} className="border-t border-divider divide-y divide-divider">
               {items.map((c) => (
                 <BlockItem
                   key={c.block_key}
                   config={c}
                   onApply={applyEnabled}
-                  onError={setError}
                 />
               ))}
             </div>
-          )}
         </div>
       );
     });
@@ -167,19 +163,14 @@ export default function AnalysisConfigPage() {
     <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
 
-      <main className="flex-1 min-w-0 min-h-screen md:ml-64 flex flex-col">
+      <main className="resource-main flex-1 min-w-0 lg:ml-64 flex flex-col">
         {/* 顶部栏 */}
-        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
-          <Link href="/resources" className="flex items-center text-primary">
-            <span className="material-symbols-outlined">arrow_back</span>
-          </Link>
-          <h2 className="text-xl font-bold text-brand">分析管理</h2>
-        </header>
+        <ResourceHeader title="分析管理" />
 
-        <section className="p-4 lg:p-6 max-w-300 mx-auto w-full flex-1 pb-28 lg:pb-12 space-y-6">
+        <section className="p-4 lg:p-6 max-w-300 mx-auto w-full flex-1 space-y-6">
           {/* 说明条 */}
           <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
-            <span className="material-symbols-outlined text-primary">info</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-primary">info</span>
             <p className="text-[13px] leading-relaxed text-on-surface-variant">
               这里的开关控制
               <Link href="/analytics" className="text-primary font-semibold mx-1 hover:underline">
@@ -202,25 +193,38 @@ export default function AnalysisConfigPage() {
 function BlockItem({
   config,
   onApply,
-  onError,
 }: {
   config: AnalyticsDisplayConfig;
   onApply: (blockKey: string, enabled: number) => void;
-  onError: (msg: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const labelId = useId();
+  const descriptionId = useId();
   const checked = config.enabled === 1;
+  const verify = async () => {
+    if (busy) return;
+    setBusy(true); setSaveError(null);
+    try {
+      const configs = await listAnalyticsConfig();
+      const current = configs.find((item) => item.block_key === config.block_key);
+      if (!current) setSaveError("此配置已不存在，请重新加载页面。");
+      else onApply(config.block_key, current.enabled);
+    } catch (e) { setSaveError(e instanceof Error ? e.message : "无法核对状态，请重试。"); }
+    finally { setBusy(false); }
+  };
 
   const handle = async () => {
+    if (busy) return;
     const next = checked ? 0 : 1;
     setBusy(true);
-    onError(null);
+    setSaveError(null);
     onApply(config.block_key, next); // 乐观更新
     try {
       await updateAnalyticsConfig(config.block_key, next);
     } catch (e: unknown) {
       onApply(config.block_key, checked ? 1 : 0); // 回滚
-      onError(e instanceof Error ? e.message : "保存失败");
+      setSaveError(e instanceof Error ? e.message : "保存失败，请重试。");
     } finally {
       setBusy(false);
     }
@@ -230,22 +234,25 @@ function BlockItem({
     <div className="p-4 hover:bg-surface-container-low transition-colors">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h4 className="text-[15px] font-bold text-on-surface">{config.name}</h4>
+          <h3 id={labelId} className="text-[15px] font-bold text-on-surface">{config.name}</h3>
           {config.description && (
-            <p className="text-[13px] text-on-surface-variant mt-1">{config.description}</p>
+            <p id={descriptionId} className="text-[13px] text-on-surface-variant mt-1">{config.description}</p>
           )}
         </div>
-        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+        <label className="inline-flex min-h-11 min-w-11 items-center justify-center cursor-pointer shrink-0">
           <input
             type="checkbox"
+            aria-labelledby={labelId}
+            aria-describedby={config.description ? descriptionId : undefined}
             className="sr-only peer"
             checked={checked}
             disabled={busy}
             onChange={handle}
           />
-          <div className="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:bg-primary peer-focus:outline-none after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+          <div className="resource-switch relative w-9 h-5 bg-outline rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-on-primary after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-full" />
         </label>
       </div>
+      {saveError && <ResourceFeedback error={saveError} onRetry={() => void verify()} />}
     </div>
   );
 }

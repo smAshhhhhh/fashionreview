@@ -6,7 +6,7 @@
   /* 品牌深蓝：Logo、导航、标题 */
   --color-brand: #243b63;
   /* 交互亮蓝：主按钮、链接、选中状态；浅色底用 bg-primary/10 这类透明度派生 */
-  --color-primary: #246bfd;
+  --color-primary: #1e5be0;
 
   --color-secondary: #5e5e5e;
   --color-secondary-container: #e2e2e2;
@@ -61,7 +61,7 @@
 
   --color-on-surface: #171c21;
   /* 次级文字：说明、时间、辅助信息 */
-  --color-on-surface-variant: #777b85;
+  --color-on-surface-variant: #5c6574;
   --color-on-background: #171c21;
 
   --color-outline: #6f7883;
@@ -118,12 +118,165 @@ body {
   transition: all 0.5s ease-in-out;
 }
 
+/* 资源管理页：底部导航与安全区占位随内容高度自然延展。 */
+.resource-main {
+  min-height: 100dvh;
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  overflow-wrap: anywhere;
+}
+
+.resource-main :where(input, textarea, select) {
+  caret-color: var(--color-primary);
+}
+.resource-main :where(input:not([type="checkbox"]):not([type="file"]), textarea, select).border-divider:not(:focus):not([aria-invalid="true"]) {
+  border-color: var(--color-outline);
+}
+.resource-main :where(input, textarea, select):focus-visible,
+.resource-main :where([tabindex="0"]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+.resource-main [role="region"][tabindex="0"]:focus-visible { outline-offset: -3px; }
+.resource-main :where(input, textarea)::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 1;
+}
+.resource-main :where(a, button, input, textarea, select, [tabindex]) {
+  scroll-margin-block: 8rem;
+}
+.resource-main ::selection {
+  color: var(--color-brand);
+  background: var(--color-surface-container-high);
+}
+.resource-upload:focus-within {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+.resource-main input[type="checkbox"].peer:focus-visible + .resource-switch {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 4px;
+}
+.resource-main input[type="checkbox"]:disabled + .resource-switch { opacity: 0.5; }
+.resource-dialog {
+  margin: auto;
+  width: calc(100% - 1.5rem);
+  max-width: 24rem;
+  max-height: calc(100dvh - 1.5rem);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  color: var(--color-on-surface);
+  background: var(--color-surface-container-lowest);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 20%);
+}
+.resource-dialog::backdrop { background: rgb(0 0 0 / 40%); }
+.resource-dialog button { min-height: 44px; }
+
+@media (forced-colors: active) {
+  .resource-switch {
+    forced-color-adjust: none;
+    border: 1px solid ButtonText;
+    background: Canvas;
+  }
+  .resource-switch::after { background: ButtonText; border-color: ButtonText; }
+  input:checked + .resource-switch { background: Highlight; border-color: Highlight; }
+  input:checked + .resource-switch::after { background: HighlightText; border-color: HighlightText; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resource-main *, .resource-dialog * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.resource-main :where(button, label:has(input[type="file"])) {
+  min-height: 44px;
+}
+
+.resource-main :where(input:not([type="checkbox"]):not([type="file"]), select) {
+  min-height: 44px;
+}
+
+@media (width < 40rem) {
+  .resource-main :where(input:not([type="checkbox"]):not([type="file"]), textarea, select) {
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 64rem) {
+  .resource-main {
+    padding-bottom: 3rem;
+  }
+}
+
+/* 分析结果：正文重排由内容容器控制，底部预留移动导航及安全区。 */
+.history-main {
+  min-height: 100dvh;
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+.history-main :where(button, a, [tabindex]) { scroll-margin-block: 6rem; }
+.history-main [role="group"] button:focus-visible { outline-offset: -3px; }
+.history-main ::selection { color: var(--color-brand); background: var(--color-surface-container-high); }
+.history-main :where(input, [role="group"]) { caret-color: var(--color-primary); }
+.history-main [role="group"] { scrollbar-width: thin; scrollbar-color: var(--color-outline) var(--color-surface-container); }
+.history-delete-list { scrollbar-width: thin; scrollbar-color: var(--color-outline) var(--color-surface-container); }
+.history-delete-list:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+@media (min-width: 64rem) {
+  .history-main { padding-bottom: 3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .history-main * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+.analytics-main {
+  min-height: 100dvh;
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  overflow-wrap: anywhere;
+}
+.analytics-main :where(button, a, [tabindex]) { scroll-margin-block: 6rem; }
+.analytics-main [role="region"][tabindex="0"]:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -3px;
+}
+.analytics-main [role="group"] button:focus-visible { outline-offset: -4px; }
+.analytics-main ::selection { color: var(--color-brand); background: var(--color-surface-container-high); }
+.analytics-main :where([role="region"], [role="group"]) {
+  scrollbar-color: var(--color-outline) var(--color-surface-container-low);
+}
+@media (min-width: 64rem) {
+  .analytics-main { padding-bottom: 3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .analytics-main * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
 /* ──── 首页网格背景（底部显示，向上渐隐）──── */
+.home-page {
+  --home-grid-row-height: 30px;
+  --home-bottom-inset: calc(5.625rem + env(safe-area-inset-bottom));
+  padding-bottom: var(--home-bottom-inset);
+}
+
+.home-footer {
+  /* 三行高的页脚区域，其文字中心落在倒数第二格的中心。 */
+  min-height: calc(3 * var(--home-grid-row-height));
+}
+
+@media (min-width: 64rem) {
+  .home-page {
+    --home-bottom-inset: 0px;
+  }
+}
+
 .grid-background {
+  bottom: var(--home-bottom-inset);
   background-image:
     linear-gradient(to right, #e2e8f0 1px, transparent 1px),
     linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
-  background-size: 20px 30px;
+  background-size: 20px var(--home-grid-row-height);
   /* 网格从底边起算，页脚才能稳定落在倒数第二行 */
   background-position: left bottom;
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 100%, #000 60%, transparent 100%);
@@ -137,6 +290,7 @@ body {
   --neu-dark: hsl(48 18% 82%);
   --neu-light: #ffffff;
   background: var(--color-surface-container-lowest);
+  caret-color: var(--color-primary);
   box-shadow:
     20px 20px 60px var(--neu-dark),
     -20px -20px 60px var(--neu-light),
@@ -145,13 +299,24 @@ body {
   transition: box-shadow 0.3s ease;
   -webkit-tap-highlight-color: transparent;
 }
+.neu-input::selection {
+  color: var(--color-brand);
+  background: var(--color-surface-container-high);
+  background: color-mix(in srgb, var(--color-primary) 15%, white);
+}
 .neu-input:focus {
-  outline-color: var(--color-surface-container-lowest);
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
   box-shadow:
     0 0 0 var(--neu-dark),
     0 0 0 var(--neu-light),
     inset 20px 20px 60px var(--neu-dark),
     inset -20px -20px 60px var(--neu-light);
+}
+
+:where(a, button):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
 }
 
 /* ──── 轻量动效 ──── */
@@ -194,6 +359,10 @@ body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .neu-input {
+    transition: none;
+  }
+
   .fx-pop-in,
   .fx-fade-down,
   .fx-fade-up,

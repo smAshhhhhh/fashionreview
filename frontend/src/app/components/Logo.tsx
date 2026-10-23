@@ -28,7 +28,7 @@ export default function Logo({ className = "" }: { className?: string }) {
           </tspan>
         </text>
       </svg>
-      <span className="text-[9px] font-semibold tracking-[0.15em] text-brand whitespace-nowrap">
+      <span className="max-w-48 text-[0.6875rem] leading-4 font-semibold tracking-[0.06em] text-brand">
         STYLE MEETS INTELLIGENCE
       </span>
     </div>

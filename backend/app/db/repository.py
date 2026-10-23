@@ -684,6 +684,58 @@ def list_evaluations(
         return cur.fetchall()
 
 
+def page_evaluations(
+    conn: pymysql.connections.Connection,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    query: str = "",
+    score_band: str = "all",
+    input_type: str = "all",
+    created_after: str | None = None,
+    sort: str = "latest",
+    with_cover: bool = False,
+) -> dict[str, Any]:
+    """分页查询全部完成记录；计数与列表在同一事务内使用同一筛选。"""
+    source = """FROM street_evaluation e JOIN street s ON s.id = e.street_id
+        LEFT JOIN ai_analysis_task t ON t.id = (
+            SELECT MAX(task.id) FROM ai_analysis_task task WHERE task.evaluation_id = e.id
+        )"""
+    conditions = ["e.status = %s"]
+    params: list[Any] = ["completed"]
+    if query.strip():
+        conditions.append("LOCATE(%s, CONCAT_WS(' ', s.street_name, s.city, s.district, e.ai_summary)) > 0")
+        params.append(query.strip())
+    if score_band == "high":
+        conditions.append("e.total_score >= 4")
+    elif score_band == "mid":
+        conditions.append("e.total_score >= 3 AND e.total_score < 4")
+    elif score_band == "low":
+        conditions.append("e.total_score < 3")
+    if input_type != "all":
+        conditions.append("COALESCE(t.input_type, 'text') = %s")
+        params.append(input_type)
+    if created_after is not None:
+        conditions.append("e.create_time >= %s")
+        params.append(created_after)
+    where = " AND ".join(conditions)
+    order = "e.total_score DESC, e.create_time DESC, e.id DESC" if sort == "score" else "e.create_time DESC, e.id DESC"
+    image = "COALESCE(t.image_url, s.cover_url)" if with_cover else "t.image_url"
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute("SELECT COUNT(*) AS total FROM street_evaluation e JOIN street s ON s.id = e.street_id WHERE e.status = %s", ("completed",))
+        total_all = cur.fetchone()["total"]
+        cur.execute(f"SELECT COUNT(*) AS total {source} WHERE {where}", tuple(params))
+        total = cur.fetchone()["total"]
+        # Deletion or concurrent changes can empty the requested last page.
+        offset = min(offset, max(0, (total - 1) // limit) * limit)
+        cur.execute(f"""SELECT e.id AS evaluation_id, e.total_score, e.status, e.ai_summary,
+            e.create_time, s.street_name, s.city, s.district, {image} AS image_url,
+            t.input_type {source} WHERE {where} ORDER BY {order} LIMIT %s OFFSET %s""",
+            (*params, limit, offset))
+        items = cur.fetchall()
+    return {"items": items, "total": total, "total_all": total_all, "offset": offset, "limit": limit}
+
+
 def delete_evaluation(
     conn: pymysql.connections.Connection, evaluation_id: int
 ) -> int:

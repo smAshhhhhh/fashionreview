@@ -16,18 +16,20 @@ export default function MobileBottomNav({
   activeHref?: string;
 }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 w-full h-16 bg-surface-container-lowest border-t border-divider flex items-center justify-around z-50">
+    <nav aria-label="主导航" className="lg:hidden fixed bottom-0 left-0 w-full min-h-16 pb-[env(safe-area-inset-bottom)] bg-surface-container-lowest border-t border-divider flex items-stretch justify-around z-50">
       {navItems.map((item) => {
         const isActive = item.href === activeHref;
         return (
           <Link
             key={item.label}
             href={item.href}
-            className={`flex flex-col items-center gap-0.5 ${
+            aria-current={isActive ? "page" : undefined}
+            className={`flex min-h-16 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 ${
               isActive ? "text-brand" : "text-on-surface-variant"
             }`}
           >
             <span
+              aria-hidden="true"
               className="material-symbols-outlined"
               style={
                 isActive
@@ -37,7 +39,7 @@ export default function MobileBottomNav({
             >
               {item.icon}
             </span>
-            <span className="text-[10px] font-bold">{item.label}</span>
+            <span className="text-xs font-bold">{item.label}</span>
           </Link>
         );
       })}

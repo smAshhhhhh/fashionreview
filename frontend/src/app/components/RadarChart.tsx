@@ -111,7 +111,8 @@ export default function RadarChart({
               fontWeight={active === i ? 600 : 500}
               fill={active === i ? "var(--color-on-surface)" : "var(--color-on-surface-variant)"}
             >
-              {d.dim_name}
+              <title>{d.dim_name}</title>
+              {Array.from(d.dim_name).length > 6 ? `${Array.from(d.dim_name).slice(0, 6).join("")}…` : d.dim_name}
             </text>
           );
         })}
@@ -140,7 +141,7 @@ export default function RadarChart({
             transform: "translate(-50%, calc(-100% - 8px))",
           }}
         >
-          <div className="fx-pop-in whitespace-nowrap rounded-lg border border-divider bg-surface-container-lowest px-2.5 py-1.5 text-xs shadow-lg">
+          <div className="fx-pop-in w-max max-w-48 rounded-lg bg-surface-container-lowest px-2.5 py-1.5 text-xs shadow-lg">
             <span className="text-on-surface-variant">{dimensions[active].dim_name}</span>
             <span className="ml-2 font-semibold tabular-nums text-primary">
               {dimensions[active].score.toFixed(1)}

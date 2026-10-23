@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
@@ -21,6 +23,7 @@ from app.schemas.evaluation import (
     ConfirmLocationResult,
     EvaluationResult,
     HistoryItemOut,
+    HistoryPageOut,
     TextAnalyzeRequest,
 )
 from app.services import evaluation_service
@@ -170,6 +173,27 @@ def list_history(limit: int = Query(50, ge=1, le=200)) -> list[HistoryItemOut]:
     """历史记录列表：已完成评价的概要，按时间倒序。"""
     rows = evaluation_service.list_history(limit=limit)
     return [HistoryItemOut(**r) for r in rows]
+
+
+@router.get("/history/page", response_model=HistoryPageOut)
+def page_history(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    query: str = Query("", max_length=300),
+    score_band: Literal["all", "high", "mid", "low"] = "all",
+    input_type: Literal["all", "text", "image"] = "all",
+    created_after: datetime | None = None,
+    sort: Literal["latest", "score"] = "latest",
+) -> HistoryPageOut:
+    # Stored timestamps and the existing UI use local wall time. The client sends
+    # its local calendar boundary without converting it to a different timezone.
+    if created_after is not None and created_after.tzinfo is not None:
+        raise HTTPException(status_code=422, detail="请使用不含时区的本地时间")
+    return HistoryPageOut(**evaluation_service.page_history(
+        limit=limit, offset=offset, query=query, score_band=score_band,
+        input_type=input_type, sort=sort,
+        created_after=created_after.isoformat() if created_after else None,
+    ))
 
 
 @router.get("/result/{evaluation_id}", response_model=EvaluationResult)

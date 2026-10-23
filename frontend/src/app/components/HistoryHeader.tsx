@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 /** 历史记录筛选条件。"all" 表示不限。 */
 export type HistoryFilters = {
@@ -40,12 +40,13 @@ const labelOf = <K extends keyof HistoryFilters>(opts: Opt<K>[], v: HistoryFilte
 
 /* 控件统一外观：细描边胶囊，按下轻微回弹 */
 const pill =
-  "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-all duration-200 active:scale-[0.97] motion-reduce:transition-none";
+  "inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors duration-200 motion-reduce:transition-none";
 const pillIdle =
   "border-divider bg-surface-container-lowest text-on-surface hover:bg-surface-container-low";
 const pillActive = "border-primary/30 bg-primary/5 text-primary";
 
 export default function HistoryHeader({
+  query,
   onSearch,
   filters,
   onFilterChange,
@@ -55,6 +56,7 @@ export default function HistoryHeader({
   selectMode = false,
   onToggleSelectMode,
 }: {
+  query: string;
   onSearch?: (query: string) => void;
   filters: HistoryFilters;
   onFilterChange: (f: HistoryFilters) => void;
@@ -65,16 +67,22 @@ export default function HistoryHeader({
   selectMode?: boolean;
   onToggleSelectMode?: () => void;
 }) {
-  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const filterRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") { setOpen(false); triggerRef.current?.focus(); }
+    };
+    const onOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !filterRef.current?.contains(event.target)) setOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onOutside);
+    return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onOutside); };
   }, [open]);
 
   const setFilter = <K extends keyof HistoryFilters>(key: K, value: HistoryFilters[K]) =>
@@ -94,8 +102,8 @@ export default function HistoryHeader({
     opts: Opt<K>[],
     key: K,
   ) => (
-    <div className="flex flex-col gap-2">
-      <span className="text-xs font-medium text-on-surface-variant">{label}</span>
+    <fieldset className="flex min-w-0 flex-col gap-2">
+      <legend className="mb-2 text-sm font-medium text-on-surface-variant">{label}</legend>
       <div className="flex flex-wrap gap-1.5">
         {opts.map((o) => {
           const selected = filters[key] === o.value;
@@ -105,7 +113,7 @@ export default function HistoryHeader({
               type="button"
               aria-pressed={selected}
               onClick={() => setFilter(key, o.value)}
-              className={`h-8 rounded-full px-3 text-[13px] transition-colors duration-150 ${
+              className={`min-h-11 rounded-full px-3 text-sm transition-colors duration-150 ${
                 selected
                   ? "bg-primary/10 text-primary ring-1 ring-primary/30"
                   : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
@@ -116,26 +124,27 @@ export default function HistoryHeader({
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="w-full md:max-w-md">
+      <div className="flex min-w-0 flex-col gap-4 @[52rem]:flex-row @[52rem]:items-center @[52rem]:justify-between">
+        <div className="w-full min-w-0 @[52rem]:max-w-md">
           <input
             className="neu-input w-full h-12 rounded-full border-none px-5 text-lg text-on-surface placeholder:text-on-surface-variant"
             placeholder="搜索街道或趋势..."
-            type="text"
+            aria-label="搜索历史记录"
+            maxLength={300}
+            type="search"
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
               onSearch?.(e.target.value);
             }}
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {canSelect && (
             <button
               type="button"
@@ -143,9 +152,9 @@ export default function HistoryHeader({
               onClick={onToggleSelectMode}
               className={`${pill} ${selectMode ? pillActive : pillIdle}`}
             >
-              <span className="material-symbols-outlined text-[18px]">
+              <span aria-hidden="true" className="hidden sm:contents"><span className="material-symbols-outlined text-[18px]">
                 {selectMode ? "close" : "checklist"}
-              </span>
+              </span></span>
               {selectMode ? "取消" : "选择"}
             </button>
           )}
@@ -173,7 +182,7 @@ export default function HistoryHeader({
                 type="button"
                 aria-pressed={sortByScore === value}
                 onClick={() => sortByScore !== value && onToggleSort()}
-                className={`relative z-10 px-3.5 text-sm font-medium transition-colors ${
+                className={`relative z-10 rounded-full px-3 text-sm font-medium transition-colors ${
                   sortByScore === value
                     ? "text-on-surface"
                     : "text-on-surface-variant hover:text-on-surface"
@@ -184,15 +193,19 @@ export default function HistoryHeader({
             ))}
           </div>
 
-          <div className="relative">
+          <div ref={filterRef} className="relative" onBlur={(event) => {
+            if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+          }}>
             <button
               type="button"
+              ref={triggerRef}
               aria-expanded={open}
-              aria-haspopup="dialog"
+              aria-controls={panelId}
               onClick={() => setOpen((v) => !v)}
               className={`${pill} ${open || count > 0 ? pillActive : pillIdle}`}
             >
               <span
+                aria-hidden="true"
                 className={`material-symbols-outlined text-[18px] transition-transform duration-300 motion-reduce:transition-none ${
                   open ? "rotate-90" : ""
                 }`}
@@ -201,7 +214,7 @@ export default function HistoryHeader({
               </span>
               筛选
               {count > 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-white">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-on-primary">
                   {count}
                 </span>
               )}
@@ -209,22 +222,23 @@ export default function HistoryHeader({
 
             {open && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
                 <div
-                  role="dialog"
+                  id={panelId}
+                  role="group"
                   aria-label="筛选条件"
-                  className="fx-pop-in absolute right-0 top-12 z-50 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-divider bg-surface-container-lowest p-5 shadow-[0_12px_32px_rgb(0,0,0,0.08)]"
+                  className="fx-pop-in absolute right-0 top-full z-40 mt-2 max-h-[calc(100dvh-14rem)] w-80 max-w-[calc(100vw-2rem)] origin-top-right overflow-y-auto rounded-2xl bg-surface-container-lowest p-5 shadow-[0_12px_32px_rgb(0,0,0,0.12)] max-sm:fixed max-sm:inset-x-4 max-sm:top-4 max-sm:bottom-[calc(5rem+env(safe-area-inset-bottom))] max-sm:mt-0 max-sm:max-h-none max-sm:w-auto"
                 >
                   <div className="mb-4 flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-on-surface">筛选条件</h4>
-                    <button
+                    <p className="text-base font-bold text-on-surface">筛选条件</p>
+                    <div className="flex items-center gap-1"><button
                       type="button"
                       disabled={count === 0}
                       onClick={() => onFilterChange(DEFAULT_FILTERS)}
-                      className="text-xs font-medium text-on-surface-variant transition-colors hover:text-primary disabled:pointer-events-none disabled:opacity-40"
+                      className="min-h-11 px-2 text-sm font-medium text-on-surface-variant transition-colors hover:text-primary disabled:pointer-events-none disabled:opacity-40"
                     >
                       重置
                     </button>
+                    <button type="button" aria-label="关闭筛选" onClick={() => { setOpen(false); triggerRef.current?.focus(); }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"><span aria-hidden="true" className="material-symbols-outlined text-xl">close</span></button></div>
                   </div>
                   <div className="flex flex-col gap-4">
                     {optionGroup("综合评分", SCORE_OPTS, "scoreBand")}
@@ -233,8 +247,8 @@ export default function HistoryHeader({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setOpen(false)}
-                    className="mt-5 h-10 w-full rounded-full bg-primary text-sm font-medium text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                    onClick={() => { setOpen(false); triggerRef.current?.focus(); }}
+                    className="mt-5 min-h-11 w-full rounded-full bg-primary text-sm font-medium text-on-primary transition-colors hover:opacity-90"
                   >
                     完成
                   </button>
@@ -254,10 +268,10 @@ export default function HistoryHeader({
               type="button"
               aria-label={`移除筛选：${c.text}`}
               onClick={() => setFilter(c.key, "all")}
-              className="group inline-flex h-8 items-center gap-1 rounded-full border border-divider bg-surface-container-lowest pl-3 pr-2 text-[13px] text-on-surface transition-colors hover:border-primary/30 hover:text-primary"
+              className="group inline-flex min-h-11 items-center gap-1 rounded-full border border-divider bg-surface-container-lowest pl-3 pr-2 text-sm text-on-surface transition-colors hover:border-primary/30 hover:text-primary"
             >
               {c.text}
-              <span className="material-symbols-outlined text-[16px] text-on-surface-variant transition-colors group-hover:text-primary">
+              <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-on-surface-variant transition-colors group-hover:text-primary">
                 close
               </span>
             </button>
@@ -265,7 +279,7 @@ export default function HistoryHeader({
           <button
             type="button"
             onClick={() => onFilterChange(DEFAULT_FILTERS)}
-            className="ml-1 text-[13px] text-on-surface-variant transition-colors hover:text-on-surface"
+            className="min-h-11 px-2 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
           >
             清除全部
           </button>

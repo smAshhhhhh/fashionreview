@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import ResourceFeedback from "../../components/ResourceFeedback";
+import ResourceHeader from "../../components/ResourceHeader";
 import Sidebar from "../../components/Sidebar";
 import MobileBottomNav from "../../components/MobileBottomNav";
 import {
@@ -37,57 +38,88 @@ export default function ProfilesPage() {
   const [detail, setDetail] = useState<StreetProfileDetail | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [pollPaused, setPollPaused] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jobRef = useRef<{ id: string; streetId: number } | null>(null);
+  const requestRef = useRef(0);
+  const alive = useRef(true);
 
   const selectStreet = async (id: number) => {
+    const request = ++requestRef.current;
     setSelectedId(id);
+    setDetail(null);
     setError(null);
+    setLoadingDetail(true);
     try {
-      setDetail(await getStreetProfile(id));
+      const data = await getStreetProfile(id);
+      if (alive.current && request === requestRef.current) setDetail(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "加载画像失败");
-    }
+      if (alive.current && request === requestRef.current) setError(e instanceof Error ? e.message : "加载画像失败，请重试。");
+    } finally { if (alive.current && request === requestRef.current) setLoadingDetail(false); }
+  };
+
+  const loadStreets = async () => {
+    setLoading(true); setListError(null);
+    try {
+      const list = await listResourceStreets();
+      if (!alive.current) return;
+      setStreets(list);
+      if (list.length > 0) await selectStreet(list[0].street_id);
+    } catch (e) { if (alive.current) setListError(e instanceof Error ? e.message : "加载街区失败，请重试。"); }
+    finally { if (alive.current) setLoading(false); }
   };
 
   useEffect(() => {
-    (async () => {
+    alive.current = true;
+    let cancelled = false;
+    const requests = requestRef;
+    void (async () => {
       try {
         const list = await listResourceStreets();
+        if (cancelled) return;
         setStreets(list);
-        // 默认选中并展示第一个街区的画像
-        if (list.length > 0) {
-          await selectStreet(list[0].street_id);
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "加载街区失败");
-      }
+        if (list.length > 0) await selectStreet(list[0].street_id);
+      } catch (e) { if (!cancelled) setListError(e instanceof Error ? e.message : "加载街区失败，请重试。"); }
+      finally { if (!cancelled) setLoading(false); }
     })();
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { cancelled = true; alive.current = false; ++requests.current; if (pollRef.current) clearTimeout(pollRef.current); };
   }, []);
 
+  const pollJob = async () => {
+    const current = jobRef.current;
+    if (!current) return;
+    setPollPaused(false);
+    try {
+      const result = await fetchProfileJob(current.id);
+      if (!alive.current || jobRef.current !== current) return;
+      if (result.status === "running") {
+        pollRef.current = setTimeout(() => void pollJob(), 1200);
+      } else {
+        jobRef.current = null; setJobStatus(null);
+        if (result.status === "failed") setError("画像生成失败，请核对 POI 数据后重试。");
+        else await selectStreet(current.streetId);
+      }
+    } catch (e) {
+      if (!alive.current) return;
+      setPollPaused(true);
+      setError(e instanceof Error ? e.message : "无法获取画像任务进度，请重新查询。");
+    }
+  };
+
   const rebuild = async () => {
-    if (selectedId == null) return;
-    setError(null);
-    setJobStatus("画像生成中…");
+    if (selectedId == null || jobStatus != null) return;
+    setError(null); setJobStatus("画像生成中…");
     try {
       const job = await startRebuildStreetProfile(selectedId);
-      pollRef.current = setInterval(async () => {
-        const s = await fetchProfileJob(job.job_id);
-        if (s.status === "completed") {
-          if (pollRef.current) clearInterval(pollRef.current);
-          setJobStatus(null);
-          await selectStreet(selectedId);
-        } else if (s.status === "failed") {
-          if (pollRef.current) clearInterval(pollRef.current);
-          setJobStatus(null);
-          setError(s.error ?? "画像生成失败");
-        }
-      }, 1200);
+      if (!alive.current) return;
+      if (job.status === "completed") { setJobStatus(null); await selectStreet(selectedId); }
+      else if (job.status === "failed") { setJobStatus(null); setError("画像生成失败，请核对 POI 数据后重试。"); }
+      else { jobRef.current = { id: job.job_id, streetId: selectedId }; void pollJob(); }
     } catch (e) {
-      setJobStatus(null);
-      setError(e instanceof Error ? e.message : "启动失败");
+      if (alive.current) { setJobStatus(null); setError(e instanceof Error ? e.message : "启动失败，请重试。"); }
     }
   };
 
@@ -96,18 +128,13 @@ export default function ProfilesPage() {
   return (
     <div className="flex min-h-screen bg-surface text-on-surface">
       <Sidebar activeHref="/resources" />
-      <main className="flex-1 min-w-0 md:ml-64 pb-24 lg:pb-12">
+      <main className="resource-main flex-1 min-w-0 lg:ml-64">
         {/* 顶部栏 */}
-        <header className="sticky top-0 z-40 flex items-center gap-4 px-6 h-14 bg-surface/80 backdrop-blur-md border-b border-divider">
-          <Link href="/resources" className="flex items-center text-primary">
-            <span className="material-symbols-outlined">arrow_back</span>
-          </Link>
-          <h1 className="text-xl font-bold text-brand">街巷画像</h1>
-        </header>
+        <ResourceHeader title="街巷画像" />
 
-        <div className="px-4 lg:px-6 py-6 grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        <div className="mx-auto w-full max-w-7xl px-4 lg:px-6 py-6 grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-6">
           {/* 街区列表 */}
-          <aside className="space-y-2 lg:sticky lg:top-20 self-start">
+          <aside className="min-w-0 space-y-2 xl:sticky xl:top-20 self-start">
             <h2 className="text-[13px] font-bold text-on-surface-variant uppercase mb-1">街区</h2>
             {streets.map((s) => {
               const active = selectedId === s.street_id;
@@ -115,8 +142,10 @@ export default function ProfilesPage() {
                 <button
                   key={s.street_id}
                   type="button"
-                  onClick={() => selectStreet(s.street_id)}
-                  className={`w-full text-left rounded-2xl p-3 border transition-colors ${
+                  aria-pressed={active}
+                  disabled={jobStatus != null}
+                  onClick={() => void selectStreet(s.street_id)}
+                  className={`w-full text-left rounded-2xl p-3 border transition-colors disabled:opacity-60 ${
                     active
                       ? "border-primary bg-surface-container-low"
                       : "border-divider hover:bg-surface-container-low"
@@ -130,26 +159,24 @@ export default function ProfilesPage() {
                 </button>
               );
             })}
-            {streets.length === 0 && (
+            {loading && <p role="status" className="text-on-surface-variant">正在加载街区…</p>}
+            {listError && <ResourceFeedback error={listError} onRetry={() => void loadStreets()} />}
+            {!loading && !listError && streets.length === 0 && (
               <p className="text-[13px] text-on-surface-variant">暂无街区，先在 POI 管理导入。</p>
             )}
           </aside>
 
           {/* 画像详情 */}
           <section className="space-y-6 min-w-0">
-            {error && (
-              <p className="text-sm text-error" role="alert">
-                {error}
-              </p>
-            )}
-            {detail == null ? (
-              <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-100 text-on-surface-variant">
-                <p className="text-[15px]">请选择左侧街区查看画像。</p>
+            <ResourceFeedback error={error} onRetry={pollPaused ? () => { setError(null); void pollJob(); } : selectedId != null ? () => void selectStreet(selectedId) : undefined} />
+            {loadingDetail ? <p role="status" className="py-12 text-center text-on-surface-variant">正在加载街巷画像…</p> : detail == null ? (
+              <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-60 p-6 text-center text-on-surface-variant">
+                <p className="text-[15px]">选择街区后可查看画像；没有数据时，请先前往 POI 管理导入。</p>
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between flex-wrap gap-3 pb-6 border-b border-divider">
-                  <div>
+                <div className="flex min-w-0 items-center justify-between flex-wrap gap-3 pb-6 border-b border-divider">
+                  <div className="min-w-0 flex-1 basis-48">
                     <h2 className="text-[28px] leading-8 font-black tracking-tight text-brand">
                       {detail.street.name}
                     </h2>
@@ -164,7 +191,7 @@ export default function ProfilesPage() {
                     className="flex items-center gap-2 bg-primary text-white font-bold text-[15px] px-5 py-2 rounded-full shadow-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:active:scale-100"
                   >
                     {jobStatus != null && (
-                      <span className="material-symbols-outlined animate-spin text-[18px]">
+                      <span aria-hidden="true" className="material-symbols-outlined animate-spin text-[18px]">
                         progress_activity
                       </span>
                     )}
@@ -195,7 +222,7 @@ export default function ProfilesPage() {
                     {/* facts 预览 */}
                     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
                       <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary text-[18px]">
+                        <span aria-hidden="true" className="material-symbols-outlined text-primary text-[18px]">
                           smart_toy
                         </span>
                         点评时进入 LLM 的 facts 预览
@@ -217,33 +244,36 @@ export default function ProfilesPage() {
 }
 
 function asNum(v: unknown): string {
-  return v == null ? "—" : String(v);
+  if (v == null || (typeof v === "number" && !Number.isFinite(v))) return "—";
+  return typeof v === "number" ? new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(v) : String(v);
 }
 function pctText(v: unknown): string {
   if (v == null) return "—";
-  return `${Math.round(Number(v) * 100)}%`;
+  const value = Number(v);
+  return Number.isFinite(value) ? `${Math.round(value * 100)}%` : "—";
 }
 
 type Bar = { label: string; count: number; pct: number };
 
 function distToBars(d: unknown): Bar[] {
   if (!d || typeof d !== "object") return [];
-  return Object.entries(d as Record<string, { count: number; pct: number }>).map(
-    ([k, v]) => ({ label: k, count: v.count, pct: v.pct }),
-  );
+  return Object.entries(d).flatMap(([label, value]) => {
+    if (!value || typeof value !== "object") return [];
+    const { count, pct } = value as Record<string, unknown>;
+    return typeof count === "number" && Number.isFinite(count) && count >= 0 ? [{ label, count, pct: typeof pct === "number" && Number.isFinite(pct) ? pct : 0 }] : [];
+  });
 }
 function topToBars(d: unknown): Bar[] {
   if (!Array.isArray(d)) return [];
-  return (d as { name: string; count: number; pct: number }[]).map((x) => ({
-    label: x.name,
-    count: x.count,
-    pct: x.pct,
-  }));
+  return d.flatMap((item) => {
+    if (!item || typeof item !== "object" || typeof item.name !== "string" || typeof item.count !== "number" || !Number.isFinite(item.count) || item.count < 0) return [];
+    return [{ label: item.name, count: item.count, pct: typeof item.pct === "number" && Number.isFinite(item.pct) ? item.pct : 0 }];
+  });
 }
 function bandToBars(d: unknown): Bar[] {
   const bands = (d as Record<string, unknown>)?.price_band_counts;
   if (!bands || typeof bands !== "object") return [];
-  const entries = Object.entries(bands as Record<string, number>);
+  const entries = Object.entries(bands as Record<string, number>).filter(([, value]) => typeof value === "number" && Number.isFinite(value) && value >= 0);
   const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
   return entries.map(([k, v]) => ({ label: k, count: v, pct: Math.round((v / total) * 100) }));
 }
@@ -257,15 +287,15 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
       <div className="space-y-2">
         {data.slice(0, 12).map((d) => (
           <div key={d.label} className="flex items-center gap-2 text-[12px]">
-            <span className="w-28 shrink-0 truncate text-on-surface-variant">{d.label}</span>
-            <div className="flex-1 bg-surface-container-low rounded-full h-2">
+            <span className="w-20 sm:w-28 shrink-0 text-on-surface-variant">{d.label}</span>
+            <div className="min-w-0 flex-1 bg-surface-container-low rounded-full h-2">
               <div
                 className="bg-primary h-2 rounded-full"
                 style={{ width: `${(d.count / max) * 100}%` }}
               />
             </div>
-            <span className="w-16 text-right tabular-nums text-on-surface">
-              {d.count} ({d.pct}%)
+            <span className="w-24 shrink-0 text-right tabular-nums text-on-surface">
+              {asNum(d.count)} ({asNum(d.pct)}%)
             </span>
           </div>
         ))}
@@ -286,7 +316,7 @@ function TagBlock({
   if (!tags || typeof tags !== "object") return null;
   const t = tags as Record<string, number>;
   const d = (density ?? {}) as Record<string, number>;
-  const entries = Object.entries(t).filter(([, v]) => v > 0);
+  const entries = Object.entries(t).filter(([, v]) => typeof v === "number" && Number.isFinite(v) && v > 0);
   if (entries.length === 0) return null;
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
@@ -298,7 +328,7 @@ function TagBlock({
           return (
             <span
               key={k}
-              className="text-[12px] bg-primary/10 text-primary px-3 py-1 rounded-full"
+              className="max-w-full text-[12px] bg-primary/10 text-primary px-3 py-1 rounded-full"
             >
               {TAG_CN[base] ?? base}: {v}
               {pct != null ? ` (${pct}%)` : ""}
@@ -313,7 +343,7 @@ function TagBlock({
 function HighlightBlock({ highlights }: { highlights: unknown }) {
   if (!highlights || typeof highlights !== "object") return null;
   const h = highlights as Record<string, string[]>;
-  const entries = Object.entries(h);
+  const entries = Object.entries(h).filter(([, names]) => Array.isArray(names));
   if (entries.length === 0) return null;
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
@@ -322,7 +352,7 @@ function HighlightBlock({ highlights }: { highlights: unknown }) {
         {entries.map(([k, names]) => (
           <div key={k} className="text-[12px]">
             <span className="font-semibold text-on-surface-variant">{TAG_CN[k] ?? k}: </span>
-            <span className="text-on-surface">{names.join("、")}</span>
+            <span className="text-on-surface">{names.filter((name) => typeof name === "string").join("、")}</span>
           </div>
         ))}
       </div>
