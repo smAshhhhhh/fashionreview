@@ -6,9 +6,9 @@ import ResourceDialog from "../../components/ResourceDialog";
 import ResourceFeedback from "../../components/ResourceFeedback";
 import useResourceDraft from "../../components/useResourceDraft";
 import { metricFieldProblems } from "../../../lib/resource-validation";
-import ResourceHeader from "../../components/ResourceHeader";
-import Sidebar from "../../components/Sidebar";
-import MobileBottomNav from "../../components/MobileBottomNav";
+import ResourceShell from "../../components/ResourceShell";
+import ResourceContentCard from "../../components/ResourceContentCard";
+import ResourceMasterList from "../../components/ResourceMasterList";
 import {
   listMetricTemplates,
   getMetricTemplateTree,
@@ -223,8 +223,8 @@ export default function MetricTemplatesPage() {
       setTemplates((items) =>
         items.some((item) => item.id === localTemplate.id)
           ? items.map((item) =>
-              item.id === localTemplate.id ? localTemplate : item,
-            )
+            item.id === localTemplate.id ? localTemplate : item,
+          )
           : [...items, localTemplate],
       );
       try {
@@ -262,9 +262,9 @@ export default function MetricTemplatesPage() {
       ds.map((d, i) =>
         i === di
           ? {
-              ...d,
-              subs: d.subs.map((s, j) => (j === si ? { ...s, ...patch } : s)),
-            }
+            ...d,
+            subs: d.subs.map((s, j) => (j === si ? { ...s, ...patch } : s)),
+          }
           : d,
       ),
     );
@@ -279,98 +279,96 @@ export default function MetricTemplatesPage() {
       ds.map((d, i) =>
         i === di
           ? {
-              ...d,
-              subs: d.subs.map((s, j) =>
-                j === si
-                  ? {
-                      ...s,
-                      metrics: s.metrics.map((m, k) =>
-                        k === mi ? { ...m, ...patch } : m,
-                      ),
-                    }
-                  : s,
-              ),
-            }
+            ...d,
+            subs: d.subs.map((s, j) =>
+              j === si
+                ? {
+                  ...s,
+                  metrics: s.metrics.map((m, k) =>
+                    k === mi ? { ...m, ...patch } : m,
+                  ),
+                }
+                : s,
+            ),
+          }
           : d,
       ),
     );
 
   return (
-    <div className="flex min-h-screen bg-surface text-on-surface">
-      <Sidebar activeHref="/resources" />
-
-      <main className="resource-main flex-1 min-w-0 lg:ml-64 flex flex-col">
-        {/* 顶部栏 */}
-        <ResourceHeader title="维度指标管理">
-          <button
-            type="button"
-            onClick={() => confirmDiscard(() => void handleClone())}
-            disabled={
-              busy || loadingList || loadingTree || !!listError || !!treeError
-            }
-            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-primary text-on-primary px-4 sm:px-5 py-2 text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+    <ResourceShell
+      title="维度指标管理"
+      actions={
+        <button
+          type="button"
+          onClick={() => confirmDiscard(() => void handleClone())}
+          disabled={
+            busy || loadingList || loadingTree || !!listError || !!treeError
+          }
+          className="resource-button resource-button--primary"
+        >
+          <span
+            aria-hidden="true"
+            className="material-symbols-outlined resource-icon"
           >
-            <span
-              aria-hidden="true"
-              className="material-symbols-outlined text-[18px]"
-            >
-              add
-            </span>
-            新建模板
-          </button>
-        </ResourceHeader>
+            add
+          </span>
+          新建模板
+        </button>
+      }
+    >
 
-        <section className="@container p-4 lg:p-6 max-w-7xl mx-auto w-full flex-1 space-y-6">
-          {/* 说明条 */}
-          <div className="flex items-start gap-3 rounded-2xl border border-divider bg-surface-container-lowest p-4">
-            <span
-              aria-hidden="true"
-              className="material-symbols-outlined text-primary"
+      <section className="resource-content">
+        {/* 说明条 */}
+        <div className="resource-note">
+          <span
+            aria-hidden="true"
+            className="material-symbols-outlined text-primary"
+          >
+            info
+          </span>
+          <p className="resource-caption leading-relaxed text-on-surface-variant">
+            选择模板，管理启用状态与各级指标权重。启用的模板将影响后续
+            <Link
+              href="/analytics"
+              className="text-primary font-semibold mx-1 hover:underline"
             >
-              info
-            </span>
-            <p className="text-[13px] leading-relaxed text-on-surface-variant">
-              左侧管理指标模板（启用 / 克隆 /
-              删除），右侧编辑所选模板的一/二/三级维度。启用的模板将影响后续
-              <Link
-                href="/analytics"
-                className="text-primary font-semibold mx-1 hover:underline"
-              >
-                分析中心
-              </Link>
-              的 AI
-              点评与新评价的维度展示；被历史评价引用的模板保存时会自动另存为新模板。
-            </p>
-          </div>
+              分析中心
+            </Link>
+            的 AI
+            点评与新评价的维度展示；被历史评价引用的模板保存时会自动另存为新模板。
+          </p>
+        </div>
 
+        <ResourceFeedback
+          error={!selected || treeError ? error : null}
+          message={!error ? notice : null}
+        />
+        {listError && (
           <ResourceFeedback
-            error={!selected || treeError ? error : null}
-            message={!error ? notice : null}
+            error={listError}
+            onRetry={() => void retryList()}
           />
-          {listError && (
-            <ResourceFeedback
-              error={listError}
-              onRetry={() => void retryList()}
-            />
-          )}
+        )}
 
-          <div className="grid grid-cols-1 @[52rem]:grid-cols-[16rem_minmax(0,1fr)] gap-6">
-            <TemplateList
-              templates={templates}
-              loading={loadingList}
-              selectedId={selectedId}
-              busy={busy}
-              onSelect={selectTemplate}
-              onActivate={(id) => confirmDiscard(() => void handleActivate(id))}
-              onDelete={(id) => {
-                const open = () => {
-                  setDeleteError(null);
-                  setPendingDeleteId(id);
-                };
-                if (id === selectedId) confirmDiscard(open);
-                else open();
-              }}
-            />
+        <div className="resource-workbench">
+          <TemplateList
+            templates={templates}
+            loading={loadingList}
+            selectedId={selectedId}
+            busy={busy}
+            onSelect={selectTemplate}
+            onActivate={(id) => confirmDiscard(() => void handleActivate(id))}
+            onDelete={(id) => {
+              const open = () => {
+                setDeleteError(null);
+                setPendingDeleteId(id);
+              };
+              if (id === selectedId) confirmDiscard(open);
+              else open();
+            }}
+          />
+          <ResourceContentCard label="指标权重配置内容" variant="stack">
             {treeError ? (
               <ResourceFeedback
                 error={treeError}
@@ -391,9 +389,10 @@ export default function MetricTemplatesPage() {
                 onSave={handleSave}
               />
             )}
-          </div>
-        </section>
-      </main>
+          </ResourceContentCard>
+        </div>
+      </section>
+
 
       {/* 删除确认 Modal */}
       {pendingDeleteId != null && (
@@ -402,7 +401,7 @@ export default function MetricTemplatesPage() {
           busy={busy}
           onClose={() => setPendingDeleteId(null)}
         >
-          <p className="text-[15px] text-on-surface-variant mb-6">
+          <p className="resource-body text-on-surface-variant mb-6">
             删除后该模板将无法恢复。历史评价已生成的维度结果不受影响。
           </p>
           <ResourceFeedback error={deleteError} />
@@ -411,7 +410,7 @@ export default function MetricTemplatesPage() {
               type="button"
               onClick={() => setPendingDeleteId(null)}
               disabled={busy}
-              className="px-4 py-3 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
+              className="resource-button resource-button--quiet"
             >
               取消
             </button>
@@ -419,12 +418,12 @@ export default function MetricTemplatesPage() {
               type="button"
               onClick={() => handleDelete(pendingDeleteId)}
               disabled={busy}
-              className="px-6 py-3 rounded-full text-[15px] font-bold bg-error text-on-error shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+              className="resource-button resource-button--destructive"
             >
               {busy && (
                 <span
                   aria-hidden="true"
-                  className="material-symbols-outlined animate-spin text-[18px]"
+                  className="material-symbols-outlined animate-spin resource-icon"
                 >
                   progress_activity
                 </span>
@@ -436,8 +435,7 @@ export default function MetricTemplatesPage() {
       )}
 
       {draftDialog}
-      <MobileBottomNav activeHref="/resources" />
-    </div>
+    </ResourceShell>
   );
 }
 
@@ -462,11 +460,11 @@ function TemplateList({
 }) {
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="resource-master-list resource-selector-loading">
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="rounded-2xl border border-divider bg-surface-container-lowest p-4 animate-pulse"
+            className="resource-panel resource-panel--padded animate-pulse"
           >
             <div className="space-y-2">
               <div className="h-3 bg-surface-container-high rounded w-1/2" />
@@ -479,10 +477,11 @@ function TemplateList({
     );
   }
   return (
-    <div
-      role="group"
-      aria-label="指标模板"
-      className="min-w-0 space-y-3 @[52rem]:sticky @[52rem]:top-20 self-start"
+    <ResourceMasterList
+      label="指标模板"
+      value={
+        templates.find((item) => item.id === selectedId)?.name ?? "未选择模板"
+      }
     >
       {templates.length === 0 && (
         <p className="p-4 text-sm text-on-surface-variant">暂无指标模板。</p>
@@ -493,34 +492,42 @@ function TemplateList({
         return (
           <div
             key={t.id}
-            className={`rounded-2xl border p-4 cursor-pointer transition-all ${
-              isSel
-                ? "border-primary bg-surface-container-low"
-                : "border-divider hover:bg-surface-container-low"
-            }`}
+            className={`resource-list-item resource-template-card ${isSel
+                ? "resource-list-item--selected"
+                : ""
+              }`}
           >
             <button
               type="button"
               disabled={busy}
+              aria-label={`选择模板：${t.name}`}
+              aria-describedby={`metric-template-summary-${t.id}`}
               aria-pressed={isSel}
               onClick={() => onSelect(t.id)}
-              className="w-full rounded-lg text-left"
-            >
+              className="resource-template-select"
+            />
+            <div className="resource-template-summary">
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 text-[15px] font-bold text-on-surface [overflow-wrap:anywhere]">
+                <span className="min-w-0 resource-body font-bold text-on-surface [overflow-wrap:anywhere]">
                   {t.name}
                 </span>
                 {active && (
-                  <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                  <span className={`
+                    shrink-0 resource-caption font-bold px-2 py-0.5 rounded-full
+                    bg-primary/10 text-primary
+                  `}>
                     启用中
                   </span>
                 )}
               </div>
-              <p className="text-[12px] text-on-surface-variant mt-1">
+              <p
+                id={`metric-template-summary-${t.id}`}
+                className="resource-caption text-on-surface-variant mt-1"
+              >
                 {t.dim_count} 一级 · {t.sub_count} 二级 · {t.metric_count} 三级
               </p>
-            </button>
-            <div className="flex items-center gap-2 mt-3">
+            </div>
+            <div className="resource-template-actions">
               {!active && (
                 <button
                   type="button"
@@ -529,7 +536,7 @@ function TemplateList({
                     e.stopPropagation();
                     onActivate(t.id);
                   }}
-                  className="flex-1 h-8 rounded-full bg-primary/10 text-primary text-[12px] font-semibold hover:bg-primary/20 disabled:opacity-50 transition-colors"
+                  className="resource-button resource-button--tinted flex-1"
                 >
                   一键切换
                 </button>
@@ -549,11 +556,11 @@ function TemplateList({
                   e.stopPropagation();
                   onDelete(t.id);
                 }}
-                className="h-11 w-11 grid place-items-center rounded-full text-on-surface-variant hover:bg-error/10 hover:text-error disabled:opacity-30 transition-colors"
+                className="resource-button resource-button--danger resource-button--icon"
               >
                 <span
                   aria-hidden="true"
-                  className="material-symbols-outlined text-[18px]"
+                  className="material-symbols-outlined resource-icon"
                 >
                   delete
                 </span>
@@ -562,15 +569,14 @@ function TemplateList({
           </div>
         );
       })}
-    </div>
+    </ResourceMasterList>
   );
 }
 
 /* ──────────────── 右侧：维度树编辑器 ──────────────── */
 
 // 编辑态文本输入统一样式：明显的边框 + 浅背景，聚焦时主色高亮，一眼可辨可编辑
-const editInputClass =
-  "flex-1 min-w-0 rounded-xl border border-divider bg-surface-container-lowest px-2.5 py-1.5 text-on-surface outline-none focus:border-primary transition-colors";
+const editInputClass = "resource-field flex-1 min-w-0";
 
 // 一级维度图标：按名称关键词匹配，回退到顺序色板
 const DIM_ICON_BY_KEYWORD: Array<[RegExp, string]> = [
@@ -690,8 +696,11 @@ function TreeEditor({
 
   if (!selected) {
     return (
-      <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-60 p-6 text-center text-on-surface-variant">
-        <p className="text-[15px]">
+      <div className={`
+        resource-panel resource-panel--padded min-h-60 grid place-items-center text-center
+        text-on-surface-variant
+      `}>
+        <p className="resource-body">
           选择指标模板，或使用「新建模板」创建一个模板。
         </p>
       </div>
@@ -699,24 +708,30 @@ function TreeEditor({
   }
   if (loading) {
     return (
-      <div className="rounded-2xl border border-divider bg-surface-container-lowest min-h-100 animate-pulse" />
+      <div className="resource-panel animate-pulse min-h-100" />
     );
   }
 
   const allOpen = dims.length > 0 && dims.every((d) => openDims[d.dim_id]);
 
   return (
-    <fieldset disabled={busy} className="min-w-0 @container/editor">
+    <fieldset
+      disabled={busy}
+      className="resource-editor resource-editor--sections @container/editor"
+    >
       <legend className="sr-only">指标权重配置</legend>
       {/* 头部信息条：面包屑 + 标题 + 操作 */}
-      <div className="flex flex-col @[38rem]/editor:flex-row @[38rem]/editor:justify-between @[38rem]/editor:items-end gap-4 mb-8 border-b border-divider pb-6">
+      <div className="resource-detail-header">
         <div className="min-w-0">
           {inUse && (
-            <span className="inline-block mb-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
+            <span className={`
+              inline-block mb-2 resource-caption font-bold px-2 py-0.5 rounded-full
+              bg-surface-container text-on-surface-variant
+            `}>
               已被引用
             </span>
           )}
-          <h2 className="text-[28px] leading-8 font-black tracking-tight text-on-surface">
+          <h2 className="resource-detail-title">
             当前权重配置
           </h2>
         </div>
@@ -730,11 +745,11 @@ function TreeEditor({
                   : Object.fromEntries(dims.map((d) => [d.dim_id, true])),
               )
             }
-            className="flex items-center gap-1 rounded-full border border-divider px-3 py-2 text-[13px] font-semibold text-on-surface-variant hover:bg-surface-container-low transition-colors"
+            className="resource-button resource-button--secondary"
           >
             <span
               aria-hidden="true"
-              className="material-symbols-outlined text-[18px]"
+              className="material-symbols-outlined resource-icon"
             >
               {allOpen ? "unfold_less" : "unfold_more"}
             </span>
@@ -750,11 +765,11 @@ function TreeEditor({
                   ? "权重合计不为 100%，请先修正后再保存"
                   : undefined
               }
-              className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-bold text-on-primary shadow-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+              className="resource-button resource-button--primary"
             >
               <span
                 aria-hidden="true"
-                className="material-symbols-outlined text-[18px]"
+                className="material-symbols-outlined resource-icon"
               >
                 save
               </span>
@@ -764,11 +779,11 @@ function TreeEditor({
             <button
               type="button"
               onClick={() => setEditMode(true)}
-              className="flex items-center gap-2 rounded-full border border-divider px-5 py-2 text-sm font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95"
+              className="resource-button resource-button--secondary"
             >
               <span
                 aria-hidden="true"
-                className="material-symbols-outlined text-[18px]"
+                className="material-symbols-outlined resource-icon"
               >
                 edit
               </span>
@@ -785,25 +800,22 @@ function TreeEditor({
           所以必须在界面上说清楚，否则填错了页面显示的百分比与真实生效的权重不一致。 */}
       {editMode && (
         <div
-          className={`mb-6 rounded-2xl border px-5 py-4 ${
-            hasWeightProblem
+          className={`mb-6 rounded-2xl border px-5 py-4 ${hasWeightProblem
               ? "border-warning-border/40 bg-warning-container"
               : "border-success/20 bg-success-container"
-          }`}
+            }`}
         >
           <div className="flex items-start gap-3">
             <span
-              className={`material-symbols-outlined text-[20px] shrink-0 ${
-                hasWeightProblem ? "text-warning" : "text-success"
-              }`}
+              className={`material-symbols-outlined resource-icon shrink-0 ${hasWeightProblem ? "text-warning" : "text-success"
+                }`}
             >
               {hasWeightProblem ? "warning" : "check_circle"}
             </span>
             <div className="min-w-0 flex-1">
               <p
-                className={`text-[14px] font-bold ${
-                  hasWeightProblem ? "text-warning" : "text-success"
-                }`}
+                className={`resource-detail font-bold ${hasWeightProblem ? "text-warning" : "text-success"
+                  }`}
               >
                 {hasWeightProblem
                   ? `有 ${weightCheck.problems.length} 项名称或权重需要修正，无法保存`
@@ -812,12 +824,12 @@ function TreeEditor({
               {hasWeightProblem && (
                 <ul className="mt-2 space-y-1">
                   {weightCheck.problems.slice(0, 8).map((p) => (
-                    <li key={p} className="text-[13px] text-warning">
+                    <li key={p} className="resource-caption text-warning">
                       · {p}
                     </li>
                   ))}
                   {weightCheck.problems.length > 8 && (
-                    <li className="text-[13px] text-warning">
+                    <li className="resource-caption text-warning">
                       · 另有 {weightCheck.problems.length - 8}{" "}
                       组，展开对应维度查看
                     </li>
@@ -835,16 +847,18 @@ function TreeEditor({
         </p>
       )}
       {/* 维度手风琴（发丝线分隔） */}
-      <div className="border border-divider rounded-2xl overflow-hidden divide-y divide-divider">
+      <div className="resource-dimension-list">
         {dims.map((d, di) => {
           const open = !!openDims[d.dim_id];
           const dimPct = Math.round(d.dim_weight * 1000) / 10;
           return (
-            <div key={d.dim_id} className="bg-surface-container-lowest">
+            <div key={d.dim_id} className="resource-section">
               {/* 一级维度（手风琴头部） */}
-              <div className="w-full flex flex-wrap items-center justify-between gap-3 p-3 sm:p-5 hover:bg-surface-container-low transition-colors">
+              <div className={`
+                w-full flex flex-wrap items-center justify-between gap-3
+              `}>
                 <div className="flex items-center gap-3 min-w-0 flex-1 basis-32">
-                  <span className="w-10 h-10 rounded-full bg-primary/10 grid place-items-center text-primary shrink-0">
+                  <span className="resource-section-icon">
                     <span
                       aria-hidden="true"
                       className="material-symbols-outlined"
@@ -861,18 +875,21 @@ function TreeEditor({
                       onChange={(e) =>
                         onEditDim(di, { dim_name: e.target.value })
                       }
-                      className={`${editInputClass} text-[17px] font-bold max-w-md`}
+                      className={`${editInputClass} resource-item-title font-bold max-w-md`}
                       placeholder="一级维度名称"
                     />
                   ) : (
-                    <h3 className="text-[17px] font-bold text-on-surface [overflow-wrap:anywhere]">
+                    <h3 className="text-on-surface [overflow-wrap:anywhere] resource-item-title">
                       {d.dim_name}
                     </h3>
                   )}
                 </div>
                 <div className="ml-auto flex items-center gap-3 sm:gap-6 shrink-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-on-surface-variant uppercase hidden sm:inline">
+                    <span className={`
+                      resource-caption font-bold text-on-surface-variant uppercase hidden
+                      sm:inline
+                    `}>
                       权重占比
                     </span>
                     {editMode ? (
@@ -883,7 +900,7 @@ function TreeEditor({
                         invalid={!isOneHundred(weightCheck.dimSum)}
                       />
                     ) : (
-                      <span className="text-[20px] font-black text-primary tabular-nums">
+                      <span className="resource-item-title font-black text-primary tabular-nums">
                         {dimPct}%
                       </span>
                     )}
@@ -894,14 +911,12 @@ function TreeEditor({
                     aria-expanded={open}
                     aria-controls={`dimension-${d.dim_id}`}
                     onClick={() => toggleDim(d.dim_id)}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-surface-container"
+                    className="resource-button resource-button--quiet resource-button--icon"
                   >
                     <span
                       aria-hidden="true"
-                      className="material-symbols-outlined"
-                      style={{
-                        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-                      }}
+                      className="material-symbols-outlined resource-chevron"
+                      data-collapsed={!open}
                     >
                       expand_more
                     </span>
@@ -913,7 +928,7 @@ function TreeEditor({
               <div
                 id={`dimension-${d.dim_id}`}
                 hidden={!open}
-                className="border-t border-divider bg-surface-container-low/40 p-2 sm:p-5 space-y-5"
+                className="resource-dimension-content"
               >
                 {/* 该维度下二级权重合计，便于就地定位是哪一组填错 */}
                 {editMode && (
@@ -925,10 +940,12 @@ function TreeEditor({
                 {d.subs.map((s, si) => (
                   <div
                     key={s.sub_id}
-                    className="rounded-2xl border border-divider bg-surface-container-lowest overflow-hidden"
+                    className="resource-section"
                   >
                     {/* 二级维度头部 */}
-                    <div className="flex flex-wrap items-center gap-3 bg-surface-container-low px-3 sm:px-4 py-3 border-b border-divider">
+                    <div className={`
+                      flex flex-wrap items-center gap-3
+                    `}>
                       {editMode ? (
                         <input
                           aria-label={`${d.dim_name} · 第 ${si + 1} 个二级维度名称`}
@@ -937,16 +954,16 @@ function TreeEditor({
                           onChange={(e) =>
                             onEditSub(di, si, { sub_name: e.target.value })
                           }
-                          className={`${editInputClass} text-[14px] font-bold`}
+                          className={`${editInputClass} resource-detail font-bold`}
                           placeholder="二级维度名称"
                         />
                       ) : (
-                        <span className="flex-1 min-w-0 text-[14px] font-bold text-on-surface truncate">
+                        <span className="flex-1 min-w-0 resource-detail font-bold text-on-surface truncate">
                           {s.sub_name}
                         </span>
                       )}
                       <div className="ml-auto flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] font-bold text-on-surface-variant uppercase">
+                        <span className="resource-caption font-bold text-on-surface-variant uppercase">
                           权重占比
                         </span>
                         {editMode ? (
@@ -958,7 +975,7 @@ function TreeEditor({
                             }
                           />
                         ) : (
-                          <span className="text-[16px] font-black text-primary tabular-nums">
+                          <span className="resource-body font-black text-primary tabular-nums">
                             {Math.round(s.sub_weight * 1000) / 10}%
                           </span>
                         )}
@@ -970,110 +987,118 @@ function TreeEditor({
                       tabIndex={0}
                       role="region"
                       aria-label={`${s.sub_name} · 指标表，可横向滚动`}
-                      className="overflow-x-auto"
+                      className="resource-panel resource-scroll-card"
                     >
-                      <table className="w-full min-w-80 text-left">
-                        <thead className="bg-surface-container-low text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-                          <tr>
-                            <th scope="col" className="px-4 py-2 font-bold">
-                              三级指标
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-4 py-2 font-bold text-right w-28"
-                            >
-                              权重 (%)
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-divider">
-                          {s.metrics.map((m, mi) => (
-                            <tr key={m.metric_id} className="align-top">
-                              <td className="px-4 py-3">
-                                {editMode ? (
-                                  <>
-                                    <input
-                                      aria-label={`${s.sub_name} · 第 ${mi + 1} 个指标名称`}
-                                      maxLength={200}
-                                      value={m.metric_name}
-                                      onChange={(e) =>
-                                        onEditMetric(di, si, mi, {
-                                          metric_name: e.target.value,
-                                        })
-                                      }
-                                      className={`${editInputClass} w-full text-[13px] font-medium`}
-                                      placeholder="指标名称"
-                                    />
-                                    <textarea
-                                      aria-label={`${m.metric_name} · 指标说明`}
-                                      value={m.metric_desc ?? ""}
-                                      onChange={(e) =>
-                                        onEditMetric(di, si, mi, {
-                                          metric_desc: e.target.value,
-                                        })
-                                      }
-                                      placeholder="指标说明（用于 AI 点评参考）"
-                                      rows={2}
-                                      className="mt-2 w-full resize-y rounded-xl border border-divider bg-surface-container-lowest p-2 text-[12px] text-on-surface-variant outline-none focus:border-primary transition-colors"
-                                    />
-                                  </>
-                                ) : (
-                                  <>
-                                    <p className="text-[13px] font-medium text-on-surface">
-                                      {m.metric_name}
-                                    </p>
-                                    {m.metric_desc && (
-                                      <p className="mt-1 text-[12px] text-on-surface-variant leading-relaxed">
-                                        {m.metric_desc}
+                      <div className="overflow-x-auto resource-table-viewport">
+                        <table className="w-full min-w-80 text-left">
+                          <thead className={`
+                            bg-surface-container-low resource-caption font-bold
+                            text-on-surface-variant uppercase tracking-wider
+                          `}>
+                            <tr>
+                              <th scope="col" className="px-4 py-2 font-bold">
+                                三级指标
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-4 py-2 font-bold text-right w-28"
+                              >
+                                权重 (%)
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-divider">
+                            {s.metrics.map((m, mi) => (
+                              <tr key={m.metric_id} className="align-top">
+                                <td className="px-4 py-3">
+                                  {editMode ? (
+                                    <>
+                                      <input
+                                        aria-label={`${s.sub_name} · 第 ${mi + 1} 个指标名称`}
+                                        maxLength={200}
+                                        value={m.metric_name}
+                                        onChange={(e) =>
+                                          onEditMetric(di, si, mi, {
+                                            metric_name: e.target.value,
+                                          })
+                                        }
+                                        className={`${editInputClass} w-full resource-caption font-medium`}
+                                        placeholder="指标名称"
+                                      />
+                                      <textarea
+                                        aria-label={`${m.metric_name} · 指标说明`}
+                                        value={m.metric_desc ?? ""}
+                                        onChange={(e) =>
+                                          onEditMetric(di, si, mi, {
+                                            metric_desc: e.target.value,
+                                          })
+                                        }
+                                        placeholder="指标说明（用于 AI 点评参考）"
+                                        rows={2}
+                                        className="resource-field mt-2 w-full resize-y"
+                                      />
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p className="resource-caption font-medium text-on-surface">
+                                        {m.metric_name}
                                       </p>
-                                    )}
-                                  </>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                {editMode ? (
-                                  <input
-                                    aria-label={`${m.metric_name} · 权重百分比`}
-                                    type="number"
-                                    step="0.1"
-                                    min="0"
-                                    max="100"
-                                    value={
-                                      Math.round(m.metric_weight * 1000) / 10
+                                      {m.metric_desc && (
+                                        <p className={`
+                                          mt-1 resource-caption text-on-surface-variant
+                                          leading-relaxed
+                                        `}>
+                                          {m.metric_desc}
+                                        </p>
+                                      )}
+                                    </>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {editMode ? (
+                                    <input
+                                      aria-label={`${m.metric_name} · 权重百分比`}
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      max="100"
+                                      value={
+                                        Math.round(m.metric_weight * 1000) / 10
+                                      }
+                                      onChange={(e) =>
+                                        onEditMetric(di, si, mi, {
+                                          metric_weight:
+                                            Number(e.target.value) / 100,
+                                        })
+                                      }
+                                      className="resource-field w-20 text-right"
+                                    />
+                                  ) : (
+                                    <span className="resource-caption font-bold text-on-surface tabular-nums">
+                                      {Math.round(m.metric_weight * 1000) / 10}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            {/* 三级权重合计行：紧跟在输入框下方，改一格立刻看到合计变化 */}
+                            {editMode && (
+                              <tr className="bg-surface-container-low/60">
+                                <td className="px-4 py-2 resource-caption font-bold text-on-surface-variant">
+                                  合计
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  <SumText
+                                    total={
+                                      weightCheck.metricSums.get(s.sub_id) ?? 0
                                     }
-                                    onChange={(e) =>
-                                      onEditMetric(di, si, mi, {
-                                        metric_weight:
-                                          Number(e.target.value) / 100,
-                                      })
-                                    }
-                                    className="w-20 text-right rounded-xl border border-divider bg-surface-container-lowest px-2 py-1.5 text-[13px] font-bold text-on-surface outline-none focus:border-primary transition-colors"
                                   />
-                                ) : (
-                                  <span className="text-[13px] font-bold text-on-surface tabular-nums">
-                                    {Math.round(m.metric_weight * 1000) / 10}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                          {/* 三级权重合计行：紧跟在输入框下方，改一格立刻看到合计变化 */}
-                          {editMode && (
-                            <tr className="bg-surface-container-low/60">
-                              <td className="px-4 py-2 text-[12px] font-bold text-on-surface-variant">
-                                合计
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                <SumText
-                                  total={
-                                    weightCheck.metricSums.get(s.sub_id) ?? 0
-                                  }
-                                />
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1133,7 +1158,7 @@ function PercentInput({
   invalid?: boolean;
 }) {
   return (
-    <label className="shrink-0 flex items-center gap-1 text-[12px] font-bold text-on-surface-variant">
+    <label className="shrink-0 flex items-center gap-1 resource-caption font-bold text-on-surface-variant">
       <input
         aria-label={label}
         aria-invalid={
@@ -1145,11 +1170,7 @@ function PercentInput({
         max="100"
         value={Math.round(value * 1000) / 10}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
-        className={`w-16 rounded-xl border bg-surface-container-lowest px-2 py-1.5 text-[13px] font-bold text-on-surface text-right outline-none transition-colors ${
-          invalid
-            ? "border-warning-border focus:border-warning-border"
-            : "border-divider focus:border-primary"
-        }`}
+        className="resource-field resource-percentage-input"
       />
       %
     </label>
@@ -1161,15 +1182,14 @@ function SumBadge({ label, total }: { label: string; total: number }) {
   const ok = isOneHundred(total);
   return (
     <div
-      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-bold ${
-        ok
+      className={`flex items-center gap-2 rounded-xl px-3 py-2 resource-caption font-bold ${ok
           ? "bg-success-container text-success"
           : "bg-warning-container text-warning"
-      }`}
+        }`}
     >
       <span
         aria-hidden="true"
-        className="material-symbols-outlined text-[16px]"
+        className="material-symbols-outlined resource-icon"
       >
         {ok ? "check_circle" : "warning"}
       </span>
@@ -1183,9 +1203,8 @@ function SumText({ total }: { total: number }) {
   const ok = isOneHundred(total);
   return (
     <span
-      className={`text-[13px] font-black tabular-nums ${
-        ok ? "text-success" : "text-warning"
-      }`}
+      className={`resource-caption font-black tabular-nums ${ok ? "text-success" : "text-warning"
+        }`}
       title={ok ? undefined : "该组三级指标权重合计应为 100%"}
     >
       {pct(total)}

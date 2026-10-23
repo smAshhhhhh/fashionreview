@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import ResourceFeedback from "../../components/ResourceFeedback";
-import ResourceHeader from "../../components/ResourceHeader";
-import Sidebar from "../../components/Sidebar";
-import MobileBottomNav from "../../components/MobileBottomNav";
+import ResourceShell from "../../components/ResourceShell";
+import ResourceContentCard from "../../components/ResourceContentCard";
+import ResourceSection from "../../components/ResourceSection";
+import ResourceMasterList from "../../components/ResourceMasterList";
 import {
   listResourceStreets,
   getStreetProfile,
@@ -161,18 +162,17 @@ export default function ProfilesPage() {
   const extra = (detail?.extra_stats ?? {}) as Dict;
 
   return (
-    <div className="flex min-h-screen bg-surface text-on-surface">
-      <Sidebar activeHref="/resources" />
-      <main className="resource-main flex-1 min-w-0 lg:ml-64">
-        {/* 顶部栏 */}
-        <ResourceHeader title="街巷画像" />
-
-        <div className="mx-auto w-full max-w-7xl px-4 lg:px-6 py-6 grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-6">
+    <ResourceShell title="街巷画像">
+      <div className="resource-content">
+        <div className="resource-workbench">
           {/* 街区列表 */}
-          <aside className="min-w-0 space-y-2 xl:sticky xl:top-20 self-start">
-            <h2 className="text-[13px] font-bold text-on-surface-variant uppercase mb-1">
-              街区
-            </h2>
+          <ResourceMasterList
+            label="街区"
+            value={
+              streets.find((item) => item.street_id === selectedId)?.street_name ??
+              "未选择街区"
+            }
+          >
             {streets.map((s) => {
               const active = selectedId === s.street_id;
               return (
@@ -182,16 +182,15 @@ export default function ProfilesPage() {
                   aria-pressed={active}
                   disabled={jobStatus != null}
                   onClick={() => void selectStreet(s.street_id)}
-                  className={`w-full text-left rounded-2xl p-3 border transition-colors disabled:opacity-60 ${
-                    active
-                      ? "border-primary bg-surface-container-low"
-                      : "border-divider hover:bg-surface-container-low"
-                  }`}
+                  className={`resource-list-item w-full disabled:opacity-60 ${active
+                      ? "resource-list-item--selected"
+                      : ""
+                    }`}
                 >
-                  <div className="text-[14px] font-bold text-on-surface">
+                  <div className="resource-detail font-bold text-on-surface">
                     {s.street_name}
                   </div>
-                  <div className="text-[11px] text-on-surface-variant mt-0.5">
+                  <div className="resource-caption text-on-surface-variant mt-0.5">
                     共 {s.poi_total} · 高德 {s.amap_count} · 点评{" "}
                     {s.dianping_count}
                     {s.has_profile ? " · 有画像" : ""}
@@ -211,22 +210,26 @@ export default function ProfilesPage() {
               />
             )}
             {!loading && !listError && streets.length === 0 && (
-              <p className="text-[13px] text-on-surface-variant">
+              <p className="resource-caption text-on-surface-variant">
                 暂无街区，先在 POI 管理导入。
               </p>
             )}
-          </aside>
+          </ResourceMasterList>
 
           {/* 画像详情 */}
-          <section className="space-y-6 min-w-0">
+          <ResourceContentCard
+            label="街巷画像详情"
+            className="resource-profile-detail"
+            variant="stack"
+          >
             <ResourceFeedback
               error={error}
               onRetry={
                 pollPaused
                   ? () => {
-                      setError(null);
-                      void pollJob();
-                    }
+                    setError(null);
+                    void pollJob();
+                  }
                   : selectedId != null
                     ? () => void selectStreet(selectedId)
                     : undefined
@@ -240,19 +243,22 @@ export default function ProfilesPage() {
                 正在加载街巷画像…
               </p>
             ) : detail == null ? (
-              <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-60 p-6 text-center text-on-surface-variant">
-                <p className="text-[15px]">
+              <div className={`
+                resource-panel resource-panel--padded min-h-60 grid place-items-center
+                text-center text-on-surface-variant
+              `}>
+                <p className="resource-body">
                   选择街区后可查看画像；没有数据时，请先前往 POI 管理导入。
                 </p>
               </div>
             ) : (
               <>
-                <div className="flex min-w-0 items-center justify-between flex-wrap gap-3 pb-6 border-b border-divider">
+                  <div className="resource-detail-header">
                   <div className="min-w-0 flex-1 basis-48">
-                    <h2 className="text-[28px] leading-8 font-black tracking-tight text-brand">
+                    <h2 className="resource-detail-title">
                       {detail.street.name}
                     </h2>
-                    <p className="text-[13px] text-on-surface-variant mt-1">
+                    <p className="resource-caption text-on-surface-variant mt-1">
                       事实层 共 {detail.poi_total} · 高德 {detail.amap_count} ·
                       点评 {detail.dianping_count}
                     </p>
@@ -261,12 +267,12 @@ export default function ProfilesPage() {
                     type="button"
                     onClick={rebuild}
                     disabled={jobStatus != null}
-                    className="flex items-center gap-2 bg-primary text-on-primary font-bold text-[15px] px-5 py-2 rounded-full shadow-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-60 disabled:active:scale-100"
+                    className="resource-button resource-button--primary"
                   >
                     {jobStatus != null && (
                       <span
                         aria-hidden="true"
-                        className="material-symbols-outlined animate-spin text-[18px]"
+                        className="material-symbols-outlined animate-spin resource-icon"
                       >
                         progress_activity
                       </span>
@@ -277,76 +283,89 @@ export default function ProfilesPage() {
                 </div>
 
                 {!detail.has_profile ? (
-                  <div className="grid place-items-center rounded-2xl border border-dashed border-divider p-10 text-center text-on-surface-variant">
-                    <p className="text-[15px]">
+                  <div className={`
+                    grid place-items-center rounded-2xl border border-dashed border-divider
+                    p-10 text-center text-on-surface-variant
+                  `}>
+                    <p className="resource-body">
                       该街区尚无画像，点击「生成画像」从事实层聚合。
                     </p>
                   </div>
                 ) : (
                   <>
                     {/* 关键指标 */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Metric
-                        label="POI 去重总数"
-                        value={asNum(detail.profile?.poi_count)}
-                      />
-                      <Metric
-                        label="连锁占比"
-                        value={pctText(detail.profile?.chain_ratio)}
-                      />
-                      <Metric
-                        label="平均评分"
-                        value={asNum(detail.profile?.avg_rating)}
-                      />
-                      <Metric
-                        label="人均(元)"
-                        value={asNum(detail.profile?.avg_price)}
-                      />
+                    <div className="resource-panel resource-scroll-card resource-scroll-card--padded">
+                      <div className="resource-profile-stats">
+                        <Metric
+                          label="POI 去重总数"
+                          value={asNum(detail.profile?.poi_count)}
+                        />
+                        <Metric
+                          label="连锁占比"
+                          value={pctText(detail.profile?.chain_ratio)}
+                        />
+                        <Metric
+                          label="平均评分"
+                          value={asNum(detail.profile?.avg_rating)}
+                        />
+                        <Metric
+                          label="人均(元)"
+                          value={asNum(detail.profile?.avg_price)}
+                        />
+                      </div>
                     </div>
 
-                    <BarBlock
-                      title="业态分布(高德一级分类)"
-                      data={distToBars(extra.category_distribution)}
-                    />
-                    <BarBlock
-                      title="菜系 Top(大众点评)"
-                      data={topToBars(extra.cuisine_top)}
-                    />
-                    <BarBlock
-                      title="价格带分布"
-                      data={bandToBars(extra.price_profile)}
-                    />
-                    <TagBlock
-                      title="时尚标签"
-                      tags={extra.fashion_tags}
-                      density={extra.fashion_density}
-                    />
-                    <HighlightBlock highlights={extra.poi_highlights} />
+                    <div className="resource-profile-sections">
+                      <BarBlock
+                        title="业态分布(高德一级分类)"
+                        data={distToBars(extra.category_distribution)}
+                      />
+                      <BarBlock
+                        title="菜系 Top(大众点评)"
+                        data={topToBars(extra.cuisine_top)}
+                      />
+                      <BarBlock
+                        title="价格带分布"
+                        data={bandToBars(extra.price_profile)}
+                      />
+                      <TagBlock
+                        title="时尚标签"
+                        tags={extra.fashion_tags}
+                        density={extra.fashion_density}
+                      />
+                      <HighlightBlock highlights={extra.poi_highlights} />
+                    </div>
 
                     {/* facts 预览 */}
-                    <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-                      <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2">
-                        <span
-                          aria-hidden="true"
-                          className="material-symbols-outlined text-primary text-[18px]"
-                        >
-                          smart_toy
+                    <ResourceSection
+                      title={
+                        <span className="flex items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="material-symbols-outlined text-primary resource-icon"
+                          >
+                            smart_toy
+                          </span>
+                          点评时进入 LLM 的 facts 预览
                         </span>
-                        点评时进入 LLM 的 facts 预览
-                      </h3>
-                      <pre className="text-[12px] whitespace-pre-wrap text-on-surface-variant bg-surface-container-low rounded-xl p-3 overflow-x-auto">
+                      }
+                    >
+                      <pre className={`
+                        resource-caption whitespace-pre-wrap text-on-surface-variant
+                        overflow-x-auto
+                      `}>
                         {detail.facts_preview || "(空)"}
                       </pre>
-                    </div>
+                    </ResourceSection>
                   </>
                 )}
               </>
             )}
-          </section>
+          </ResourceContentCard>
         </div>
-      </main>
-      <MobileBottomNav activeHref="/resources" />
-    </div>
+      </div>
+
+    </ResourceShell>
   );
 }
 
@@ -371,12 +390,12 @@ function distToBars(d: unknown): Bar[] {
     const { count, pct } = value as Record<string, unknown>;
     return typeof count === "number" && Number.isFinite(count) && count >= 0
       ? [
-          {
-            label,
-            count,
-            pct: typeof pct === "number" && Number.isFinite(pct) ? pct : 0,
-          },
-        ]
+        {
+          label,
+          count,
+          pct: typeof pct === "number" && Number.isFinite(pct) ? pct : 0,
+        },
+      ]
       : [];
   });
 }
@@ -423,11 +442,10 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
   if (data.length === 0) return null;
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
-    <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-      <h3 className="text-[14px] font-bold mb-3 text-on-surface">{title}</h3>
+    <ResourceSection title={title}>
       <div className="space-y-2">
         {data.slice(0, 12).map((d) => (
-          <div key={d.label} className="flex items-center gap-2 text-[12px]">
+          <div key={d.label} className="flex items-center gap-2 resource-caption">
             <span className="w-20 sm:w-28 shrink-0 text-on-surface-variant">
               {d.label}
             </span>
@@ -443,7 +461,7 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
           </div>
         ))}
       </div>
-    </div>
+    </ResourceSection>
   );
 }
 
@@ -464,8 +482,7 @@ function TagBlock({
   );
   if (entries.length === 0) return null;
   return (
-    <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-      <h3 className="text-[14px] font-bold mb-3 text-on-surface">{title}</h3>
+    <ResourceSection title={title}>
       <div className="flex flex-wrap gap-2">
         {entries.map(([k, v]) => {
           const base = k.replace(/_count$/, "");
@@ -473,7 +490,7 @@ function TagBlock({
           return (
             <span
               key={k}
-              className="max-w-full text-[12px] bg-primary/10 text-primary px-3 py-1 rounded-full"
+              className="max-w-full resource-caption bg-primary/10 text-primary px-3 py-1 rounded-full"
             >
               {TAG_CN[base] ?? base}: {v}
               {pct != null ? ` (${pct}%)` : ""}
@@ -481,7 +498,7 @@ function TagBlock({
           );
         })}
       </div>
-    </div>
+    </ResourceSection>
   );
 }
 
@@ -491,11 +508,10 @@ function HighlightBlock({ highlights }: { highlights: unknown }) {
   const entries = Object.entries(h).filter(([, names]) => Array.isArray(names));
   if (entries.length === 0) return null;
   return (
-    <div className="bg-surface-container-lowest rounded-2xl border border-divider p-4">
-      <h3 className="text-[14px] font-bold mb-3 text-on-surface">代表性店铺</h3>
+    <ResourceSection title="代表性店铺">
       <div className="space-y-2">
         {entries.map(([k, names]) => (
-          <div key={k} className="text-[12px]">
+          <div key={k} className="resource-caption">
             <span className="font-semibold text-on-surface-variant">
               {TAG_CN[k] ?? k}:{" "}
             </span>
@@ -505,15 +521,15 @@ function HighlightBlock({ highlights }: { highlights: unknown }) {
           </div>
         ))}
       </div>
-    </div>
+    </ResourceSection>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-surface-container-low border border-divider rounded-2xl p-3">
-      <div className="text-[11px] text-on-surface-variant">{label}</div>
-      <div className="text-[18px] font-bold tabular-nums text-on-surface">
+    <div className="min-w-0">
+      <div className="resource-caption text-on-surface-variant">{label}</div>
+      <div className="resource-item-title font-bold tabular-nums text-on-surface">
         {value}
       </div>
     </div>

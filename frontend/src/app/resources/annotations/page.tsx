@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import ResourceDialog from "../../components/ResourceDialog";
 import ResourceFeedback from "../../components/ResourceFeedback";
-import ResourceHeader from "../../components/ResourceHeader";
-import Sidebar from "../../components/Sidebar";
-import MobileBottomNav from "../../components/MobileBottomNav";
+import ResourceShell from "../../components/ResourceShell";
+import ResourceContentCard from "../../components/ResourceContentCard";
 import {
   assetUrl,
   clearAnnotations,
@@ -224,41 +223,42 @@ export default function AnnotationsPage() {
   const pending = Math.max(0, counts.image_count - counts.embedded_count);
 
   return (
-    <div className="flex min-h-screen bg-surface text-on-surface">
-      <Sidebar activeHref="/resources" />
-      <main className="resource-main flex-1 min-w-0 lg:ml-64">
-        <ResourceHeader title="人工标注库" />
-
-        <div className="max-w-250 mx-auto p-4 lg:p-6 space-y-6">
-          {/* ──── 上传区 ──── */}
-          <section className="border border-divider rounded-2xl p-4 sm:p-6 bg-surface-container-lowest">
-            <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-start gap-x-4 gap-y-1 mb-6">
-              <div className="sm:row-span-2 bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary shrink-0">
-                <span aria-hidden="true" className="material-symbols-outlined">
-                  upload_file
-                </span>
-              </div>
-              <h2 className="self-center sm:self-start text-xl font-bold">
-                上传标注表格
-              </h2>
-              <p className="col-span-2 sm:col-span-1 sm:col-start-2 text-on-surface-variant text-[15px] leading-relaxed">
-                支持 WPS 导出的 .xlsx（图片以 DISPIMG 内嵌在单元格内）。系统解析
-                「图片」与「图片属性1~7」两部分：图片落盘并生成向量，属性按
-                「指标名：等级成语」拆解入库。照片发起点评时据此匹配最相似的标注图，
-                把它的属性赋给本次点评，显示在对应三级指标得分后。
-              </p>
-            </div>
-
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-divider">
-              <div className="flex w-full min-w-0 items-center gap-3 md:flex-1">
-                <label className="resource-upload cursor-pointer hover:bg-surface-container transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-divider shrink-0">
+    <ResourceShell title="人工标注库">
+      <div className="resource-content resource-data-layout">
+        <div className="resource-annotation-heading">
+          <div className="resource-section-icon">
+            <span aria-hidden="true" className="material-symbols-outlined">
+              upload_file
+            </span>
+          </div>
+          <h2 className="resource-section-title">
+            导入与向量管理
+          </h2>
+          <p className="resource-import-description">
+            支持 WPS 导出的 .xlsx（图片以 DISPIMG 内嵌在单元格内）。系统解析
+            「图片」与「图片属性1~7」两部分：图片落盘并生成向量，属性按
+            「指标名：等级成语」拆解入库。照片发起点评时据此匹配最相似的标注图，
+            把它的属性赋给本次点评，显示在对应三级指标得分后。
+          </p>
+        </div>
+        <aside
+          className={[
+            "resource-tool-rail resource-annotation-tools",
+            "resource-tools-separated resource-sticky-tools",
+          ].join(" ")}
+          aria-label="标注库管理"
+        >
+          <div className="resource-panel resource-annotation-controls">
+            <div className="resource-import-actions resource-annotation-import">
+              <div className="resource-file-picker">
+                <label className="resource-upload resource-button">
                   <span
                     aria-hidden="true"
-                    className="material-symbols-outlined text-[20px] text-primary"
+                    className="material-symbols-outlined resource-icon text-primary"
                   >
                     attach_file
                   </span>
-                  <span className="text-[15px] font-bold text-primary">
+                  <span className="resource-body font-bold text-primary">
                     选择文件
                   </span>
                   <input
@@ -271,13 +271,13 @@ export default function AnnotationsPage() {
                   />
                 </label>
                 <span
-                  className="min-w-0 text-on-surface-variant text-[13px] truncate"
+                  className="min-w-0 text-on-surface-variant resource-caption truncate"
                   title={file?.name}
                 >
                   {file ? file.name : "未选择任何文件"}
                 </span>
               </div>
-              <div className="flex w-full flex-wrap items-center justify-end gap-3 md:w-auto">
+              <div className="resource-import-submit">
                 <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -286,7 +286,7 @@ export default function AnnotationsPage() {
                     checked={clearExisting}
                     onChange={(e) => setClearExisting(e.target.checked)}
                   />
-                  <span className="text-[15px] font-semibold text-on-surface-variant">
+                  <span className="resource-body font-semibold text-on-surface-variant">
                     导入前清空标注库
                   </span>
                 </label>
@@ -301,76 +301,71 @@ export default function AnnotationsPage() {
                     loadingMore ||
                     !!listError
                   }
-                  className="bg-primary text-on-primary px-6 py-2 rounded-full text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                  className="resource-button resource-button--primary"
                 >
                   {importing ? "解析中…" : "上传并导入"}
                 </button>
               </div>
             </div>
-          </section>
 
-          <ResourceFeedback
-            error={error}
-            onRetry={
-              pollPaused
-                ? () => {
+            <ResourceFeedback
+              error={error}
+              onRetry={
+                pollPaused
+                  ? () => {
                     setError(null);
                     void pollJob();
                   }
-                : undefined
-            }
-          />
+                  : undefined
+              }
+            />
 
-          {/* ──── 导入摘要 ──── */}
-          {result && (
-            <section
-              role="status"
-              className="border border-divider rounded-2xl p-4 sm:p-6 bg-surface-container-lowest space-y-4"
-            >
-              <h2 className="text-[15px] font-bold uppercase tracking-widest text-on-surface-variant">
-                导入摘要
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Stat label="解析行数" value={result.total_rows} />
-                <Stat label="新增" value={result.inserted} />
-                <Stat label="更新" value={result.updated} />
-                <Stat label="属性条数" value={result.attr_total} />
-              </div>
-
-              {result.unknown_metrics.length === 0 &&
-              result.unknown_grade_words.length === 0 ? (
-                <p className="text-[13px] text-success bg-success-container rounded-xl px-4 py-3">
-                  全部属性的指标名与等级成语均已识别，无需人工核对。
+            {/* 导入摘要 */}
+            {result && (
+              <div
+                role="status"
+                className="resource-annotation-result"
+              >
+                <p className="resource-detail font-semibold">
+                  导入摘要
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {result.unknown_metrics.length > 0 && (
-                    <Warn
-                      title={`${result.unknown_metrics.length} 个指标名未命中空间美学维度的三级指标`}
-                      detail={result.unknown_metrics.join("、")}
-                      hint="这些属性已入库，但无法与指标行对齐，前端不会渲染。"
-                    />
-                  )}
-                  {result.unknown_grade_words.length > 0 && (
-                    <Warn
-                      title={`${result.unknown_grade_words.length} 个等级成语不在已知词表内`}
-                      detail={result.unknown_grade_words.join("、")}
-                      hint="属性仍会显示，但建议核对是否为错别字。"
-                    />
-                  )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Stat label="解析行数" value={result.total_rows} />
+                  <Stat label="新增" value={result.inserted} />
+                  <Stat label="更新" value={result.updated} />
+                  <Stat label="属性条数" value={result.attr_total} />
                 </div>
-              )}
-            </section>
-          )}
 
-          {/* ──── 向量状态 ──── */}
-          <section className="border border-divider rounded-2xl p-4 sm:p-6 bg-surface-container-lowest space-y-4">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <h2 className="text-[15px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
-                  向量状态
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
+                {result.unknown_metrics.length === 0 &&
+                  result.unknown_grade_words.length === 0 ? (
+                  <p className="resource-caption text-success bg-success-container rounded-xl px-4 py-3">
+                    全部属性的指标名与等级成语均已识别，无需人工核对。
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {result.unknown_metrics.length > 0 && (
+                      <Warn
+                        title={`${result.unknown_metrics.length} 个指标名未命中空间美学维度的三级指标`}
+                        detail={result.unknown_metrics.join("、")}
+                        hint="这些属性已入库，但无法与指标行对齐，前端不会渲染。"
+                      />
+                    )}
+                    {result.unknown_grade_words.length > 0 && (
+                      <Warn
+                        title={`${result.unknown_grade_words.length} 个等级成语不在已知词表内`}
+                        detail={result.unknown_grade_words.join("、")}
+                        hint="属性仍会显示，但建议核对是否为错别字。"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 向量状态 */}
+            <div className="resource-annotation-vector">
+              <div className="resource-annotation-status">
+                <div className="resource-stat-grid">
                   <Stat
                     label="标注图"
                     value={loading ? "—" : counts.image_count}
@@ -385,111 +380,116 @@ export default function AnnotationsPage() {
                   />
                   <Stat label="待生成" value={loading ? "—" : pending} />
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => onBuildEmbeddings(false)}
-                  disabled={
-                    busy ||
-                    importing ||
-                    loading ||
-                    loadingMore ||
-                    !!listError ||
-                    counts.image_count === 0
-                  }
-                  className="bg-primary text-on-primary px-5 py-2 rounded-full text-[15px] font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
-                >
-                  {busy ? "生成中…" : "生成向量"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onBuildEmbeddings(true)}
-                  disabled={
-                    busy ||
-                    importing ||
-                    loading ||
-                    loadingMore ||
-                    !!listError ||
-                    counts.image_count === 0
-                  }
-                  className="border border-divider px-5 py-2 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
-                >
-                  全部重算
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onClear()}
-                  disabled={
-                    busy ||
-                    importing ||
-                    loading ||
-                    loadingMore ||
-                    !!listError ||
-                    counts.image_count === 0
-                  }
-                  className="border border-error/30 text-error px-5 py-2 rounded-full text-[15px] font-bold hover:bg-error/5 transition-colors disabled:opacity-50"
-                >
-                  清空标注库
-                </button>
-              </div>
-            </div>
-
-            {job && (
-              <div
-                role="status"
-                className="pt-4 border-t border-divider space-y-2"
-              >
-                <div className="flex items-center justify-between text-[13px] font-bold">
-                  <span className="text-on-surface-variant">
-                    {job.status === "running"
-                      ? "正在生成向量…"
-                      : job.status === "partial"
-                        ? "生成完成（部分失败）"
-                        : "生成完成"}
-                  </span>
-                  <span className="tabular-nums">
-                    {job.done} / {job.total}
-                    {job.failed > 0 && `（失败 ${job.failed}）`}
-                  </span>
+                <div className="resource-annotation-actions">
+                  <button
+                    type="button"
+                    onClick={() => onBuildEmbeddings(false)}
+                    disabled={
+                      busy ||
+                      importing ||
+                      loading ||
+                      loadingMore ||
+                      !!listError ||
+                      counts.image_count === 0
+                    }
+                    className="resource-button resource-button--primary"
+                  >
+                    {busy ? "生成中…" : "生成向量"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onBuildEmbeddings(true)}
+                    disabled={
+                      busy ||
+                      importing ||
+                      loading ||
+                      loadingMore ||
+                      !!listError ||
+                      counts.image_count === 0
+                    }
+                    className="resource-button resource-button--secondary"
+                  >
+                    全部重算
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onClear()}
+                    disabled={
+                      busy ||
+                      importing ||
+                      loading ||
+                      loadingMore ||
+                      !!listError ||
+                      counts.image_count === 0
+                    }
+                    className="resource-button resource-button--danger"
+                  >
+                    清空标注库
+                  </button>
                 </div>
+              </div>
+
+              {job && (
                 <div
-                  role="progressbar"
-                  aria-label="向量生成进度"
-                  aria-valuemin={0}
-                  aria-valuemax={job.total || 1}
-                  aria-valuenow={Math.min(job.done, job.total)}
-                  className="w-full bg-surface-container-low rounded-full h-1"
+                  role="status"
+                  className="pt-4 border-t border-divider space-y-2"
                 >
+                  <div className="flex items-center justify-between resource-caption font-bold">
+                    <span className="text-on-surface-variant">
+                      {job.status === "running"
+                        ? "正在生成向量…"
+                        : job.status === "partial"
+                          ? "生成完成（部分失败）"
+                          : "生成完成"}
+                    </span>
+                    <span className="tabular-nums">
+                      {job.done} / {job.total}
+                      {job.failed > 0 && `（失败 ${job.failed}）`}
+                    </span>
+                  </div>
                   <div
-                    className="bg-primary h-1 rounded-full transition-all"
-                    style={{
-                      width: `${job.total > 0 ? (job.done / job.total) * 100 : 0}%`,
-                    }}
-                  />
+                    role="progressbar"
+                    aria-label="向量生成进度"
+                    aria-valuemin={0}
+                    aria-valuemax={job.total || 1}
+                    aria-valuenow={Math.min(job.done, job.total)}
+                    className="w-full bg-surface-container-low rounded-full h-1"
+                  >
+                    <div
+                      className="bg-primary h-1 rounded-full transition-all"
+                      style={{
+                        width: `${job.total > 0 ? (job.done / job.total) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
+                  {job.error && (
+                    <p className="resource-caption text-error">
+                      最近一次错误：{"请重新查询任务状态，或核对标注图片后重试。"}
+                    </p>
+                  )}
                 </div>
-                {job.error && (
-                  <p className="text-[13px] text-error">
-                    最近一次错误：{"请重新查询任务状态，或核对标注图片后重试。"}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+        </aside>
+        <ResourceContentCard
+          label="标注图片与属性"
+          className="resource-library"
+          variant="stack"
+        >
+          {counts.image_count > 0 && pending === 0 && (
+            <p className="resource-caption text-on-surface-variant">
+              向量已就绪。建议执行一次标定检查匹配质量：
+              <code className="mx-1 px-1.5 py-0.5 bg-surface-container-low rounded resource-caption">
+                python -m app.services.annotation.calibrate
+              </code>
+              输出两两相似度矩阵与分布报告。
+            </p>
+          )}
 
-            {counts.image_count > 0 && pending === 0 && (
-              <p className="text-[13px] text-on-surface-variant">
-                向量已就绪。建议执行一次标定检查匹配质量：
-                <code className="mx-1 px-1.5 py-0.5 bg-surface-container-low rounded text-[12px]">
-                  python -m app.services.annotation.calibrate
-                </code>
-                输出两两相似度矩阵与分布报告。
-              </p>
-            )}
-          </section>
-
-          {/* ──── 标注图网格 ──── */}
-          <section className="space-y-4">
-            <h2 className="text-[15px] font-bold uppercase tracking-widest text-on-surface-variant">
+          {/* 标注图网格 */}
+          <section className="resource-section">
+            <h2 className="resource-section-title">
               标注图 {total > 0 && `（已显示 ${items.length} / 共 ${total}）`}
             </h2>
             {listError && (
@@ -506,11 +506,14 @@ export default function AnnotationsPage() {
                 正在加载标注库…
               </p>
             ) : !listError && items.length === 0 ? (
-              <div className="border border-dashed border-divider rounded-2xl p-10 text-center text-[15px] text-on-surface-variant">
+              <div className={`
+                border border-dashed border-divider rounded-2xl p-10 text-center
+                resource-body text-on-surface-variant
+              `}>
                 标注库为空。上传标注表格后在此查看图片与属性。
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="resource-annotation-grid">
                 {items.map((it) => (
                   <AnnotationCard key={it.id} item={it} />
                 ))}
@@ -521,14 +524,15 @@ export default function AnnotationsPage() {
                 type="button"
                 disabled={loadingMore || busy || importing}
                 onClick={() => void loadMore()}
-                className="mx-auto block rounded-full border border-divider px-6 py-2 font-semibold text-primary"
+                className="resource-button resource-button--secondary mx-auto"
               >
                 {loadingMore ? "正在加载…" : "加载更多标注"}
               </button>
             )}
           </section>
-        </div>
-      </main>
+        </ResourceContentCard>
+      </div>
+
       {pendingAction && (
         <ResourceDialog
           title={
@@ -544,7 +548,7 @@ export default function AnnotationsPage() {
             <button
               type="button"
               onClick={() => setPendingAction(null)}
-              className="rounded-full border border-divider px-4 py-2 font-semibold"
+              className="resource-button resource-button--secondary"
             >
               取消
             </button>
@@ -555,15 +559,14 @@ export default function AnnotationsPage() {
                 setPendingAction(null);
                 void (action === "clear" ? onClear(true) : onImport(true));
               }}
-              className="rounded-full bg-error px-4 py-2 font-semibold text-on-error"
+              className="resource-button resource-button--destructive"
             >
               {pendingAction === "clear" ? "确认清空" : "确认替换并导入"}
             </button>
           </div>
         </ResourceDialog>
       )}
-      <MobileBottomNav activeHref="/resources" />
-    </div>
+    </ResourceShell>
   );
 }
 
@@ -575,7 +578,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
       <div className="text-2xl font-black tabular-nums tracking-tight">
         {value}
       </div>
-      <div className="text-[11px] text-on-surface-variant font-bold uppercase">
+      <div className="resource-caption text-on-surface-variant font-bold uppercase">
         {label}
       </div>
     </div>
@@ -593,9 +596,9 @@ function Warn({
 }) {
   return (
     <div className="bg-warning-container border border-warning-border/30 rounded-xl px-4 py-3">
-      <p className="text-[13px] font-bold text-warning">{title}</p>
-      <p className="text-[13px] text-warning mt-1 break-words">{detail}</p>
-      <p className="text-[12px] text-warning mt-1">{hint}</p>
+      <p className="resource-caption font-bold text-warning">{title}</p>
+      <p className="resource-caption text-warning mt-1 break-words">{detail}</p>
+      <p className="resource-caption text-warning mt-1">{hint}</p>
     </div>
   );
 }
@@ -604,12 +607,15 @@ function AnnotationCard({ item }: { item: AnnotationItem }) {
   const attrs = item.attributes ?? [];
   const [imageFailed, setImageFailed] = useState(false);
   return (
-    <div className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
+    <div className="resource-panel resource-scroll-card">
       {imageFailed ? (
         <div
           role="img"
           aria-label={`${item.file_name}，图片暂不可用`}
-          className="grid h-44 place-items-center bg-surface-container-low p-4 text-center text-sm text-on-surface-variant"
+          className={`
+            grid h-44 place-items-center bg-surface-container-low p-4 text-center text-sm
+            text-on-surface-variant
+          `}
         >
           图片暂不可用
         </div>
@@ -627,16 +633,22 @@ function AnnotationCard({ item }: { item: AnnotationItem }) {
         <div className="flex items-center justify-between gap-2">
           <span
             title={item.file_name}
-            className="min-w-0 text-[13px] font-bold break-all"
+            className="min-w-0 resource-caption font-bold break-all"
           >
             {item.file_name}
           </span>
           {item.has_embedding ? (
-            <span className="shrink-0 text-[11px] font-bold text-success bg-success-container rounded-md px-2 py-0.5">
+            <span className={`
+              shrink-0 resource-caption font-bold text-success bg-success-container
+              rounded-md px-2 py-0.5
+            `}>
               向量就绪
             </span>
           ) : (
-            <span className="shrink-0 text-[11px] font-bold text-warning bg-warning-container rounded-md px-2 py-0.5">
+            <span className={`
+              shrink-0 resource-caption font-bold text-warning bg-warning-container
+              rounded-md px-2 py-0.5
+            `}>
               待生成
             </span>
           )}
@@ -645,7 +657,10 @@ function AnnotationCard({ item }: { item: AnnotationItem }) {
           {attrs.map((a) => (
             <span
               key={a.attr_index}
-              className="max-w-full rounded-md bg-success-container px-2 py-0.5 text-[12px] font-medium text-success"
+              className={`
+                max-w-full rounded-md bg-success-container px-2 py-0.5 resource-caption
+                font-medium text-success
+              `}
               title={a.raw_text}
             >
               {a.metric_name ? `${a.metric_name} · ` : ""}

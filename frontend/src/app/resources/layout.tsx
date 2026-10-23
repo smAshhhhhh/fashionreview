@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "./resources.css";
+import "./resource-subpages.css";
 
 export const metadata: Metadata = { title: "Fashion Street AI - 资源中心" };
 

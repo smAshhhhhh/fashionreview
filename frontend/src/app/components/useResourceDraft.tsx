@@ -66,14 +66,14 @@ export default function useResourceDraft(dirty: boolean) {
       <div className="mt-6 flex flex-wrap justify-end gap-3">
         <button
           type="button"
-          className="rounded-full border border-divider px-4 py-2 font-semibold"
+          className="resource-button resource-button--secondary"
           onClick={() => setPendingAction(null)}
         >
           继续编辑
         </button>
         <button
           type="button"
-          className="rounded-full bg-primary px-4 py-2 font-semibold text-on-primary"
+          className="resource-button resource-button--primary"
           onClick={() => {
             setPendingAction(null);
             pendingAction();

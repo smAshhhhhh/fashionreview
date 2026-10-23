@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import ResourceDialog from "../../components/ResourceDialog";
 import ResourceFeedback from "../../components/ResourceFeedback";
-import ResourceHeader from "../../components/ResourceHeader";
-import Sidebar from "../../components/Sidebar";
-import MobileBottomNav from "../../components/MobileBottomNav";
+import ResourceShell from "../../components/ResourceShell";
+import ResourceContentCard from "../../components/ResourceContentCard";
 import {
   importPoiFile,
   listResourceStreets,
@@ -57,8 +56,11 @@ export default function PoiManagePage() {
   const streetScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollStreets = (dir: -1 | 1) => {
-    streetScrollRef.current?.scrollBy({
-      left: dir * 320,
+    const list = streetScrollRef.current;
+    if (!list) return;
+
+    list.scrollBy({
+      left: dir * list.clientWidth,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? "instant"
         : "smooth",
@@ -241,43 +243,39 @@ export default function PoiManagePage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-surface text-on-surface">
-      <Sidebar activeHref="/resources" />
-      <main className="resource-main flex-1 min-w-0 lg:ml-64">
-        {/* 顶部栏 */}
-        <ResourceHeader title="POI 数据导入" />
-
-        <div className="max-w-250 mx-auto p-4 lg:p-6 space-y-6">
-          {/* 上传区（Dropzone 风格） */}
-          <section className="border border-divider rounded-2xl p-4 sm:p-6 bg-surface-container-lowest">
-            <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-start gap-x-4 gap-y-1 mb-6">
-              <div className="sm:row-span-2 bg-surface-container-low w-12 h-12 rounded-full flex items-center justify-center text-primary shrink-0">
-                <span aria-hidden="true" className="material-symbols-outlined">
-                  upload_file
-                </span>
-              </div>
-              <h2 className="self-center sm:self-start text-xl font-bold">
-                上传并导入
-              </h2>
-              <p className="col-span-2 sm:col-span-1 sm:col-start-2 text-on-surface-variant text-[15px] leading-relaxed">
-                支持高德 / 大众点评导出的 .sql 或
-                .csv。系统会自动识别格式，解析后写入事实层
-                street_poi。本页只负责事实层导入，画像生成请前往「街巷画像」页。
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <ResourceShell title="POI 数据导入">
+      <div className="resource-content resource-data-layout resource-poi-page">
+        <div className="resource-upload-heading">
+          <div className="resource-section-icon">
+            <span aria-hidden="true" className="material-symbols-outlined">
+              upload_file
+            </span>
+          </div>
+          <h2 className="resource-section-title">
+            上传并导入
+          </h2>
+          <p className="resource-import-description">
+            支持高德、大众点评的 .sql / .csv 文件。
+            填写所属街区后导入，即可查看已收录数据。
+          </p>
+        </div>
+        <aside
+          className="resource-tool-rail resource-poi-tools resource-sticky-tools"
+          aria-label="数据导入"
+        >
+          <div className="resource-panel resource-panel--padded">
+            <div className="resource-import-fields">
               <div className="space-y-1">
                 <label
                   htmlFor="poi-city"
-                  className="text-[13px] font-semibold px-1 text-on-surface-variant"
+                  className="resource-caption font-semibold px-1 text-on-surface-variant"
                 >
                   城市
                 </label>
                 <input
                   id="poi-city"
                   disabled={importing}
-                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary transition-colors outline-none"
+                  className="resource-field w-full"
                   placeholder="输入城市"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -286,14 +284,14 @@ export default function PoiManagePage() {
               <div className="space-y-1">
                 <label
                   htmlFor="poi-district"
-                  className="text-[13px] font-semibold px-1 text-on-surface-variant"
+                  className="resource-caption font-semibold px-1 text-on-surface-variant"
                 >
                   行政区 (可选)
                 </label>
                 <input
                   id="poi-district"
                   disabled={importing}
-                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary transition-colors outline-none"
+                  className="resource-field w-full"
                   placeholder="输入行政区"
                   value={district}
                   onChange={(e) => setDistrict(e.target.value)}
@@ -302,14 +300,14 @@ export default function PoiManagePage() {
               <div className="space-y-1">
                 <label
                   htmlFor="poi-streetName"
-                  className="text-[13px] font-semibold px-1 text-on-surface-variant"
+                  className="resource-caption font-semibold px-1 text-on-surface-variant"
                 >
                   街区名称 (如 新天地)
                 </label>
                 <input
                   id="poi-streetName"
                   disabled={importing}
-                  className="w-full border border-divider rounded-xl px-3 py-2 text-[15px] focus:border-primary transition-colors outline-none"
+                  className="resource-field w-full"
                   placeholder="输入街区名称"
                   value={streetName}
                   onChange={(e) => setStreetName(e.target.value)}
@@ -317,16 +315,16 @@ export default function PoiManagePage() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-divider">
-              <div className="flex w-full min-w-0 items-center gap-3 md:flex-1">
-                <label className="resource-upload shrink-0 cursor-pointer hover:bg-surface-container transition-colors px-5 py-2 rounded-full flex items-center gap-2 border border-divider">
+            <div className="resource-import-actions">
+              <div className="resource-file-picker">
+                <label className="resource-upload resource-button">
                   <span
                     aria-hidden="true"
-                    className="material-symbols-outlined text-[20px] text-primary"
+                    className="material-symbols-outlined resource-icon text-primary"
                   >
                     attach_file
                   </span>
-                  <span className="text-[15px] font-bold text-primary">
+                  <span className="resource-body font-bold text-primary">
                     选择文件
                   </span>
                   <input
@@ -339,13 +337,13 @@ export default function PoiManagePage() {
                   />
                 </label>
                 <span
-                  className="min-w-0 text-on-surface-variant text-[13px] truncate"
+                  className="min-w-0 text-on-surface-variant resource-caption truncate"
                   title={file?.name}
                 >
                   {file ? file.name : "未选择任何文件"}
                 </span>
               </div>
-              <div className="flex w-full flex-wrap items-center justify-end gap-3 md:w-auto">
+              <div className="resource-import-submit">
                 <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -354,7 +352,7 @@ export default function PoiManagePage() {
                     checked={clearExisting}
                     onChange={(e) => setClearExisting(e.target.checked)}
                   />
-                  <span className="text-[15px] font-semibold text-on-surface-variant">
+                  <span className="resource-body font-semibold text-on-surface-variant">
                     导入前清空该街区同源数据
                   </span>
                 </label>
@@ -362,7 +360,7 @@ export default function PoiManagePage() {
                   type="button"
                   onClick={() => void onImport()}
                   disabled={!file || !streetName.trim() || importing}
-                  className="bg-primary text-on-primary px-6 py-2 rounded-full text-[15px] font-bold hover:opacity-90 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                  className="resource-button resource-button--primary"
                 >
                   {importing ? "解析导入中…" : "解析并导入"}
                 </button>
@@ -374,64 +372,78 @@ export default function PoiManagePage() {
                 {error}
               </p>
             )}
-          </section>
-
-          {/* 导入结果 */}
+          </div>
+        </aside>
+        <ResourceContentCard
+          label="街区与 POI 明细"
+          className="resource-library resource-poi-library"
+          variant="stack"
+        >
           {result && (
-            <section className="border border-divider rounded-2xl p-4 sm:p-6 bg-surface-container-lowest space-y-4">
-              <h2 className="text-xl font-bold">导入结果</h2>
-              <div className="flex flex-wrap gap-3 text-[13px]">
-                <Stat label="街区" value={result.street.name} />
-                <Stat label="识别格式" value={result.detected_format} />
-                <Stat
-                  label="来源"
-                  value={SOURCE_CN[result.source] ?? result.source}
-                />
-                <Stat label="总行数" value={result.total_rows} />
-                <Stat label="新增" value={result.inserted} />
-                <Stat label="更新" value={result.updated} />
-                <Stat label="跳过" value={result.skipped} />
+            <section className="resource-poi-group">
+              <h2 className="resource-section-title">导入结果</h2>
+              <div className="resource-panel resource-panel--padded">
+                <div className="flex flex-wrap gap-3 resource-caption">
+                  <Stat label="街区" value={result.street.name} />
+                  <Stat label="识别格式" value={result.detected_format} />
+                  <Stat
+                    label="来源"
+                    value={SOURCE_CN[result.source] ?? result.source}
+                  />
+                  <Stat label="总行数" value={result.total_rows} />
+                  <Stat label="新增" value={result.inserted} />
+                  <Stat label="更新" value={result.updated} />
+                  <Stat label="跳过" value={result.skipped} />
+                </div>
+                {result.warnings.length > 0 && (
+                  <ul className="mt-4 resource-caption text-warning list-disc pl-5">
+                    {result.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              <div>
-                <h3 className="text-[13px] font-semibold mb-2 text-on-surface-variant">
-                  字段覆盖率
-                </h3>
+              <h3 className="font-semibold text-on-surface-variant resource-item-title">
+                字段覆盖率
+              </h3>
+              <div className="resource-panel resource-panel--padded">
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(result.field_coverage).map(([k, v]) => (
                     <span
                       key={k}
-                      className="text-[11px] bg-surface-container-low px-2 py-1 rounded-full text-on-surface-variant"
+                      className={`
+                        resource-caption bg-surface-container-low px-2 py-1 rounded-full
+                        text-on-surface-variant
+                      `}
                     >
                       {k}: {(v * 100).toFixed(0)}%
                     </span>
                   ))}
                 </div>
               </div>
-              {result.warnings.length > 0 && (
-                <ul className="text-[12px] text-warning list-disc pl-5">
-                  {result.warnings.map((w) => (
-                    <li key={w}>{w}</li>
-                  ))}
-                </ul>
-              )}
             </section>
           )}
 
-          {/* 已收录街区（Bento 卡片，吸顶：滚动长表时始终可切换街区） */}
-          <section className="py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h2 className="text-xl font-bold">已收录街区 (事实层)</h2>
+          {/* 街区与明细 */}
+          <section
+            className="resource-street-browser resource-poi-group"
+            aria-labelledby="poi-streets-heading"
+          >
+            <div className="resource-carousel-heading">
+              <h2 id="poi-streets-heading" className="resource-section-title">
+                已收录街区 (事实层)
+              </h2>
               {streets.length > 1 && (
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     aria-label="向左滚动"
                     onClick={() => scrollStreets(-1)}
-                    className="w-11 h-11 flex items-center justify-center rounded-full border border-divider text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                    className="resource-button resource-button--secondary resource-button--icon"
                   >
                     <span
                       aria-hidden="true"
-                      className="material-symbols-outlined text-[20px]"
+                      className="material-symbols-outlined resource-icon"
                     >
                       chevron_left
                     </span>
@@ -440,11 +452,11 @@ export default function PoiManagePage() {
                     type="button"
                     aria-label="向右滚动"
                     onClick={() => scrollStreets(1)}
-                    className="w-11 h-11 flex items-center justify-center rounded-full border border-divider text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                    className="resource-button resource-button--secondary resource-button--icon"
                   >
                     <span
                       aria-hidden="true"
-                      className="material-symbols-outlined text-[20px]"
+                      className="material-symbols-outlined resource-icon"
                     >
                       chevron_right
                     </span>
@@ -454,8 +466,10 @@ export default function PoiManagePage() {
             </div>
             <div
               ref={streetScrollRef}
+              role="region"
+              tabIndex={0}
               aria-label="已收录街区"
-              className="flex gap-4 overflow-x-auto py-1"
+              className="resource-street-items"
             >
               {streets.map((s) => {
                 const active = activeStreetId === s.street_id;
@@ -465,19 +479,18 @@ export default function PoiManagePage() {
                     type="button"
                     aria-pressed={active}
                     onClick={() => void loadRows(s.street_id, "all")}
-                    className={`shrink-0 w-64 text-left rounded-2xl p-4 border transition-all hover:bg-surface-container-low cursor-pointer ${
-                      active
-                        ? "border-primary bg-surface-container-low"
-                        : "border-divider"
-                    }`}
+                    className={`resource-list-item resource-street-card ${active
+                        ? "resource-list-item--selected"
+                        : ""
+                      }`}
                   >
                     <div className="flex min-w-0 flex-wrap justify-between items-start gap-2 mb-3">
-                      <h3 className="text-xl font-bold">{s.street_name}</h3>
-                      <span className="text-on-surface-variant text-[13px]">
+                      <h3 className="resource-item-title">{s.street_name}</h3>
+                      <span className="text-on-surface-variant resource-caption">
                         {[s.city, s.district].filter(Boolean).join(" ") || ""}
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-on-surface-variant text-[13px]">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-on-surface-variant resource-caption">
                       <span>共 {s.poi_total}</span>
                       <span>高德 {s.amap_count}</span>
                       <span>点评 {s.dianping_count}</span>
@@ -487,11 +500,11 @@ export default function PoiManagePage() {
                         <>
                           <span
                             aria-hidden="true"
-                            className="material-symbols-outlined text-[16px] text-success"
+                            className="material-symbols-outlined resource-icon text-success"
                           >
                             check_circle
                           </span>
-                          <span className="text-[13px] text-success">
+                          <span className="resource-caption text-success">
                             画像已生成
                           </span>
                         </>
@@ -499,11 +512,11 @@ export default function PoiManagePage() {
                         <>
                           <span
                             aria-hidden="true"
-                            className="material-symbols-outlined text-[16px] text-on-surface-variant"
+                            className="material-symbols-outlined resource-icon text-on-surface-variant"
                           >
                             radio_button_unchecked
                           </span>
-                          <span className="text-[13px] text-on-surface-variant">
+                          <span className="resource-caption text-on-surface-variant">
                             尚无画像
                           </span>
                         </>
@@ -524,7 +537,7 @@ export default function PoiManagePage() {
                 />
               )}
               {!loadingStreets && !streetsError && streets.length === 0 && (
-                <p className="text-[15px] text-on-surface-variant">
+                <p className="resource-body text-on-surface-variant">
                   暂无数据，先上传导入。
                 </p>
               )}
@@ -533,14 +546,17 @@ export default function PoiManagePage() {
 
           {/* POI 明细表 */}
           {activeStreetId != null && (
-            <section className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
-              <div className="px-6 py-4 border-b border-divider flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h2 className="text-xl font-bold">
+            <section
+              className="resource-poi-group"
+              aria-labelledby="poi-table-heading"
+            >
+              <div className="resource-poi-heading">
+                <h2 id="poi-table-heading" className="resource-section-title">
                   POI 明细 (前 {rows.length} / 共 {rowsTotal})
                 </h2>
                 <div
                   aria-label="POI 来源"
-                  className="flex max-w-full flex-wrap bg-surface-container rounded-full p-1"
+                  className="resource-segmented"
                 >
                   {["all", "amap", "dianping"].map((s) => {
                     const active = sourceFilter === s;
@@ -550,11 +566,6 @@ export default function PoiManagePage() {
                         type="button"
                         aria-pressed={active}
                         onClick={() => void loadRows(activeStreetId, s)}
-                        className={`px-5 py-1 rounded-full text-[15px] font-semibold transition-colors ${
-                          active
-                            ? "bg-surface-container-lowest shadow-sm text-primary"
-                            : "text-on-surface-variant hover:bg-surface-container-lowest/50"
-                        }`}
                       >
                         {SOURCE_CN[s]}
                       </button>
@@ -563,139 +574,151 @@ export default function PoiManagePage() {
                 </div>
               </div>
 
-              {rowsError && (
-                <div className="p-4">
-                  <ResourceFeedback
-                    error={rowsError}
-                    onRetry={() =>
-                      void (rows.length > 0
-                        ? loadMore()
-                        : loadRows(activeStreetId, sourceFilter))
-                    }
-                  />
+              <div className="resource-panel resource-scroll-card resource-poi-table-card">
+                {rowsError && (
+                  <div className="p-4">
+                    <ResourceFeedback
+                      error={rowsError}
+                      onRetry={() =>
+                        void (rows.length > 0
+                          ? loadMore()
+                          : loadRows(activeStreetId, sourceFilter))
+                      }
+                    />
+                  </div>
+                )}
+                <div
+                  tabIndex={0}
+                  role="region"
+                  aria-label="POI 明细表，可横向滚动"
+                  aria-busy={loadingRows}
+                  className="overflow-x-auto"
+                >
+                  <table className="resource-poi-table w-full min-w-170 table-fixed text-left border-collapse">
+                    <caption className="sr-only">
+                      所选街区的 POI 来源、分类、评分、人均消费与连锁状态
+                    </caption>
+                    <thead>
+                      <tr className={`
+                        bg-surface-container-low border-b border-divider resource-body
+                        font-semibold text-on-surface-variant
+                      `}>
+                        <th
+                          scope="col"
+                          className="whitespace-nowrap px-3 sm:px-4 py-3"
+                        >
+                          名称
+                        </th>
+                        <th
+                          scope="col"
+                          className="whitespace-nowrap px-3 sm:px-4 py-3"
+                        >
+                          来源
+                        </th>
+                        <th
+                          scope="col"
+                          className="whitespace-nowrap px-3 sm:px-4 py-3"
+                        >
+                          分类
+                        </th>
+                        <th
+                          scope="col"
+                          className="whitespace-nowrap px-3 sm:px-4 py-3"
+                        >
+                          评分
+                        </th>
+                        <th
+                          scope="col"
+                          className="whitespace-nowrap px-3 sm:px-4 py-3"
+                        >
+                          人均
+                        </th>
+                        <th
+                          scope="col"
+                          className="whitespace-nowrap px-3 sm:px-4 py-3"
+                        >
+                          连锁
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-divider">
+                      {rows.map((r, i) => (
+                        <tr
+                          key={i}
+                          className="hover:bg-surface-container-low transition-colors"
+                        >
+                          <td className="px-3 sm:px-4 py-3 resource-body tabular-nums">
+                            {String(r.name ?? "")}
+                          </td>
+                          <td className={`
+                            px-3 sm:px-4 py-3 resource-caption text-on-surface-variant
+                            whitespace-nowrap
+                          `}>
+                            {SOURCE_CN[String(r.source)] ??
+                              String(r.source ?? "")}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 resource-caption text-on-surface-variant">
+                            {String(
+                              r.category_l2 ?? r.cuisine ?? r.category_l1 ?? "",
+                            )}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 resource-body tabular-nums">
+                            {r.rating != null ? String(r.rating) : "—"}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 resource-body tabular-nums">
+                            {r.avg_price != null ? String(r.avg_price) : "—"}
+                          </td>
+                          <td className={`
+                            px-3 sm:px-4 py-3 resource-caption text-on-surface-variant
+                            whitespace-nowrap
+                          `}>
+                            {Number(r.is_chain) === 1 ? "是" : "否"}
+                          </td>
+                        </tr>
+                      ))}
+                      {loadingRows && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="p-8 text-center"
+                            role="status"
+                          >
+                            正在加载 POI 明细…
+                          </td>
+                        </tr>
+                      )}
+                      {!loadingRows && !rowsError && rows.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-3 sm:px-4 py-8 text-center resource-body text-on-surface-variant"
+                          >
+                            该来源暂无数据
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-              <div
-                tabIndex={0}
-                role="region"
-                aria-label="POI 明细表，可横向滚动"
-                aria-busy={loadingRows}
-                className="overflow-x-auto"
-              >
-                <table className="w-full min-w-170 table-fixed text-left border-collapse">
-                  <caption className="sr-only">
-                    所选街区的 POI 来源、分类、评分、人均消费与连锁状态
-                  </caption>
-                  <thead>
-                    <tr className="bg-surface-container-low border-b border-divider text-[15px] font-semibold text-on-surface-variant">
-                      <th
-                        scope="col"
-                        className="w-[30%] whitespace-nowrap px-3 sm:px-4 py-3"
-                      >
-                        名称
-                      </th>
-                      <th
-                        scope="col"
-                        className="w-[16%] whitespace-nowrap px-3 sm:px-4 py-3"
-                      >
-                        来源
-                      </th>
-                      <th
-                        scope="col"
-                        className="w-[24%] whitespace-nowrap px-3 sm:px-4 py-3"
-                      >
-                        分类
-                      </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap px-3 sm:px-4 py-3"
-                      >
-                        评分
-                      </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap px-3 sm:px-4 py-3"
-                      >
-                        人均
-                      </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap px-3 sm:px-4 py-3"
-                      >
-                        连锁
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-divider">
-                    {rows.map((r, i) => (
-                      <tr
-                        key={i}
-                        className="hover:bg-surface-container-low transition-colors"
-                      >
-                        <td className="px-3 sm:px-4 py-3 text-[15px] tabular-nums">
-                          {String(r.name ?? "")}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-[13px] text-on-surface-variant whitespace-nowrap">
-                          {SOURCE_CN[String(r.source)] ??
-                            String(r.source ?? "")}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-[13px] text-on-surface-variant">
-                          {String(
-                            r.category_l2 ?? r.cuisine ?? r.category_l1 ?? "",
-                          )}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-[15px] tabular-nums">
-                          {r.rating != null ? String(r.rating) : "—"}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-[15px] tabular-nums">
-                          {r.avg_price != null ? String(r.avg_price) : "—"}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-[13px] text-on-surface-variant whitespace-nowrap">
-                          {Number(r.is_chain) === 1 ? "是" : "否"}
-                        </td>
-                      </tr>
-                    ))}
-                    {loadingRows && (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="p-8 text-center"
-                          role="status"
-                        >
-                          正在加载 POI 明细…
-                        </td>
-                      </tr>
-                    )}
-                    {!loadingRows && !rowsError && rows.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-3 sm:px-4 py-8 text-center text-[15px] text-on-surface-variant"
-                        >
-                          该来源暂无数据
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
 
-              {!loadingRows && rows.length < rowsTotal && (
-                <div className="px-6 py-3 border-t border-divider bg-surface-container-lowest flex justify-center">
-                  <button
-                    type="button"
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="text-primary text-[15px] font-semibold hover:bg-surface-container-low px-6 py-2 rounded-full transition-colors disabled:opacity-50"
-                  >
-                    {loadingMore ? "加载中…" : "查看更多"}
-                  </button>
-                </div>
-              )}
+                {!loadingRows && rows.length < rowsTotal && (
+                  <div className="px-6 py-3 border-t border-divider bg-surface-container-lowest flex justify-center">
+                    <button
+                      type="button"
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="resource-button resource-button--quiet"
+                    >
+                      {loadingMore ? "加载中…" : "查看更多"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </section>
           )}
-        </div>
-      </main>
+        </ResourceContentCard>
+      </div>
+
       {confirmImport && (
         <ResourceDialog
           title="确认替换街区数据？"
@@ -709,7 +732,7 @@ export default function PoiManagePage() {
             <button
               type="button"
               onClick={() => setConfirmImport(false)}
-              className="rounded-full border border-divider px-4 py-2 font-semibold"
+              className="resource-button resource-button--secondary"
             >
               取消
             </button>
@@ -719,25 +742,24 @@ export default function PoiManagePage() {
                 setConfirmImport(false);
                 void onImport(true);
               }}
-              className="rounded-full bg-error px-4 py-2 font-semibold text-on-error"
+              className="resource-button resource-button--destructive"
             >
               确认替换并导入
             </button>
           </div>
         </ResourceDialog>
       )}
-      <MobileBottomNav activeHref="/resources" />
-    </div>
+    </ResourceShell>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-surface-container-low rounded-xl px-3 py-2">
-      <div className="text-[10px] text-on-surface-variant uppercase">
+    <div className="resource-import-stat">
+      <div className="resource-caption text-on-surface-variant uppercase">
         {label}
       </div>
-      <div className="text-[15px] font-bold tabular-nums">{value}</div>
+      <div className="resource-body font-bold tabular-nums">{value}</div>
     </div>
   );
 }

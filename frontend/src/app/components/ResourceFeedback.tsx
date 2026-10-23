@@ -13,19 +13,20 @@ export default function ResourceFeedback({
   return (
     <div
       role={error ? "alert" : "status"}
-      className={`flex min-w-0 flex-wrap items-start gap-3 rounded-xl border p-4 ${error ? "border-error/30 bg-error/5 text-error" : "border-primary/20 bg-primary/5 text-on-surface-variant"}`}
+      className="resource-feedback"
+      data-tone={error ? "error" : "success"}
     >
       <span aria-hidden="true" className="material-symbols-outlined shrink-0">
         {error ? "error" : "check_circle"}
       </span>
-      <p className="min-w-0 flex-1 basis-40 text-sm leading-relaxed [overflow-wrap:anywhere]">
+      <p className="resource-feedback-message">
         {error ?? message}
       </p>
       {error && onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-full border border-current px-4 py-2 text-sm font-semibold"
+          className="resource-button resource-button--danger"
         >
           重新加载
         </button>

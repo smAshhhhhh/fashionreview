@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import ResourceDialog from "../../components/ResourceDialog";
 import ResourceFeedback from "../../components/ResourceFeedback";
 import useResourceDraft from "../../components/useResourceDraft";
-import ResourceHeader from "../../components/ResourceHeader";
-import Sidebar from "../../components/Sidebar";
-import MobileBottomNav from "../../components/MobileBottomNav";
+import ResourceShell from "../../components/ResourceShell";
+import ResourceContentCard from "../../components/ResourceContentCard";
+import ResourceMasterList from "../../components/ResourceMasterList";
 import {
   listPrompts,
   updatePrompt,
@@ -111,88 +111,100 @@ export default function PromptsPage() {
   const selected = templates.find((t) => t.id === selectedId) ?? null;
 
   return (
-    <div className="flex min-h-screen bg-surface text-on-surface">
-      <Sidebar activeHref="/resources" />
+    <ResourceShell title="Prompt 管理">
+      <section className="resource-content">
+        <ResourceFeedback
+          error={error}
+          message={notice}
+          onRetry={
+            templates.length === 0 ? () => void retryList() : undefined
+          }
+        />
 
-      <main className="resource-main flex-1 min-w-0 lg:ml-64 flex flex-col">
-        {/* 顶部栏 */}
-        <ResourceHeader title="Prompt 管理" />
-
-        <section className="@container p-4 lg:p-6 max-w-7xl mx-auto w-full flex-1 space-y-6">
-          <ResourceFeedback
-            error={error}
-            message={notice}
-            onRetry={
-              templates.length === 0 ? () => void retryList() : undefined
-            }
-          />
-
-          {loading ? (
-            <LoadingSkeleton />
-          ) : (
-            <div className="grid grid-cols-1 @[52rem]:grid-cols-[16rem_minmax(0,1fr)] gap-6">
-              {/* 左：模板列表 */}
-              <div className="min-w-0 space-y-6 @[52rem]:sticky @[52rem]:top-20 self-start">
-                {[
-                  ...STAGE_ORDER,
-                  ...Array.from(grouped.keys()).filter(
-                    (stage) => !STAGE_ORDER.includes(stage),
-                  ),
-                ].map((stage) => {
-                  const items = grouped.get(stage) ?? [];
-                  if (items.length === 0) return null;
-                  return (
-                    <div key={stage} className="space-y-2">
-                      <h2 className="text-[13px] font-bold text-on-surface-variant uppercase px-1">
-                        {STAGE_LABEL[stage] ?? stage}
-                      </h2>
-                      {items.map((t) => {
-                        const isSel = t.id === selectedId;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            aria-pressed={isSel}
-                            title={t.name}
-                            onClick={() => selectTemplate(t.id)}
-                            className={`w-full text-left rounded-2xl border p-3 transition-colors ${
-                              isSel
-                                ? "border-primary bg-surface-container-low"
-                                : "border-divider hover:bg-surface-container-low"
+        {loading ? (
+          <LoadingSkeleton />
+        ) : (
+          <div className="resource-workbench">
+            {/* 顶部模板列表 */}
+            <ResourceMasterList
+              label="Prompt 模板"
+              value={selected?.name ?? "未选择模板"}
+              description={[
+                ...STAGE_ORDER,
+                ...Array.from(grouped.keys()).filter(
+                  (stage) => !STAGE_ORDER.includes(stage),
+                ),
+              ]
+                .filter((stage) => (grouped.get(stage)?.length ?? 0) > 0)
+                .map((stage) => STAGE_LABEL[stage] ?? stage)
+                .join(" · ")}
+            >
+              {[
+                ...STAGE_ORDER,
+                ...Array.from(grouped.keys()).filter(
+                  (stage) => !STAGE_ORDER.includes(stage),
+                ),
+              ].map((stage) => {
+                const items = grouped.get(stage) ?? [];
+                if (items.length === 0) return null;
+                return (
+                  <div
+                    key={stage}
+                    role="group"
+                    aria-label={STAGE_LABEL[stage] ?? stage}
+                    className="resource-prompt-group"
+                  >
+                    {items.map((t) => {
+                      const isSel = t.id === selectedId;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          aria-pressed={isSel}
+                          title={t.name}
+                          onClick={() => selectTemplate(t.id)}
+                          className={`resource-list-item w-full disabled:opacity-60 ${isSel
+                              ? "resource-list-item--selected"
+                              : ""
                             }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[14px] font-bold text-on-surface [overflow-wrap:anywhere]">
-                                {t.name}
-                              </span>
-                              <span className="shrink-0 text-[11px] font-semibold text-on-surface-variant tabular-nums">
-                                v{t.version}
-                              </span>
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-on-surface-variant">
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  t.enabled === 1
-                                    ? "bg-primary"
-                                    : "bg-surface-container-highest"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="resource-detail font-bold text-on-surface [overflow-wrap:anywhere]">
+                              {t.name}
+                            </span>
+                            <span className={`
+                              shrink-0 resource-caption font-semibold
+                              text-on-surface-variant tabular-nums
+                            `}>
+                              v{t.version}
+                            </span>
+                          </div>
+                          <div className={`
+                            mt-1 flex items-center gap-1.5 resource-caption
+                            text-on-surface-variant
+                          `}>
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${t.enabled === 1
+                                  ? "bg-primary"
+                                  : "bg-surface-container-highest"
                                 }`}
-                              />
-                              {t.enabled === 1 ? "已启用" : "已停用"}
-                              {t.dim_code && (
-                                <span className="ml-1 font-mono">
-                                  · {t.dim_code}
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
+                            />
+                            {t.enabled === 1 ? "已启用" : "已停用"}
+                            {t.dim_code && (
+                              <span className="ml-1 font-mono">
+                                · {t.dim_code}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </ResourceMasterList>
 
-              {/* 右：编辑器 + 版本历史 */}
+            <ResourceContentCard label="Prompt 编辑与版本历史" variant="stack">
               {selected ? (
                 <PromptEditor
                   key={`${selected.id}-${editorRevision}`}
@@ -248,27 +260,29 @@ export default function PromptsPage() {
                   onClearNotice={() => setNotice(null)}
                 />
               ) : (
-                <div className="grid place-items-center rounded-2xl border border-divider bg-surface-container-lowest min-h-60 p-6 text-center text-on-surface-variant">
-                  <p className="text-[15px]">
+                <div className={`
+                  resource-panel resource-panel--padded min-h-60 grid place-items-center
+                  text-center text-on-surface-variant
+                `}>
+                  <p className="resource-body">
                     暂无可编辑模板，请重新加载列表或联系管理员。
                   </p>
                 </div>
               )}
-            </div>
-          )}
-        </section>
-      </main>
+            </ResourceContentCard>
+          </div>
+        )}
+      </section>
+
 
       {draftDialog}
-      <MobileBottomNav activeHref="/resources" />
-    </div>
+    </ResourceShell>
   );
 }
 
 /* ──────────────── 右侧：编辑器 ──────────────── */
 
-const inputClass =
-  "w-full min-h-11 bg-surface-container-lowest border border-divider rounded-xl px-3 py-2 text-base sm:text-[15px] focus:border-primary focus:outline-none transition-colors";
+const inputClass = "resource-field w-full";
 
 function PromptEditor({
   template,
@@ -308,7 +322,7 @@ function PromptEditor({
     userTemplate !== template.user_template ||
     model !== (template.model ?? "") ||
     temperature !==
-      (template.temperature == null ? "" : String(template.temperature)) ||
+    (template.temperature == null ? "" : String(template.temperature)) ||
     changeNote !== "";
   useEffect(() => {
     onDirtyChange(dirty);
@@ -392,20 +406,20 @@ function PromptEditor({
   };
 
   return (
-    <div className="min-w-0 @container/editor">
+    <div className="resource-editor resource-editor--sections @container/editor">
       {/* 头部：名称 + 阶段/版本 + 启用开关 */}
-      <div className="flex flex-col @[38rem]/editor:flex-row @[38rem]/editor:justify-between @[38rem]/editor:items-end gap-4 mb-8 border-b border-divider pb-6">
+      <div className="resource-detail-header">
         <div className="min-w-0">
-          <p className="text-[13px] text-on-surface-variant mb-1">
+          <p className="resource-caption text-on-surface-variant mb-1">
             {STAGE_LABEL[template.stage] ?? template.stage} · 当前 v
             {template.version}
           </p>
-          <h2 className="text-[28px] leading-8 font-black tracking-tight text-on-surface [overflow-wrap:anywhere]">
+          <h2 className="resource-detail-title">
             {template.name}
           </h2>
         </div>
         <label className="flex min-h-11 items-center gap-2 cursor-pointer shrink-0 self-start select-none">
-          <span className="text-[13px] font-semibold text-on-surface-variant">
+          <span className="resource-caption font-semibold text-on-surface-variant">
             {template.enabled === 1 ? "已启用" : "已停用"}
           </span>
           <span className="relative inline-flex items-center">
@@ -417,7 +431,7 @@ function PromptEditor({
               disabled={enabledBusy || saving || historyBusy}
               onChange={toggleEnabled}
             />
-            <div className="resource-switch w-9 h-5 bg-outline rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-on-primary after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-full" />
+            <div className="resource-switch" />
           </span>
         </label>
       </div>
@@ -425,14 +439,17 @@ function PromptEditor({
       {/* 可用占位符 */}
       {placeholders.length > 0 && (
         <div className="mb-6">
-          <p className="text-[13px] font-semibold text-on-surface-variant mb-2">
+          <p className="resource-caption font-semibold text-on-surface-variant mb-2">
             可用占位符
           </p>
           <div className="flex flex-wrap gap-2">
             {placeholders.map((p) => (
               <code
                 key={p}
-                className="max-w-full break-all text-[12px] bg-surface-container-low text-on-surface px-2 py-1 rounded-full border border-divider"
+                className={`
+                  max-w-full break-all resource-caption bg-surface-container-low
+                  text-on-surface px-2 py-1 rounded-full border border-divider
+                `}
               >
                 {p}
               </code>
@@ -443,15 +460,15 @@ function PromptEditor({
 
       <fieldset
         disabled={saving || enabledBusy || historyBusy}
-        className="min-w-0"
+        className="resource-panel resource-scroll-card resource-scroll-card--padded min-w-0"
       >
         <legend className="sr-only">Prompt 模板内容</legend>
         {/* 名称 / 模型 / 温度 */}
-        <div className="grid grid-cols-1 @[36rem]/editor:grid-cols-3 gap-4 mb-6">
+        <div className="resource-editor-fields">
           <div className="space-y-1.5">
             <label
               htmlFor="prompt-name"
-              className="block text-[13px] font-semibold text-on-surface-variant px-1"
+              className="block resource-caption font-semibold text-on-surface-variant px-1"
             >
               模版名称
             </label>
@@ -475,7 +492,7 @@ function PromptEditor({
           <div className="space-y-1.5">
             <label
               htmlFor="prompt-model"
-              className="block text-[13px] font-semibold text-on-surface-variant px-1"
+              className="block resource-caption font-semibold text-on-surface-variant px-1"
             >
               模型（留空用默认）
             </label>
@@ -491,7 +508,7 @@ function PromptEditor({
           <div className="space-y-1.5">
             <label
               htmlFor="prompt-temperature"
-              className="block text-[13px] font-semibold text-on-surface-variant px-1"
+              className="block resource-caption font-semibold text-on-surface-variant px-1"
             >
               采样温度 0~2（留空用默认）
             </label>
@@ -524,11 +541,11 @@ function PromptEditor({
         </div>
 
         {/* System / User / 更新日志 */}
-        <div className="space-y-5 mb-6">
+        <div className="resource-prompt-fields">
           <div>
             <label
               htmlFor="prompt-systemPrompt"
-              className="block text-[13px] font-semibold text-on-surface-variant mb-2 px-1"
+              className="block resource-caption font-semibold text-on-surface-variant mb-2 px-1"
             >
               System Prompt（系统提示词）
             </label>
@@ -543,7 +560,7 @@ function PromptEditor({
           <div>
             <label
               htmlFor="prompt-userTemplate"
-              className="block text-[13px] font-semibold text-on-surface-variant mb-2 px-1"
+              className="block resource-caption font-semibold text-on-surface-variant mb-2 px-1"
             >
               User Template（用户模版）
             </label>
@@ -569,7 +586,7 @@ function PromptEditor({
           <div>
             <label
               htmlFor="prompt-changeNote"
-              className="block text-[13px] font-semibold text-on-surface-variant mb-2 px-1"
+              className="block resource-caption font-semibold text-on-surface-variant mb-2 px-1"
             >
               更新日志（选填，记入版本历史）
             </label>
@@ -588,7 +605,7 @@ function PromptEditor({
         <div className="mb-4">
           <ResourceFeedback error={fieldError} />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3 mb-8">
+        <div className="resource-editor-footer">
           {dirty && (
             <p role="status" className="text-sm text-on-surface-variant">
               有未保存的修改
@@ -598,12 +615,12 @@ function PromptEditor({
             type="button"
             onClick={handleSave}
             disabled={saving || enabledBusy || historyBusy}
-            className="flex items-center gap-2 rounded-full bg-primary px-6 py-2 text-[15px] font-bold text-on-primary shadow-sm hover:opacity-90 disabled:opacity-50 transition-all active:scale-95"
+            className="resource-button resource-button--primary"
           >
             {saving && (
               <span
                 aria-hidden="true"
-                className="material-symbols-outlined animate-spin text-[18px]"
+                className="material-symbols-outlined animate-spin resource-icon"
               >
                 progress_activity
               </span>
@@ -695,59 +712,62 @@ function HistoryPanel({
   };
 
   return (
-    <div className="border border-divider rounded-2xl overflow-hidden bg-surface-container-lowest">
-      <div className="px-5 py-4 border-b border-divider">
-        <h3 className="text-[15px] font-bold text-on-surface">版本历史</h3>
-      </div>
+    <section className="resource-section">
+      <h3 className="text-on-surface resource-item-title">版本历史</h3>
+      <div className="resource-panel resource-scroll-card">
 
-      {historyError && (
-        <div className="p-4">
-          <ResourceFeedback error={historyError} onRetry={() => void load()} />
-        </div>
-      )}
-      {loading ? (
-        <p
-          role="status"
-          className="px-5 py-6 text-[13px] text-on-surface-variant"
-        >
-          正在加载历史版本…
-        </p>
-      ) : !historyError && history.length === 0 ? (
-        <p className="px-5 py-6 text-[13px] text-on-surface-variant">
-          暂无历史版本
-        </p>
-      ) : (
-        <div className="divide-y divide-divider">
-          {history.map((h) => (
-            <div
-              key={h.id}
-              className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-surface-container-low transition-colors"
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <span className="font-bold text-on-surface-variant tabular-nums shrink-0">
-                  v{h.version}
-                </span>
-                <span className="text-[14px] text-on-surface [overflow-wrap:anywhere]">
-                  {h.change_note || "（无变更说明）"}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={disabled || rollingBack}
-                aria-label={`回滚到版本 v${h.version}`}
-                onClick={() => {
-                  setRollbackError(null);
-                  setPendingVersion(h.version);
-                }}
-                className="shrink-0 text-primary text-[14px] font-semibold px-4 py-1 rounded-full border border-primary/30 hover:bg-primary/5 transition-colors"
+        {historyError && (
+          <div className="p-4">
+            <ResourceFeedback error={historyError} onRetry={() => void load()} />
+          </div>
+        )}
+        {loading ? (
+          <p
+            role="status"
+            className="px-5 py-6 resource-caption text-on-surface-variant"
+          >
+            正在加载历史版本…
+          </p>
+        ) : !historyError && history.length === 0 ? (
+          <p className="px-5 py-6 resource-caption text-on-surface-variant">
+            暂无历史版本
+          </p>
+        ) : (
+          <div className="divide-y divide-divider">
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className={`
+                  flex items-center justify-between gap-4 px-5 py-3
+                  hover:bg-surface-container-low transition-colors
+                `}
               >
-                回滚
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="font-bold text-on-surface-variant tabular-nums shrink-0">
+                    v{h.version}
+                  </span>
+                  <span className="resource-detail text-on-surface [overflow-wrap:anywhere]">
+                    {h.change_note || "（无变更说明）"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={disabled || rollingBack}
+                  aria-label={`回滚到版本 v${h.version}`}
+                  onClick={() => {
+                    setRollbackError(null);
+                    setPendingVersion(h.version);
+                  }}
+                  className="resource-button resource-button--secondary"
+                >
+                  回滚
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
+      </div>
       {/* 回滚确认 Modal */}
       {pendingVersion != null && (
         <ResourceDialog
@@ -755,7 +775,7 @@ function HistoryPanel({
           busy={rollingBack}
           onClose={() => setPendingVersion(null)}
         >
-          <p className="text-[15px] text-on-surface-variant mb-6">
+          <p className="resource-body text-on-surface-variant mb-6">
             回滚到版本{" "}
             <span className="font-bold text-primary">v{pendingVersion}</span>{" "}
             后，该版本内容会作为新版本写回，当前未保存的编辑将被丢弃。
@@ -766,7 +786,7 @@ function HistoryPanel({
               type="button"
               onClick={() => setPendingVersion(null)}
               disabled={rollingBack}
-              className="px-4 py-3 rounded-full text-[15px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50"
+              className="resource-button resource-button--quiet"
             >
               取消
             </button>
@@ -774,12 +794,12 @@ function HistoryPanel({
               type="button"
               onClick={executeRollback}
               disabled={rollingBack}
-              className="px-6 py-3 rounded-full text-[15px] font-bold bg-primary text-on-primary shadow-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+              className="resource-button resource-button--primary"
             >
               {rollingBack && (
                 <span
                   aria-hidden="true"
-                  className="material-symbols-outlined animate-spin text-[18px]"
+                  className="material-symbols-outlined animate-spin resource-icon"
                 >
                   progress_activity
                 </span>
@@ -789,7 +809,7 @@ function HistoryPanel({
           </div>
         </ResourceDialog>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -797,19 +817,21 @@ function HistoryPanel({
 
 function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-1 @[52rem]:grid-cols-[16rem_minmax(0,1fr)] gap-6">
-      <div className="space-y-3">
+    <div className="resource-workbench">
+      <div className="resource-master-list resource-selector-loading">
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="rounded-2xl border border-divider bg-surface-container-lowest p-4 animate-pulse"
+            className="resource-panel resource-panel--padded animate-pulse"
           >
             <div className="h-3 bg-surface-container-high rounded w-2/3 mb-2" />
             <div className="h-2 bg-surface-container-high rounded w-1/3" />
           </div>
         ))}
       </div>
-      <div className="rounded-2xl border border-divider bg-surface-container-lowest min-h-100 animate-pulse" />
+      <ResourceContentCard label="正在加载 Prompt 内容">
+        <div className="resource-panel animate-pulse min-h-100" />
+      </ResourceContentCard>
     </div>
   );
 }
