@@ -438,7 +438,7 @@ function PromptEditor({
 
       {/* 可用占位符 */}
       {placeholders.length > 0 && (
-        <div className="mb-6">
+        <div>
           <p className="resource-caption font-semibold text-on-surface-variant mb-2">
             可用占位符
           </p>

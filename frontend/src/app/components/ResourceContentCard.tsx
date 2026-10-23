@@ -22,6 +22,7 @@ export default function ResourceContentCard({
     if (!card || !parent) return;
 
     let tools: HTMLElement | null = null;
+    let stickyObserver: IntersectionObserver | null = null;
     const measureTools = () => {
       const currentTools = parent.querySelector<HTMLElement>(
         ":scope > .resource-sticky-tools, :scope > .resource-selector-loading",
@@ -31,14 +32,39 @@ export default function ResourceContentCard({
         tools = currentTools;
         if (tools) observer.observe(tools);
       }
-      card.dataset.sticky = String(Boolean(tools));
+      const toolsHeight = tools?.getBoundingClientRect().height ?? 0;
+      card.dataset.sticky = String(toolsHeight > 0);
       card.style.setProperty(
         "--resource-sticky-tools-height",
-        `${tools?.getBoundingClientRect().height ?? 0}px`,
+        `${toolsHeight}px`,
       );
+
+      stickyObserver?.disconnect();
+      if (!tools || toolsHeight === 0) {
+        card.dataset.stuck = "false";
+        return;
+      }
+
+      const stickyTop = Number.parseFloat(getComputedStyle(tools).top) || 0;
+      const boundary = stickyTop + 1;
+      card.dataset.stuck = String(
+        tools.getBoundingClientRect().top <= boundary,
+      );
+
+      // 在吸顶边界内侧观察，避免未吸顶时遮罩覆盖上方列表。
+      stickyObserver = new IntersectionObserver(
+        ([entry]) => {
+          card.dataset.stuck = String(
+            entry.boundingClientRect.top <= boundary &&
+              entry.intersectionRatio < 1,
+          );
+        },
+        { rootMargin: `-${boundary}px 0px 0px 0px`, threshold: 1 },
+      );
+      stickyObserver.observe(tools);
     };
 
-    // 仅测量功能区高度，滚动时的圆角位置由 CSS sticky 管理。
+    // 监听尺寸与吸顶状态，圆角位置仍由 CSS sticky 管理。
     const observer = new ResizeObserver(measureTools);
     const mutations = new MutationObserver(measureTools);
     mutations.observe(parent, { childList: true });
@@ -47,6 +73,7 @@ export default function ResourceContentCard({
     return () => {
       observer.disconnect();
       mutations.disconnect();
+      stickyObserver?.disconnect();
     };
   }, []);
 
@@ -57,6 +84,7 @@ export default function ResourceContentCard({
       aria-label={label}
       tabIndex={0}
       data-sticky="false"
+      data-stuck="false"
       className={[
         "resource-content-card",
         variant === "stack" ? "resource-content-stack" : "",

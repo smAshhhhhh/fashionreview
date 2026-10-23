@@ -5,8 +5,9 @@
   --resource-workbench-rail: 15rem;
   --resource-selector-card-width: 15rem;
   --resource-stack-gap: var(--resource-space-6);
+  --resource-panel-padding: var(--resource-stack-gap);
   --resource-tools-max-height: 38dvh;
-  --resource-sticky-top: var(--resource-space-3);
+  --resource-sticky-top: var(--resource-stack-gap);
   --resource-thumbnail-height: 12rem;
   --resource-description-width: 48rem;
   --resource-font-page: 1.75rem;
@@ -62,13 +63,44 @@
 }
 
 .resource-subpage .resource-content {
-  display: block;
+  display: flow-root;
   max-width: none;
   padding: 0;
 }
 
-.resource-subpage .resource-content > * + * {
+/* 同级容器共享间距，隐藏节点不占用节奏。 */
+.resource-subpage :where(
+  .resource-content,
+  .resource-workbench,
+  .resource-content-stack,
+  .resource-profile-detail,
+  .resource-library,
+  .resource-section,
+  .resource-editor--sections,
+  .resource-dimension-list,
+  .resource-dimension-content,
+  .resource-settings-group,
+  .resource-settings
+) > :not([hidden]):not(.sr-only)
+  ~ :not([hidden]):not(.sr-only) {
   margin-top: var(--resource-stack-gap);
+}
+
+.resource-subpage .resource-panel--padded {
+  padding: var(--resource-panel-padding);
+}
+
+.resource-subpage .resource-detail-header {
+  margin-bottom: var(--resource-stack-gap);
+  padding-bottom: var(--resource-stack-gap);
+}
+
+.resource-subpage .resource-editor-fields {
+  margin-bottom: var(--resource-stack-gap);
+}
+
+.resource-subpage .resource-upload-heading {
+  margin-bottom: 0;
 }
 
 .resource-subpage .resource-note {
@@ -80,15 +112,12 @@
 }
 
 .resource-workbench {
+  display: flow-root;
   min-width: 0;
 }
 
 .resource-workbench > * {
   min-width: 0;
-}
-
-.resource-workbench > * + * {
-  margin-top: var(--resource-stack-gap);
 }
 
 /* 圆角遮罩与功能区均由浏览器原生吸顶定位。 */
@@ -101,7 +130,7 @@
 
 .resource-master-list {
   max-height: var(--resource-tools-max-height);
-  overflow: auto;
+  overflow: visible;
   padding: 0;
   background: var(--color-surface);
 }
@@ -155,6 +184,8 @@
   display: flex;
   align-items: stretch;
   gap: var(--resource-stack-gap);
+  /* 边框留出绘制空间，避免吸顶切换时的小数像素裁切。 */
+  padding-block: 1px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scrollbar-width: none;
@@ -186,7 +217,8 @@
 
 .resource-selector-loading {
   display: flex;
-  gap: var(--resource-space-3);
+  gap: var(--resource-stack-gap);
+  overflow: auto;
 }
 
 .resource-selector-loading > * {
@@ -263,7 +295,7 @@
 
 .resource-content-card {
   --resource-sticky-tools-height: 0px;
-  --resource-content-padding: var(--resource-space-6);
+  --resource-content-padding: var(--resource-panel-padding);
   --resource-edge-offset: calc(
     var(--resource-sticky-top) + var(--resource-sticky-tools-height) +
     var(--resource-stack-gap)
@@ -330,24 +362,29 @@
   content: none;
 }
 
+/* 保留遮罩占位，只在功能区吸顶后显示。 */
+.resource-content-card[data-stuck="false"]::before,
+.resource-content-card[data-stuck="false"] .resource-scroll-card::before {
+  visibility: hidden;
+}
+
 .resource-content-card :where(
   a, button, input, textarea, select, [tabindex]
 ) {
   scroll-margin-top: calc(
-    var(--resource-sticky-top) + var(--resource-tools-max-height) +
-    var(--resource-stack-gap)
+    var(--resource-edge-offset) + var(--resource-panel-padding)
   );
 }
 
+.resource-content-card[data-sticky="false"] {
+  --resource-edge-offset: var(--resource-sticky-top);
+}
+
 .resource-subpage .resource-top-note {
-  padding: var(--resource-space-5);
+  padding: var(--resource-panel-padding);
   border: 1px solid var(--color-divider);
   border-radius: var(--resource-radius-panel);
   background: var(--color-surface-container-lowest);
-}
-
-.resource-profile-detail > * + * {
-  margin-top: var(--resource-stack-gap);
 }
 
 .resource-profile-detail {
@@ -356,8 +393,63 @@
 
 .resource-profile-sections {
   display: grid;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--resource-stack-gap);
+}
+
+.resource-profile-sections:empty {
+  display: none;
+}
+
+.resource-profile-bar-row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) 6.5rem;
+  align-items: center;
+  gap: var(--resource-space-2);
+}
+
+.resource-profile-tag-table {
+  width: 100%;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.resource-profile-tag-table :is(th, td) {
+  padding-block: var(--resource-space-3);
+  text-align: left;
+}
+
+.resource-profile-tag-table :is(th, td):not(:first-child) {
+  width: 4rem;
+  text-align: right;
+}
+
+.resource-profile-tag-table thead {
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.resource-profile-tag-table tbody tr + tr {
+  border-top: 1px solid var(--color-divider);
+}
+
+.resource-profile-tag-table tbody tr:last-child :is(th, td) {
+  padding-bottom: 0;
+}
+
+.resource-profile-highlights > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--resource-space-2);
+}
+
+.resource-profile-highlights > div + div {
+  margin-top: var(--resource-space-4);
+  padding-top: var(--resource-space-4);
+  border-top: 1px solid var(--color-divider);
+}
+
+.resource-profile-highlights :is(dt, dd) {
+  min-width: 0;
 }
 
 .resource-profile-stats {
@@ -381,8 +473,8 @@
 
 .resource-prompt-fields {
   display: grid;
-  gap: var(--resource-space-6);
-  margin-bottom: var(--resource-space-6);
+  gap: var(--resource-stack-gap);
+  margin-bottom: var(--resource-stack-gap);
 }
 
 .resource-editor-footer {
@@ -393,10 +485,6 @@
   gap: var(--resource-space-3);
   padding-block: var(--resource-space-5);
   border-top: 1px solid var(--color-divider);
-}
-
-.resource-subpage .resource-content.resource-data-layout {
-  display: block;
 }
 
 .resource-subpage .resource-data-layout > * {
@@ -507,10 +595,6 @@
   container: resource-library / inline-size;
 }
 
-.resource-library > * + * {
-  margin-top: var(--resource-space-6);
-}
-
 .resource-street-browser {
   min-width: 0;
 }
@@ -539,14 +623,10 @@
 }
 
 /* POI 页标题独立于卡片，区块与街区卡片使用同一间距。 */
-.resource-poi-page {
-  --resource-poi-gap: var(--resource-stack-gap);
-}
-
 .resource-poi-group {
   display: grid;
   min-width: 0;
-  gap: var(--resource-poi-gap);
+  gap: var(--resource-stack-gap);
 }
 
 .resource-poi-heading {
@@ -554,17 +634,18 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--resource-poi-gap);
+  gap: var(--resource-stack-gap);
 }
 
-.resource-poi-tools {
+/* 滚动边界由外层卡片承载，内部表单不重复描边。 */
+.resource-poi-tools > .resource-panel,
+.resource-tools-separated > .resource-panel {
   border: 0;
-  border-radius: 0;
-  background: var(--color-surface);
+  border-radius: inherit;
 }
 
 .resource-poi-tools > * + * {
-  margin-top: var(--resource-poi-gap);
+  margin-top: var(--resource-stack-gap);
   border-top: 0;
 }
 
@@ -593,10 +674,6 @@
   background: var(--color-surface);
 }
 
-.resource-content-stack > * + * {
-  margin-top: var(--resource-stack-gap);
-}
-
 /* 独立正文卡片保留吸顶圆角，不裁切整页滚动。 */
 .resource-scroll-card {
   --resource-content-padding: 0px;
@@ -607,7 +684,7 @@
 }
 
 .resource-scroll-card--padded {
-  --resource-content-padding: var(--resource-space-6);
+  --resource-content-padding: var(--resource-panel-padding);
   padding: var(--resource-content-padding);
 }
 
@@ -619,6 +696,7 @@
     var(--resource-content-padding) + 1px - var(--resource-radius-panel)
   );
   margin-inline: calc(-1 * (var(--resource-content-padding) + 1px));
+  pointer-events: none;
 }
 
 .resource-scroll-card > :first-child {
@@ -636,24 +714,10 @@
   min-width: 0;
 }
 
-.resource-section > * + * {
-  margin-top: var(--resource-stack-gap);
-}
-
 .resource-editor.resource-editor--sections {
   padding: 0;
   border: 0;
   background: transparent;
-}
-
-.resource-editor--sections > * + * {
-  margin-top: var(--resource-stack-gap);
-}
-
-.resource-tools-separated {
-  border: 0;
-  border-radius: 0;
-  background: var(--color-surface);
 }
 
 .resource-tools-separated > * + * {
@@ -666,7 +730,7 @@
 }
 
 .resource-poi-page .resource-street-items {
-  gap: var(--resource-poi-gap);
+  gap: var(--resource-stack-gap);
   padding-block: 0;
 }
 
@@ -690,11 +754,6 @@
   border-radius: inherit;
 }
 
-.resource-dimension-list > * + *,
-.resource-dimension-content > * + * {
-  margin-top: var(--resource-stack-gap);
-}
-
 .resource-annotation-heading,
 .resource-annotation-status,
 .resource-annotation-actions {
@@ -715,7 +774,7 @@
 .resource-annotation-controls {
   display: grid;
   gap: var(--resource-space-4);
-  padding: var(--resource-space-5);
+  padding: var(--resource-panel-padding);
 }
 
 .resource-annotation-import {
@@ -751,11 +810,6 @@
   display: flow-root;
 }
 
-.resource-settings-group > * + *,
-.resource-settings > * + * {
-  margin-top: var(--resource-stack-gap);
-}
-
 .resource-settings-heading {
   display: flex;
   flex-wrap: wrap;
@@ -773,7 +827,7 @@
 }
 
 .resource-settings-row {
-  padding: var(--resource-space-5) var(--resource-space-6);
+  padding: var(--resource-panel-padding);
 }
 
 .resource-settings-row + .resource-settings-row {
@@ -823,32 +877,23 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .resource-profile-sections {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .resource-profile-bar-row {
+    grid-template-columns: 7rem minmax(0, 1fr) 7rem;
   }
 
-  .resource-profile-sections > :first-child {
-    grid-column: 1 / -1;
+  .resource-profile-tag-table :is(th, td):not(:first-child) {
+    width: 5rem;
+  }
+
+  .resource-profile-highlights > div {
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: var(--resource-space-4);
   }
 }
 
 @container editor (min-width: 30rem) {
   .resource-subpage .resource-editor-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container resource-document (max-width: 35.999rem) {
-  .resource-scroll-card--padded {
-    --resource-content-padding: var(--resource-space-5);
-  }
-
-  .resource-content-card {
-    --resource-content-padding: var(--resource-space-5);
-  }
-
-  .resource-settings-row {
-    padding: var(--resource-space-5);
   }
 }
 

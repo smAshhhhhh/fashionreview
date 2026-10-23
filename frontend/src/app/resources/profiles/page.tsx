@@ -253,7 +253,7 @@ export default function ProfilesPage() {
               </div>
             ) : (
               <>
-                  <div className="resource-detail-header">
+                <div className="resource-detail-header">
                   <div className="min-w-0 flex-1 basis-48">
                     <h2 className="resource-detail-title">
                       {detail.street.name}
@@ -445,8 +445,8 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
     <ResourceSection title={title}>
       <div className="space-y-2">
         {data.slice(0, 12).map((d) => (
-          <div key={d.label} className="flex items-center gap-2 resource-caption">
-            <span className="w-20 sm:w-28 shrink-0 text-on-surface-variant">
+          <div key={d.label} className="resource-profile-bar-row resource-caption">
+            <span className="text-on-surface-variant">
               {d.label}
             </span>
             <div className="min-w-0 flex-1 bg-surface-container-low rounded-full h-2">
@@ -455,7 +455,7 @@ function BarBlock({ title, data }: { title: string; data: Bar[] }) {
                 style={{ width: `${(d.count / max) * 100}%` }}
               />
             </div>
-            <span className="w-24 shrink-0 text-right tabular-nums text-on-surface">
+            <span className="text-right tabular-nums text-on-surface">
               {asNum(d.count)} ({asNum(d.pct)}%)
             </span>
           </div>
@@ -483,21 +483,32 @@ function TagBlock({
   if (entries.length === 0) return null;
   return (
     <ResourceSection title={title}>
-      <div className="flex flex-wrap gap-2">
-        {entries.map(([k, v]) => {
-          const base = k.replace(/_count$/, "");
-          const pct = d[`${base}_pct`];
-          return (
-            <span
-              key={k}
-              className="max-w-full resource-caption bg-primary/10 text-primary px-3 py-1 rounded-full"
-            >
-              {TAG_CN[base] ?? base}: {v}
-              {pct != null ? ` (${pct}%)` : ""}
-            </span>
-          );
-        })}
-      </div>
+      <table aria-label={title} className="resource-profile-tag-table">
+        <thead>
+          <tr>
+            <th scope="col">标签</th>
+            <th scope="col">数量</th>
+            <th scope="col">占比</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(([k, v]) => {
+            const base = k.replace(/_count$/, "");
+            const pct = d[`${base}_pct`];
+            return (
+              <tr key={k}>
+                <th scope="row">{TAG_CN[base] ?? base}</th>
+                <td>{asNum(v)}</td>
+                <td>
+                  {pct != null && Number.isFinite(pct)
+                    ? `${asNum(pct)}%`
+                    : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </ResourceSection>
   );
 }
@@ -505,22 +516,26 @@ function TagBlock({
 function HighlightBlock({ highlights }: { highlights: unknown }) {
   if (!highlights || typeof highlights !== "object") return null;
   const h = highlights as Record<string, string[]>;
-  const entries = Object.entries(h).filter(([, names]) => Array.isArray(names));
+  const entries = Object.entries(h).flatMap(([key, names]) => {
+    if (!Array.isArray(names)) return [];
+    const validNames = names.filter(
+      (name) => typeof name === "string" && name.trim().length > 0,
+    );
+    return validNames.length > 0 ? [[key, validNames] as const] : [];
+  });
   if (entries.length === 0) return null;
   return (
     <ResourceSection title="代表性店铺">
-      <div className="space-y-2">
+      <dl className="resource-profile-highlights">
         {entries.map(([k, names]) => (
           <div key={k} className="resource-caption">
-            <span className="font-semibold text-on-surface-variant">
-              {TAG_CN[k] ?? k}:{" "}
-            </span>
-            <span className="text-on-surface">
-              {names.filter((name) => typeof name === "string").join("、")}
-            </span>
+            <dt className="font-semibold text-on-surface-variant">
+              {TAG_CN[k] ?? k}
+            </dt>
+            <dd className="text-on-surface">{names.join("、")}</dd>
           </div>
         ))}
-      </div>
+      </dl>
     </ResourceSection>
   );
 }

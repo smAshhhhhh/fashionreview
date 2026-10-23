@@ -793,14 +793,12 @@ function TreeEditor({
         </div>
       </div>
 
-      <div className="mb-4">
-        <ResourceFeedback error={saveError} />
-      </div>
+      <ResourceFeedback error={saveError} />
       {/* 权重合计提示：仅编辑态显示。合计失真不会报错（后端按实际和归一化），
           所以必须在界面上说清楚，否则填错了页面显示的百分比与真实生效的权重不一致。 */}
       {editMode && (
         <div
-          className={`mb-6 rounded-2xl border px-5 py-4 ${hasWeightProblem
+          className={`rounded-2xl border px-5 py-4 ${hasWeightProblem
               ? "border-warning-border/40 bg-warning-container"
               : "border-success/20 bg-success-container"
             }`}
