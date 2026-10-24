@@ -1574,7 +1574,7 @@ def _stored_weight(row: dict[str, Any], fallback: dict[int, Any]) -> float | Non
 def get_result(evaluation_id: int) -> dict[str, Any] | None:
     """查询评价结果，组装为响应字典。
 
-    按「分析管理」显示配置（analytics_display_config）做服务端过滤：
+    按「展示与流程配置」显示配置（analytics_display_config）做服务端过滤：
     关闭的区块对应字段直接清空/不下发，并在 enabled_blocks 里告知前端哪些区块可渲染。
     维度聚合分（dimension_scores / sub_dimension_scores）是明细分组的结构依赖，
     只要相关区块任一开启就保留；纯展示性区块（雷达图/拆解）由前端按 enabled_blocks 决定渲染。

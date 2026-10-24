@@ -45,6 +45,21 @@
   --color-scrim: rgb(36 59 99 / 30%);
 }
 
+/* ──── 页面布局间距（全站唯一来源） ────
+ * --layout-gap        组件与组件之间的间距
+ * --layout-sticky-top 吸顶组件与窗口顶边的距离（与组件间距一致）
+ * 资源中心子页、历史记录等页面的吸顶与间距都引用这两个变量，改这里即全站生效。 */
+:root {
+  --layout-gap: 1.5rem;
+  --layout-sticky-top: var(--layout-gap);
+}
+
+@media (max-width: 39.999rem) {
+  :root {
+    --layout-gap: 1rem;
+  }
+}
+
 /* ──── Material Symbols ──── */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";

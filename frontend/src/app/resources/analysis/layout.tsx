@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Fashion Street AI - 分析管理" };
+export const metadata: Metadata = { title: "Fashion Street AI - 展示与流程配置" };
 
 export default function ResourceLayout({
   children,

@@ -11,7 +11,8 @@ export default function ResourceMasterList({
   children,
 }: {
   label: string;
-  value: string;
+  /** 「当前：xxx」一行；省略则不显示 */
+  value?: string;
   description?: ReactNode;
   /** 标题右侧的操作按钮（如「新建模板」），浏览箭头随之移到它下方 */
   action?: ReactNode;
@@ -93,9 +94,11 @@ export default function ResourceMasterList({
   );
   const title = (
     <div className="resource-master-title">
-      <p className="resource-caption text-on-surface-variant">
-        当前：{value}
-      </p>
+      {value && (
+        <p className="resource-caption text-on-surface-variant">
+          当前：{value}
+        </p>
+      )}
       {description && (
         <p className="resource-caption text-on-surface-variant">
           {description}

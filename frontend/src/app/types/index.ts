@@ -107,7 +107,7 @@ export interface EvaluationResult {
   summary: string | null;
   /** 上传原图相对路径；文字发起的点评为街道封面 URL 或 null */
   image_url?: string | null;
-  /** 启用中的展示区块 block_key（后端按「分析管理」配置过滤后下发），前端据此渲染 */
+  /** 启用中的展示区块 block_key（后端按「展示与流程配置」过滤后下发），前端据此渲染 */
   enabled_blocks: string[];
   /** 用户选定的街区类型；未选（开关关闭或历史记录）为 null */
   street_type?: { code: string; name: string } | null;

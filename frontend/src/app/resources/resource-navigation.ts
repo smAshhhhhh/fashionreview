@@ -7,7 +7,7 @@ export const RESOURCE_GROUPS = [
       {
         href: "/resources/poi",
         icon: "location_on",
-        title: "POI 管理",
+        title: "POI 数据导入",
         description: "导入高德 / 大众点评数据，管理街区 POI 事实层",
       },
       {
@@ -31,7 +31,7 @@ export const RESOURCE_GROUPS = [
       {
         href: "/resources/metrics",
         icon: "account_tree",
-        title: "指标体系",
+        title: "维度指标管理",
         description: "按街区类型分组管理维度与指标权重、模板版本",
       },
       {
@@ -43,7 +43,7 @@ export const RESOURCE_GROUPS = [
       {
         href: "/resources/analysis",
         icon: "tune",
-        title: "分析管理",
+        title: "展示与流程配置",
         description: "结果页展示区块与点评流程开关",
       },
     ],

@@ -1,5 +1,6 @@
 "use client";
 
+/** 资源页的行内文字提示：不用卡片底色，样式同首页输入框提醒。 */
 export default function ResourceFeedback({
   error,
   message,
@@ -16,9 +17,6 @@ export default function ResourceFeedback({
       className="resource-feedback"
       data-tone={error ? "error" : "success"}
     >
-      <span aria-hidden="true" className="material-symbols-outlined shrink-0">
-        {error ? "error" : "check_circle"}
-      </span>
       <p className="resource-feedback-message">
         {error ?? message}
       </p>
@@ -26,7 +24,7 @@ export default function ResourceFeedback({
         <button
           type="button"
           onClick={onRetry}
-          className="resource-button resource-button--danger"
+          className="resource-button resource-button--quiet"
         >
           重新加载
         </button>

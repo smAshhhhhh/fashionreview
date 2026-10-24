@@ -126,7 +126,7 @@ fashion review/
 │   │       ├── analytics/page.tsx    # 分析结果页
 │   │       ├── progress/page.tsx     # 分析进度页（SSE 驱动）
 │   │       ├── history/page.tsx      # 历史记录页
-│   │       └── resources/            # 资源中心（Prompt/指标/分析管理）
+│   │       └── resources/            # 资源中心（Prompt/指标/展示与流程配置）
 │   └── package.json
 ├── docs/                             # 设计文档
 └── 时尚街区点评/                      # 参考研究资料（不参与运行）
@@ -460,7 +460,7 @@ ActiveTaskGuard
 | `/resources` | 资源中心 | 管理入口 |
 | `/resources/prompts` | Prompt 管理 | 模板编辑 + 版本历史 + 回滚 |
 | `/resources/metrics` | 指标体系 | 三级维度树编辑 + 模板克隆/启用/删除 |
-| `/resources/analysis` | 分析管理 | 显示区块开关配置 |
+| `/resources/analysis` | 展示与流程配置 | 显示区块开关配置 |
 
 ### 组件清单
 

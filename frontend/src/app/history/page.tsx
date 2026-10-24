@@ -188,7 +188,7 @@ export default function HistoryPage() {
     <div className="flex min-h-screen">
       <Sidebar activeHref="/history" />
       <main className="history-main min-w-0 flex-1 lg:ml-64">
-        <div className="@container mx-auto flex max-w-474 flex-col gap-6 px-4 py-6 sm:py-8 lg:px-8">
+        <div className="@container mx-auto flex max-w-474 flex-col gap-(--layout-gap) px-4 py-6 sm:py-8 lg:px-8">
           <h1
             ref={titleRef}
             tabIndex={-1}
@@ -263,7 +263,7 @@ export default function HistoryPage() {
             </div>
           )}
           {selectMode && (
-            <div className="sticky top-3 z-30 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border border-divider bg-surface-container-lowest px-3 py-2">
+            <div className="sticky top-(--layout-sticky-top) z-30 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border border-divider bg-surface-container-lowest px-3 py-2">
               <div className="flex flex-wrap items-center gap-x-3">
                 <button
                   type="button"

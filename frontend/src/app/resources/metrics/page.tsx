@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ResourceDialog from "../../components/ResourceDialog";
 import ResourceFeedback from "../../components/ResourceFeedback";
+import ResourceEditActions from "../../components/ResourceEditActions";
 import useResourceDraft from "../../components/useResourceDraft";
 import { metricFieldProblems } from "../../../lib/resource-validation";
 import ResourceShell from "../../components/ResourceShell";
@@ -318,11 +319,12 @@ export default function MetricTemplatesPage() {
         );
       }
       setSelectedId(r.template.id);
-      setNotice(
-        r.is_new
-          ? `原模板已被历史评价引用，改动已另存为新模板「${r.template.name}」。`
-          : "已保存到当前模板。",
-      );
+      // 原地保存成功不提示；另存为新模板时选中项会跳到新模板，需说明原因
+      if (r.is_new) {
+        setNotice(
+          `原模板已被历史评价引用，改动已另存为新模板「${r.template.name}」。`,
+        );
+      }
       return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "保存失败，请重试。");
@@ -488,6 +490,7 @@ export default function MetricTemplatesPage() {
                 onEditSub={editSub}
                 onEditMetric={editMetric}
                 onSave={handleSave}
+                onCancel={() => setDims(JSON.parse(snapshot))}
               />
             )}
           </ResourceContentCard>
@@ -817,33 +820,47 @@ function TypeDefinitionPanel({
   onSaved: (updated: StreetType) => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
+  // 阅读 / 编辑模式：默认只读展示，点「修改」才能编辑
+  const [editing, setEditing] = useState(false);
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description ?? "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const dirty =
-    name !== type.name || description !== (type.description ?? "");
+    editing &&
+    (name !== type.name || description !== (type.description ?? ""));
   useEffect(() => {
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   const nameOk = name.trim() !== "";
+  const headingId = `street-type-definition-${type.id}`;
+
+  const startEdit = () => {
+    setName(type.name);
+    setDescription(type.description ?? "");
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setName(type.name);
+    setDescription(type.description ?? "");
+    setSaveError(null);
+    setEditing(false);
+  };
 
   const handleSave = async () => {
     if (!dirty || !nameOk || saving) return;
     setSaving(true);
     setSaveError(null);
-    setSaved(false);
     try {
       const updated = await updateStreetType(type.id, {
         name: name.trim(),
         description: description.trim() === "" ? null : description.trim(),
       });
-      setName(updated.name);
-      setDescription(updated.description ?? "");
       onSaved(updated);
-      setSaved(true);
+      setEditing(false);
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : "保存失败，请重试。");
     } finally {
@@ -852,14 +869,12 @@ function TypeDefinitionPanel({
   };
 
   return (
-    <section
-      aria-labelledby={`street-type-definition-${type.id}`}
-      className="resource-panel resource-panel--padded"
-    >
-      <fieldset disabled={saving} className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+    <section aria-labelledby={headingId} className="min-w-0">
+      {/* 标题与操作在卡片外，卡片内只放内容 */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
           <h2
-            id={`street-type-definition-${type.id}`}
+            id={headingId}
             className="resource-item-title font-bold text-on-surface"
           >
             类型定义
@@ -868,75 +883,80 @@ function TypeDefinitionPanel({
             AI 依据这段定义判断街区与该类型的匹配度
           </p>
         </div>
-        <div className="space-y-1.5">
-          <label
-            htmlFor={`street-type-name-${type.id}`}
-            className="block resource-caption font-semibold text-on-surface-variant px-1"
-          >
-            类型名称
-          </label>
-          <input
-            id={`street-type-name-${type.id}`}
-            maxLength={100}
-            value={name}
-            aria-invalid={!nameOk}
-            onChange={(e) => {
-              setSaved(false);
-              setName(e.target.value);
-            }}
-            className="resource-field w-full"
-          />
-          {!nameOk && (
-            <p className="text-sm text-error">请填写类型名称。</p>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <label
-            htmlFor={`street-type-description-${type.id}`}
-            className="block resource-caption font-semibold text-on-surface-variant px-1"
-          >
-            类型定义
-          </label>
-          <textarea
-            id={`street-type-description-${type.id}`}
-            rows={3}
-            maxLength={2000}
-            value={description}
-            onChange={(e) => {
-              setSaved(false);
-              setDescription(e.target.value);
-            }}
-            className="resource-field w-full leading-relaxed resize-y"
+        <div className="flex flex-wrap items-center gap-2">
+          <ResourceEditActions
+            editing={editing}
+            saving={saving}
+            canSave={dirty && nameOk}
+            onEdit={startEdit}
+            onCancel={cancelEdit}
+            onSave={() => void handleSave()}
           />
         </div>
-        <ResourceFeedback
-          error={saveError}
-          message={saved && !dirty ? "类型定义已保存。" : null}
-        />
-        <div className="resource-editor-footer">
-          {dirty && (
-            <p role="status" className="text-sm text-on-surface-variant">
-              有未保存的修改
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={!dirty || !nameOk || saving}
-            className="resource-button resource-button--primary"
-          >
-            {saving && (
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined animate-spin resource-icon"
+      </div>
+
+      <div className="resource-panel resource-panel--padded">
+        {editing ? (
+          <fieldset disabled={saving} className="min-w-0 space-y-4">
+            <legend className="sr-only">编辑类型定义</legend>
+            <div className="space-y-1.5">
+              <label
+                htmlFor={`street-type-name-${type.id}`}
+                className="block resource-caption font-semibold text-on-surface-variant px-1"
               >
-                progress_activity
-              </span>
-            )}
-            保存类型定义
-          </button>
-        </div>
-      </fieldset>
+                类型名称
+              </label>
+              <input
+                id={`street-type-name-${type.id}`}
+                maxLength={100}
+                value={name}
+                aria-invalid={!nameOk}
+                aria-describedby={
+                  !nameOk ? `street-type-name-error-${type.id}` : undefined
+                }
+                onChange={(e) => setName(e.target.value)}
+                className="resource-field w-full"
+              />
+              {!nameOk && (
+                <p
+                  id={`street-type-name-error-${type.id}`}
+                  className="text-sm text-error"
+                >
+                  请填写类型名称。
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor={`street-type-description-${type.id}`}
+                className="block resource-caption font-semibold text-on-surface-variant px-1"
+              >
+                类型定义
+              </label>
+              <textarea
+                id={`street-type-description-${type.id}`}
+                rows={3}
+                maxLength={2000}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="resource-field w-full leading-relaxed resize-y"
+              />
+            </div>
+            <p className="min-h-5 text-sm leading-5 text-error" role="alert">
+              {saveError ?? ""}
+            </p>
+          </fieldset>
+        ) : (
+          <div className="min-w-0 space-y-1.5">
+            <p className="resource-detail font-bold text-on-surface wrap-anywhere">
+              {type.name}
+            </p>
+            <p className="resource-caption leading-relaxed text-on-surface-variant wrap-anywhere">
+              {type.description || "未填写类型定义"}
+            </p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -981,9 +1001,12 @@ function TreeEditor({
   onEditSub,
   onEditMetric,
   onSave,
+  onCancel,
   saveError,
 }: {
   saveError: string | null;
+  /** 取消编辑：还原到上次保存的维度树 */
+  onCancel: () => void;
   selected: MetricTemplate | null;
   dims: DimensionNode[];
   inUse: boolean;
@@ -1138,41 +1161,19 @@ function TreeEditor({
             </span>
             {allOpen ? "全部收起" : "全部展开"}
           </button>
-          {editMode ? (
-            <button
-              type="button"
-              onClick={() => void handleSaveClick()}
-              disabled={busy || hasWeightProblem}
-              title={
-                hasWeightProblem
-                  ? "权重合计不为 100%，请先修正后再保存"
-                  : undefined
-              }
-              className="resource-button resource-button--primary"
-            >
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined resource-icon"
-              >
-                save
-              </span>
-              {inUse ? "另存为新模板" : "保存更改"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditMode(true)}
-              className="resource-button resource-button--secondary"
-            >
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined resource-icon"
-              >
-                edit
-              </span>
-              点击修改
-            </button>
-          )}
+          <ResourceEditActions
+            editing={editMode}
+            saving={busy}
+            canSave={!hasWeightProblem}
+            saveLabel={inUse ? "另存为新模板" : "保存"}
+            saveTitle="名称或权重需要修正后才能保存"
+            onEdit={() => setEditMode(true)}
+            onCancel={() => {
+              onCancel();
+              setEditMode(false);
+            }}
+            onSave={() => void handleSaveClick()}
+          />
         </div>
       </div>
 
@@ -1187,7 +1188,7 @@ function TreeEditor({
           const open = !!openDims[d.dim_id];
           const dimPct = Math.round(d.dim_weight * 1000) / 10;
           return (
-            <div key={d.dim_id} className="resource-dimension-card">
+            <div key={d.dim_id} className="resource-dimension-card resource-scroll-card">
               {/* 一级维度（手风琴头部） */}
               <div className={`
                 w-full flex flex-wrap items-center justify-between gap-3
@@ -1269,7 +1270,7 @@ function TreeEditor({
                   /* 二级维度：表头即二级名称与权重占比，表体为其下三级指标 */
                   <div
                     key={s.sub_id}
-                    className="resource-panel resource-scroll-card"
+                    className="resource-panel"
                   >
                     <div
                       tabIndex={0}

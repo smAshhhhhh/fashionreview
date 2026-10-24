@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ResourceDialog from "../../components/ResourceDialog";
 import ResourceFeedback from "../../components/ResourceFeedback";
+import ResourceEditActions from "../../components/ResourceEditActions";
 import useResourceDraft from "../../components/useResourceDraft";
 import ResourceShell from "../../components/ResourceShell";
 import ResourceContentCard from "../../components/ResourceContentCard";
@@ -129,7 +130,6 @@ export default function PromptsPage() {
             {/* 顶部模板列表 */}
             <ResourceMasterList
               label="Prompt 模板"
-              value={selected?.name ?? "未选择模板"}
               description={[
                 ...STAGE_ORDER,
                 ...Array.from(grouped.keys()).filter(
@@ -180,11 +180,10 @@ export default function PromptsPage() {
                               v{t.version}
                             </span>
                           </div>
-                          {t.dim_code && (
-                            <p className="mt-1 resource-caption font-mono text-on-surface-variant">
-                              {t.dim_code}
-                            </p>
-                          )}
+                          {/* 每张卡片统一一行英文编码：评分阶段用维度编码，其余用阶段编码 */}
+                          <p className="mt-1 resource-caption font-mono text-on-surface-variant">
+                            {t.dim_code ?? t.stage.toUpperCase()}
+                          </p>
                         </button>
                       );
                     })}
@@ -212,7 +211,6 @@ export default function PromptsPage() {
                         "新版本已保存，但列表刷新失败。请重新加载后核对，避免重复保存。",
                       );
                     }
-                    setNotice("已保存新版本。");
                   }}
                   onRolledBack={async (updated) => {
                     setTemplates((items) =>
@@ -284,6 +282,8 @@ function PromptEditor({
     template.temperature != null ? String(template.temperature) : "",
   );
   const [changeNote, setChangeNote] = useState("");
+  // 阅读 / 编辑模式：默认只读，点「修改」才能编辑
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -309,6 +309,21 @@ function PromptEditor({
         .filter(Boolean),
     [template.placeholders],
   );
+
+  /** 取消编辑：还原为当前版本内容，回到只读。 */
+  const cancelEdit = () => {
+    setName(template.name);
+    setSystemPrompt(template.system_prompt ?? "");
+    setUserTemplate(template.user_template);
+    setModel(template.model ?? "");
+    setTemperature(
+      template.temperature == null ? "" : String(template.temperature),
+    );
+    setChangeNote("");
+    setFieldError(null);
+    setSubmitted(false);
+    setEditing(false);
+  };
 
   const handleSave = async () => {
     if (saving || historyBusy) return;
@@ -353,6 +368,8 @@ function PromptEditor({
         updated.temperature == null ? "" : String(updated.temperature),
       );
       setChangeNote("");
+      setSubmitted(false);
+      setEditing(false);
       await onSaved(updated);
     } catch (e: unknown) {
       setFieldError(e instanceof Error ? e.message : "保存失败，请重试。");
@@ -363,221 +380,264 @@ function PromptEditor({
 
   return (
     <div className="resource-editor resource-editor--sections @container/editor">
-      {/* 头部：名称 + 阶段/版本 */}
+      {/* 头部：标题 + 修改 / 取消 / 保存 */}
       <div className="resource-detail-header">
         <div className="min-w-0">
-          <p className="resource-caption text-on-surface-variant mb-1">
-            {STAGE_LABEL[template.stage] ?? template.stage} · 当前 v
-            {template.version}
-          </p>
           <h2 className="resource-detail-title">
-            {template.name}
+            当前Prompt配置
           </h2>
+          {/* 唯一提示位：校验失败或保存失败。固定占一行高度，出现 / 消失时不跳动 */}
+          <p
+            className="mt-1 min-h-5 break-words text-sm leading-5 text-error"
+            role="alert"
+          >
+            {fieldError ?? ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ResourceEditActions
+            editing={editing}
+            saving={saving}
+            canSave={dirty && !historyBusy}
+            saveLabel="保存新版本"
+            saveTitle="内容未修改"
+            onEdit={() => {
+              setFieldError(null);
+              setEditing(true);
+            }}
+            onCancel={cancelEdit}
+            onSave={() => void handleSave()}
+          />
         </div>
       </div>
 
-      {/* 可用占位符 */}
-      {placeholders.length > 0 && (
-        <div>
-          <p className="resource-caption font-semibold text-on-surface-variant mb-2">
-            可用占位符
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {placeholders.map((p) => (
-              <code
-                key={p}
-                className={`
-                  max-w-full break-all resource-caption bg-surface-container-low
-                  text-on-surface px-2 py-1 rounded-full border border-divider
-                `}
-              >
-                {p}
-              </code>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* 配置分块：每块一张卡片，块头标明内容，便于区分不同配置项 */}
       <fieldset
         disabled={saving || historyBusy}
-        className="resource-panel resource-scroll-card resource-scroll-card--padded min-w-0"
+        className="resource-config-list min-w-0"
       >
         <legend className="sr-only">Prompt 模板内容</legend>
-        {/* 名称 / 模型 / 温度 */}
-        <div className="resource-editor-fields">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="prompt-name"
-              className="block resource-caption font-semibold text-on-surface-variant px-1"
-            >
-              模版名称
-            </label>
-            <input
-              id="prompt-name"
-              maxLength={100}
-              aria-invalid={submitted && !name.trim()}
-              aria-describedby={
-                submitted && !name.trim() ? "prompt-name-error" : undefined
-              }
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={inputClass}
-            />
-            {submitted && !name.trim() && (
-              <p id="prompt-name-error" className="text-sm text-error">
-                请填写模板名称。
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="prompt-model"
-              className="block resource-caption font-semibold text-on-surface-variant px-1"
-            >
-              模型（留空用默认）
-            </label>
-            <input
-              id="prompt-model"
-              maxLength={100}
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="如 gpt-4o"
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="prompt-temperature"
-              className="block resource-caption font-semibold text-on-surface-variant px-1"
-            >
-              采样温度 0~2（留空用默认）
-            </label>
-            <input
-              id="prompt-temperature"
-              aria-invalid={
-                submitted &&
-                temperature.trim() !== "" &&
-                (!Number.isFinite(Number(temperature)) ||
-                  Number(temperature) < 0 ||
-                  Number(temperature) > 2)
-              }
-              aria-describedby="prompt-temperature-hint"
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={temperature}
-              onChange={(e) => setTemperature(e.target.value)}
-              placeholder="如 0.7"
-              className={inputClass}
-            />
-            <p
-              id="prompt-temperature-hint"
-              className="text-sm text-on-surface-variant"
-            >
-              范围为 0 到 2，留空使用默认设置。
-            </p>
-          </div>
-        </div>
 
-        {/* System / User / 更新日志 */}
-        <div className="resource-prompt-fields">
-          <div>
-            <label
-              htmlFor="prompt-systemPrompt"
-              className="block resource-caption font-semibold text-on-surface-variant mb-2 px-1"
-            >
-              System Prompt（系统提示词）
-            </label>
-            <textarea
-              id="prompt-systemPrompt"
-              rows={4}
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              className={`${inputClass} font-mono leading-relaxed resize-y`}
-            />
+        <section className="resource-config-section resource-scroll-card" aria-labelledby="prompt-basic-title">
+          <div className="resource-config-section-head">
+            <h3 id="prompt-basic-title">基础设置</h3>
           </div>
-          <div>
-            <label
-              htmlFor="prompt-userTemplate"
-              className="block resource-caption font-semibold text-on-surface-variant mb-2 px-1"
-            >
-              User Template（用户模版）
-            </label>
-            <textarea
-              id="prompt-userTemplate"
-              aria-invalid={submitted && !userTemplate.trim()}
-              aria-describedby={
-                submitted && !userTemplate.trim()
-                  ? "prompt-user-error"
-                  : undefined
-              }
-              rows={6}
-              value={userTemplate}
-              onChange={(e) => setUserTemplate(e.target.value)}
-              className={`${inputClass} font-mono leading-relaxed resize-y`}
-            />
-            {submitted && !userTemplate.trim() && (
-              <p id="prompt-user-error" className="text-sm text-error">
-                请填写 User Template。
-              </p>
+          <div className="resource-config-section-body resource-config-grid">
+            {editing ? (
+              <>
+                <div className="space-y-1.5">
+                  <label htmlFor="prompt-name" className="resource-config-term">
+                    模版名称
+                  </label>
+                  <input
+                    id="prompt-name"
+                    maxLength={100}
+                    aria-invalid={submitted && !name.trim()}
+                    aria-describedby={
+                      submitted && !name.trim() ? "prompt-name-error" : undefined
+                    }
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={inputClass}
+                  />
+                  {submitted && !name.trim() && (
+                    <p id="prompt-name-error" className="text-sm text-error">
+                      请填写模板名称。
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="prompt-model" className="resource-config-term">
+                    模型（留空用默认）
+                  </label>
+                  <input
+                    id="prompt-model"
+                    maxLength={100}
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="如 gpt-4o"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="prompt-temperature" className="resource-config-term">
+                    采样温度（0~2，留空用默认）
+                  </label>
+                  <input
+                    id="prompt-temperature"
+                    aria-invalid={
+                      submitted &&
+                      temperature.trim() !== "" &&
+                      (!Number.isFinite(Number(temperature)) ||
+                        Number(temperature) < 0 ||
+                        Number(temperature) > 2)
+                    }
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={temperature}
+                    onChange={(e) => setTemperature(e.target.value)}
+                    placeholder="如 0.7"
+                    className={inputClass}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <ReadItem label="模版名称" value={template.name} />
+                <ReadItem label="模型" value={template.model} empty="默认" />
+                <ReadItem
+                  label="采样温度"
+                  value={
+                    template.temperature == null ? null : String(template.temperature)
+                  }
+                  empty="默认"
+                />
+              </>
             )}
           </div>
-          <div>
-            <label
-              htmlFor="prompt-changeNote"
-              className="block resource-caption font-semibold text-on-surface-variant mb-2 px-1"
-            >
-              更新日志（选填，记入版本历史）
-            </label>
-            <textarea
-              id="prompt-changeNote"
-              maxLength={500}
-              rows={2}
-              value={changeNote}
-              onChange={(e) => setChangeNote(e.target.value)}
-              placeholder="简要说明此次更新的内容…"
-              className={`${inputClass} resize-y`}
-            />
-          </div>
-        </div>
+        </section>
 
-        <div className="mb-4">
-          <ResourceFeedback error={fieldError} />
-        </div>
-        <div className="resource-editor-footer">
-          {dirty && (
-            <p role="status" className="text-sm text-on-surface-variant">
-              有未保存的修改
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || historyBusy}
-            className="resource-button resource-button--primary"
-          >
-            {saving && (
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined animate-spin resource-icon"
-              >
-                progress_activity
-              </span>
+        <section className="resource-config-section resource-scroll-card" aria-labelledby="prompt-system-title">
+          <div className="resource-config-section-head">
+            <h3 id="prompt-system-title">
+              System Prompt
+              <span className="resource-config-section-sub">系统提示词</span>
+            </h3>
+          </div>
+          <div className="resource-config-section-body">
+            {editing ? (
+              <textarea
+                id="prompt-systemPrompt"
+                aria-labelledby="prompt-system-title"
+                rows={4}
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                className={`${inputClass} font-mono leading-relaxed resize-y`}
+              />
+            ) : (
+              <ReadBlock value={template.system_prompt} />
             )}
-            保存新版本
-          </button>
-        </div>
+          </div>
+        </section>
+
+        <section className="resource-config-section resource-scroll-card" aria-labelledby="prompt-user-title">
+          <div className="resource-config-section-head">
+            <h3 id="prompt-user-title">
+              User Template
+              <span className="resource-config-section-sub">用户模版</span>
+            </h3>
+          </div>
+          <div className="resource-config-section-body space-y-3">
+            {/* 占位符只用于 User Template，就近放在这一块 */}
+            {placeholders.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="resource-config-term">可用占位符</span>
+                {placeholders.map((p) => (
+                  <code
+                    key={p}
+                    className="max-w-full break-all resource-caption bg-surface-container-low text-on-surface px-2 py-0.5 rounded-full border border-divider"
+                  >
+                    {p}
+                  </code>
+                ))}
+              </div>
+            )}
+            {editing ? (
+              <>
+                <textarea
+                  id="prompt-userTemplate"
+                  aria-labelledby="prompt-user-title"
+                  aria-invalid={submitted && !userTemplate.trim()}
+                  aria-describedby={
+                    submitted && !userTemplate.trim() ? "prompt-user-error" : undefined
+                  }
+                  rows={6}
+                  value={userTemplate}
+                  onChange={(e) => setUserTemplate(e.target.value)}
+                  className={`${inputClass} font-mono leading-relaxed resize-y`}
+                />
+                {submitted && !userTemplate.trim() && (
+                  <p id="prompt-user-error" className="text-sm text-error">
+                    请填写 User Template。
+                  </p>
+                )}
+              </>
+            ) : (
+              <ReadBlock value={template.user_template} />
+            )}
+          </div>
+        </section>
+
+        {editing && (
+          <section className="resource-config-section resource-scroll-card" aria-labelledby="prompt-note-title">
+            <div className="resource-config-section-head">
+              <h3 id="prompt-note-title">
+                更新日志
+                <span className="resource-config-section-sub">选填，记入版本历史</span>
+              </h3>
+            </div>
+            <div className="resource-config-section-body">
+              <textarea
+                id="prompt-changeNote"
+                aria-labelledby="prompt-note-title"
+                maxLength={500}
+                rows={2}
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                placeholder="简要说明此次更新的内容…"
+                className={`${inputClass} resize-y`}
+              />
+            </div>
+          </section>
+        )}
       </fieldset>
-      {/* 版本历史（独立面板） */}
+      {/* 版本历史（独立面板）。编辑中禁用回滚：回滚会覆盖正在编辑的内容 */}
       <HistoryPanel
-        disabled={saving}
+        disabled={saving || editing}
         onBusyChange={setHistoryBusy}
         templateId={template.id}
         onRolledBack={onRolledBack}
       />
     </div>
   );
+}
+
+/* ──────────────── 只读展示 ──────────────── */
+
+/** 基础设置里的一项：小标签在上、值在下。 */
+function ReadItem({
+  label,
+  value,
+  empty = "未填写",
+}: {
+  label: string;
+  value: string | null | undefined;
+  /** 值为空时的占位文案 */
+  empty?: string;
+}) {
+  const hasValue = value != null && value.trim() !== "";
+  return (
+    <div className="min-w-0 space-y-1">
+      <p className="resource-config-term">{label}</p>
+      <p
+        className={`resource-detail wrap-anywhere ${
+          hasValue ? "font-semibold text-on-surface" : "text-on-surface-variant"
+        }`}
+      >
+        {hasValue ? value : empty}
+      </p>
+    </div>
+  );
+}
+
+/** 提示词正文：等宽字体、保留换行。 */
+function ReadBlock({ value }: { value: string | null | undefined }) {
+  if (value == null || value.trim() === "") {
+    return <p className="resource-detail text-on-surface-variant">未填写</p>;
+  }
+  return <pre className="resource-config-code">{value}</pre>;
 }
 
 /* ──────────────── 版本历史 / 回滚 ──────────────── */

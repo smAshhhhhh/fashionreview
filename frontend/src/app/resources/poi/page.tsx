@@ -260,7 +260,7 @@ export default function PoiManagePage() {
           </p>
         </div>
         <aside
-          className="resource-tool-rail resource-poi-tools resource-sticky-tools"
+          className="resource-tool-rail resource-poi-tools"
           aria-label="数据导入"
         >
           <div className="resource-panel resource-panel--padded">
@@ -374,176 +374,172 @@ export default function PoiManagePage() {
             )}
           </div>
         </aside>
+        {result && (
+          <section className="resource-poi-group">
+            <h2 className="resource-section-title">导入结果</h2>
+            <div className="resource-panel resource-panel--padded">
+              <div className="flex flex-wrap gap-3 resource-caption">
+                <Stat label="街区" value={result.street.name} />
+                <Stat label="识别格式" value={result.detected_format} />
+                <Stat
+                  label="来源"
+                  value={SOURCE_CN[result.source] ?? result.source}
+                />
+                <Stat label="总行数" value={result.total_rows} />
+                <Stat label="新增" value={result.inserted} />
+                <Stat label="更新" value={result.updated} />
+                <Stat label="跳过" value={result.skipped} />
+              </div>
+              {result.warnings.length > 0 && (
+                <ul className="mt-4 resource-caption text-warning list-disc pl-5">
+                  {result.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <h3 className="font-semibold text-on-surface-variant resource-item-title">
+              字段覆盖率
+            </h3>
+            <div className="resource-panel resource-panel--padded">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(result.field_coverage).map(([k, v]) => (
+                  <span
+                    key={k}
+                    className={`
+                      resource-caption bg-surface-container-low px-2 py-1 rounded-full
+                      text-on-surface-variant
+                    `}
+                  >
+                    {k}: {(v * 100).toFixed(0)}%
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 已收录街区标题：随页面滚走，不参与吸顶 */}
+        <div className="resource-carousel-heading">
+          <h2 id="poi-streets-heading" className="resource-section-title">
+            已收录街区 (事实层)
+          </h2>
+          {streets.length > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="向左滚动"
+                onClick={() => scrollStreets(-1)}
+                className="resource-button resource-button--secondary resource-button--icon"
+              >
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined resource-icon"
+                >
+                  chevron_left
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label="向右滚动"
+                onClick={() => scrollStreets(1)}
+                className="resource-button resource-button--secondary resource-button--icon"
+              >
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined resource-icon"
+                >
+                  chevron_right
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+        {/* 街区卡片单独吸顶：须是页面布局的直接子元素，sticky 才能贯穿整页滚动 */}
+        <div
+          ref={streetScrollRef}
+          role="region"
+          tabIndex={0}
+          aria-labelledby="poi-streets-heading"
+          className="resource-street-items resource-poi-streets resource-sticky-tools"
+        >
+          {streets.map((s) => {
+            const active = activeStreetId === s.street_id;
+            return (
+              <button
+                key={s.street_id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => void loadRows(s.street_id, "all")}
+                className={`resource-list-item resource-street-card ${active
+                    ? "resource-list-item--selected"
+                    : ""
+                  }`}
+              >
+                <div className="flex min-w-0 flex-wrap justify-between items-start gap-2 mb-3">
+                  <h3 className="resource-item-title">{s.street_name}</h3>
+                  <span className="text-on-surface-variant resource-caption">
+                    {[s.city, s.district].filter(Boolean).join(" ") || ""}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-on-surface-variant resource-caption">
+                  <span>共 {s.poi_total}</span>
+                  <span>高德 {s.amap_count}</span>
+                  <span>点评 {s.dianping_count}</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  {s.has_profile ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="material-symbols-outlined resource-icon text-success"
+                      >
+                        check_circle
+                      </span>
+                      <span className="resource-caption text-success">
+                        画像已生成
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="material-symbols-outlined resource-icon text-on-surface-variant"
+                      >
+                        radio_button_unchecked
+                      </span>
+                      <span className="resource-caption text-on-surface-variant">
+                        尚无画像
+                      </span>
+                    </>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+          {loadingStreets && (
+            <p role="status" className="text-on-surface-variant">
+              正在加载街区…
+            </p>
+          )}
+          {streetsError && (
+            <ResourceFeedback
+              error={streetsError}
+              onRetry={() => void loadInitial()}
+            />
+          )}
+          {!loadingStreets && !streetsError && streets.length === 0 && (
+            <p className="resource-body text-on-surface-variant">
+              暂无数据，先上传导入。
+            </p>
+          )}
+        </div>
+
         <ResourceContentCard
-          label="街区与 POI 明细"
+          label="POI 明细"
           className="resource-library resource-poi-library"
           variant="stack"
         >
-          {result && (
-            <section className="resource-poi-group">
-              <h2 className="resource-section-title">导入结果</h2>
-              <div className="resource-panel resource-panel--padded">
-                <div className="flex flex-wrap gap-3 resource-caption">
-                  <Stat label="街区" value={result.street.name} />
-                  <Stat label="识别格式" value={result.detected_format} />
-                  <Stat
-                    label="来源"
-                    value={SOURCE_CN[result.source] ?? result.source}
-                  />
-                  <Stat label="总行数" value={result.total_rows} />
-                  <Stat label="新增" value={result.inserted} />
-                  <Stat label="更新" value={result.updated} />
-                  <Stat label="跳过" value={result.skipped} />
-                </div>
-                {result.warnings.length > 0 && (
-                  <ul className="mt-4 resource-caption text-warning list-disc pl-5">
-                    {result.warnings.map((w) => (
-                      <li key={w}>{w}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <h3 className="font-semibold text-on-surface-variant resource-item-title">
-                字段覆盖率
-              </h3>
-              <div className="resource-panel resource-panel--padded">
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(result.field_coverage).map(([k, v]) => (
-                    <span
-                      key={k}
-                      className={`
-                        resource-caption bg-surface-container-low px-2 py-1 rounded-full
-                        text-on-surface-variant
-                      `}
-                    >
-                      {k}: {(v * 100).toFixed(0)}%
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* 街区与明细 */}
-          <section
-            className="resource-street-browser resource-poi-group"
-            aria-labelledby="poi-streets-heading"
-          >
-            <div className="resource-carousel-heading">
-              <h2 id="poi-streets-heading" className="resource-section-title">
-                已收录街区 (事实层)
-              </h2>
-              {streets.length > 1 && (
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="向左滚动"
-                    onClick={() => scrollStreets(-1)}
-                    className="resource-button resource-button--secondary resource-button--icon"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="material-symbols-outlined resource-icon"
-                    >
-                      chevron_left
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="向右滚动"
-                    onClick={() => scrollStreets(1)}
-                    className="resource-button resource-button--secondary resource-button--icon"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="material-symbols-outlined resource-icon"
-                    >
-                      chevron_right
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
-            <div
-              ref={streetScrollRef}
-              role="region"
-              tabIndex={0}
-              aria-label="已收录街区"
-              className="resource-street-items"
-            >
-              {streets.map((s) => {
-                const active = activeStreetId === s.street_id;
-                return (
-                  <button
-                    key={s.street_id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => void loadRows(s.street_id, "all")}
-                    className={`resource-list-item resource-street-card ${active
-                        ? "resource-list-item--selected"
-                        : ""
-                      }`}
-                  >
-                    <div className="flex min-w-0 flex-wrap justify-between items-start gap-2 mb-3">
-                      <h3 className="resource-item-title">{s.street_name}</h3>
-                      <span className="text-on-surface-variant resource-caption">
-                        {[s.city, s.district].filter(Boolean).join(" ") || ""}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-on-surface-variant resource-caption">
-                      <span>共 {s.poi_total}</span>
-                      <span>高德 {s.amap_count}</span>
-                      <span>点评 {s.dianping_count}</span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      {s.has_profile ? (
-                        <>
-                          <span
-                            aria-hidden="true"
-                            className="material-symbols-outlined resource-icon text-success"
-                          >
-                            check_circle
-                          </span>
-                          <span className="resource-caption text-success">
-                            画像已生成
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span
-                            aria-hidden="true"
-                            className="material-symbols-outlined resource-icon text-on-surface-variant"
-                          >
-                            radio_button_unchecked
-                          </span>
-                          <span className="resource-caption text-on-surface-variant">
-                            尚无画像
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-              {loadingStreets && (
-                <p role="status" className="text-on-surface-variant">
-                  正在加载街区…
-                </p>
-              )}
-              {streetsError && (
-                <ResourceFeedback
-                  error={streetsError}
-                  onRetry={() => void loadInitial()}
-                />
-              )}
-              {!loadingStreets && !streetsError && streets.length === 0 && (
-                <p className="resource-body text-on-surface-variant">
-                  暂无数据，先上传导入。
-                </p>
-              )}
-            </div>
-          </section>
-
           {/* POI 明细表 */}
           {activeStreetId != null && (
             <section

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import Link from "next/link";
 import ResourceFeedback from "../../components/ResourceFeedback";
 import ResourceShell from "../../components/ResourceShell";
 import ResourceContentCard from "../../components/ResourceContentCard";
@@ -12,48 +11,38 @@ import {
 } from "../../../lib/api";
 
 /* ──────────────────────────────────────────────
- * 分析管理页 /resources/analysis
- * 全局统一配置：按分组手风琴罗列分析中心各内容区块，逐块启用/隐藏开关（即时 PUT）。
- * 控制 /analytics 结果页展示哪些内容（综合分、雷达图、各级维度得分、得分依据、AI画像等）。
- * 视觉对齐扁平 Twitter/X 风格；数据全部接真实 /analytics-config API。
+ * 展示与流程配置页 /resources/analysis
+ * 全局统一配置，逐项启用/隐藏开关（即时 PUT）。版式对齐指标体系页：
+ *   一级卡片「结果页展示」—— 内含概览头部 / 可视化 / 评分明细 / 报告与推荐四个分组面板，
+ *                            控制 /analytics 结果页展示哪些内容区块；
+ *   一级卡片「流程控制」  —— 点评链路的流程开关（不是结果页区块，单独一张）。
  * ────────────────────────────────────────────── */
 
-type GroupMeta = {
-  label: string;
-  icon: string;
-  desc: string;
-};
-
-// 统一走单一主色（primary），不再按分组用多种花哨配色
-const GROUP_META: Record<string, GroupMeta> = {
-  overview: {
-    label: "概览头部",
-    icon: "dashboard",
-    desc: "结果页顶部的街景原图、综合评分与星级",
+/** 一级卡片：结果页展示类分组合为一张，流程开关单独一张。 */
+const SECTIONS = [
+  {
+    key: "display",
+    label: "结果页展示",
+    icon: "web",
+    desc: "控制分析中心结果页展示哪些内容区块，关闭后对所有评价结果统一隐藏",
+    groups: ["overview", "visual", "detail", "report"],
   },
-  visual: {
-    label: "可视化",
-    icon: "radar",
-    desc: "维度雷达图与一级维度拆解图",
-  },
-  detail: {
-    label: "评分明细",
-    icon: "format_list_numbered",
-    desc: "二级维度、三级指标逐项得分与 AI 评分依据",
-  },
-  report: {
-    label: "报告与推荐",
-    icon: "description",
-    desc: "AI 街道画像与相似街区推荐",
-  },
-  // flow 不是结果页区块，而是点评链路的流程开关
-  flow: {
+  {
+    key: "flow",
     label: "流程控制",
     icon: "account_tree",
     desc: "照片地点确认、街区类型选择、文字点评自动封面等链路流程开关",
+    groups: ["flow"],
   },
+] as const;
+
+/** 结果页展示卡片内的分组面板名称（对应指标页的二级维度表头）。 */
+const GROUP_LABEL: Record<string, string> = {
+  overview: "概览头部",
+  visual: "可视化",
+  detail: "评分明细",
+  report: "报告与推荐",
 };
-const GROUP_ORDER = ["overview", "visual", "detail", "report", "flow"];
 
 export default function AnalysisConfigPage() {
   const [configs, setConfigs] = useState<AnalyticsDisplayConfig[]>([]);
@@ -108,8 +97,12 @@ export default function AnalysisConfigPage() {
     return map;
   }, [configs]);
 
-  const toggleGroup = (group: string) =>
-    setCollapsed((c) => ({ ...c, [group]: !c[group] }));
+  const toggleSection = (key: string) =>
+    setCollapsed((c) => ({ ...c, [key]: !c[key] }));
+
+  // 不在任何一级卡片里的分组（后端新增的未知分组）归入「结果页展示」，不丢配置项
+  const knownGroups = new Set<string>(SECTIONS.flatMap((s) => [...s.groups]));
+  const extraGroups = Array.from(grouped.keys()).filter((g) => !knownGroups.has(g));
 
   const renderGroups = () => {
     if (loading) return <LoadingSkeleton />;
@@ -128,79 +121,88 @@ export default function AnalysisConfigPage() {
           </button>
         </div>
       );
-    return [
-      ...GROUP_ORDER,
-      ...Array.from(grouped.keys()).filter((key) => !GROUP_ORDER.includes(key)),
-    ].map((group) => {
-      const meta = GROUP_META[group] ?? {
-        label: group,
-        icon: "tune",
-        desc: "其他分析配置",
-      };
-      const items = grouped.get(group) ?? [];
-      if (items.length === 0) return null;
-      const isCollapsed = collapsed[group] ?? false;
-      const activeCount = items.filter((i) => i.enabled === 1).length;
+    return SECTIONS.map((section) => {
+      const groups =
+        section.key === "display"
+          ? [...section.groups, ...extraGroups]
+          : [...section.groups];
+      const panels = groups
+        .map((g) => ({ group: g, items: grouped.get(g) ?? [] }))
+        .filter((p) => p.items.length > 0);
+      if (panels.length === 0) return null;
+      const isCollapsed = collapsed[section.key] ?? false;
+      // 只有一个分组（流程控制）时不再套分组表头，开关直接列在面板里
+      const showGroupHead = panels.length > 1 || section.key === "display";
+      // 卡片样式与指标体系页的一级维度卡片一致：图标 + 名称在左，折叠按钮在右，
+      // 展开后每个分组一个面板，对应指标页的二级维度表格
       return (
-        <div
-          key={group}
-          className="resource-settings-group"
-        >
-          {/* 组头 */}
-          <h2>
-            <button
-              type="button"
-              aria-label={meta.label}
-              aria-expanded={!isCollapsed}
-              aria-controls={`analysis-group-${group}`}
-              onClick={() => toggleGroup(group)}
-              className="resource-settings-heading"
-            >
-              <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
-                <span className="resource-section-icon">
-                  <span
-                    aria-hidden="true"
-                    className="material-symbols-outlined"
-                  >
-                    {meta.icon}
-                  </span>
+        <div key={section.key} className="resource-dimension-card">
+          <div className="w-full flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1 basis-32">
+              <span className="resource-section-icon">
+                <span aria-hidden="true" className="material-symbols-outlined">
+                  {section.icon}
                 </span>
-                <div className="min-w-0">
-                  <span className="block resource-item-title font-bold text-on-surface">
-                    {meta.label}
-                  </span>
-                  <p className="resource-caption text-on-surface-variant">
-                    {meta.desc}
-                  </p>
-                </div>
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-on-surface wrap-anywhere resource-item-title">
+                  {section.label}
+                </h2>
+                <p className="resource-caption text-on-surface-variant">
+                  {section.desc}
+                </p>
               </div>
-              <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-6">
-                <span className={`
-                  whitespace-nowrap px-3 py-1 rounded-full resource-caption font-semibold
-                  bg-surface-container-low text-on-surface-variant
-                `}>
-                  {activeCount}/{items.length} 启用
-                </span>
+            </div>
+            <div className="ml-auto flex items-center shrink-0">
+              <button
+                type="button"
+                aria-label={`${isCollapsed ? "展开" : "收起"}${section.label}`}
+                aria-expanded={!isCollapsed}
+                aria-controls={`analysis-section-${section.key}`}
+                onClick={() => toggleSection(section.key)}
+                className="resource-button resource-button--quiet resource-button--icon"
+              >
                 <span
                   aria-hidden="true"
-                  className="material-symbols-outlined resource-chevron text-on-surface-variant"
+                  className="material-symbols-outlined resource-chevron"
                   data-collapsed={isCollapsed}
                 >
                   expand_more
                 </span>
-              </div>
-            </button>
-          </h2>
+              </button>
+            </div>
+          </div>
 
-          {/* 组内容 */}
           <div
-            id={`analysis-group-${group}`}
+            id={`analysis-section-${section.key}`}
             hidden={isCollapsed}
-            className="resource-settings-items resource-scroll-card"
+            className="resource-dimension-content"
           >
-            {items.map((c) => (
-              <BlockItem key={c.block_key} config={c} onApply={applyEnabled} />
-            ))}
+            {panels.map(({ group, items }) => {
+              const headId = `analysis-group-${group}`;
+              return (
+                <section
+                  key={group}
+                  aria-labelledby={showGroupHead ? headId : undefined}
+                  aria-label={showGroupHead ? undefined : section.label}
+                  className="resource-panel"
+                >
+                  {showGroupHead && (
+                    <div className="border-b border-divider bg-surface-container-low px-4 py-2">
+                      <h3
+                        id={headId}
+                        className="resource-detail font-bold text-on-surface wrap-anywhere"
+                      >
+                        {GROUP_LABEL[group] ?? group}
+                      </h3>
+                    </div>
+                  )}
+                  {items.map((c) => (
+                    <BlockItem key={c.block_key} config={c} onApply={applyEnabled} />
+                  ))}
+                </section>
+              );
+            })}
           </div>
         </div>
       );
@@ -208,27 +210,8 @@ export default function AnalysisConfigPage() {
   };
 
   return (
-    <ResourceShell title="分析管理">
+    <ResourceShell title="展示与流程配置">
       <section className="resource-content">
-        {/* 说明条 */}
-        <div className="resource-note resource-top-note">
-          <span
-            aria-hidden="true"
-            className="material-symbols-outlined text-primary"
-          >
-            info
-          </span>
-          <p className="resource-caption leading-relaxed text-on-surface-variant">
-            这里的开关控制
-            <Link
-              href="/analytics"
-              className="text-primary font-semibold mx-1 hover:underline"
-            >
-              分析中心
-            </Link>
-            结果页展示哪些内容区块。关闭后该区块对所有评价结果统一隐藏；「得分依据」依赖「三级指标得分」开启才会出现。
-          </p>
-        </div>
         <ResourceContentCard label="分析展示配置" variant="stack">
           <div className="resource-settings">{renderGroups()}</div>
         </ResourceContentCard>

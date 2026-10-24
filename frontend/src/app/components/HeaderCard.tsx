@@ -22,7 +22,7 @@ export default function HeaderCard({
   streetType?: string | null;
   /** 上传原图相对路径；为空时显示图标占位 */
   imageUrl?: string | null;
-  /** 是否展示综合分（受分析管理配置控制） */
+  /** 是否展示综合分（受「展示与流程配置」控制） */
   showScore?: boolean;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);

@@ -4,10 +4,11 @@
   --resource-document-gutter: clamp(1rem, 3vw, 3rem);
   --resource-workbench-rail: 15rem;
   --resource-selector-card-width: 15rem;
-  --resource-stack-gap: var(--resource-space-6);
+  /* 间距与吸顶距离取自 globals.css 的全站布局变量，此处只做别名 */
+  --resource-stack-gap: var(--layout-gap);
   --resource-panel-padding: var(--resource-stack-gap);
   --resource-tools-max-height: 38dvh;
-  --resource-sticky-top: var(--resource-stack-gap);
+  --resource-sticky-top: var(--layout-sticky-top);
   --resource-thumbnail-height: 12rem;
   --resource-description-width: 48rem;
   --resource-font-page: 1.75rem;
@@ -79,7 +80,6 @@
   .resource-editor--sections,
   .resource-dimension-list,
   .resource-dimension-content,
-  .resource-settings-group,
   .resource-settings
 ) > :not([hidden]):not(.sr-only)
   ~ :not([hidden]):not(.sr-only) {
@@ -565,10 +565,75 @@
   grid-column: 1 / -1;
 }
 
-.resource-prompt-fields {
+/* 配置分块：每个配置项一张卡片，浅底块头写明内容，块与块之间留白分隔 */
+.resource-config-list {
   display: grid;
-  gap: var(--resource-stack-gap);
-  margin-bottom: var(--resource-stack-gap);
+  gap: var(--resource-space-3);
+}
+
+/* 不设 overflow: hidden —— 它会让吸顶圆角遮罩失效；块头圆角由 .resource-scroll-card 继承 */
+.resource-config-section {
+  min-width: 0;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--resource-radius-panel);
+  background: var(--color-surface-container-lowest);
+}
+
+.resource-config-section-head {
+  padding: var(--resource-space-2) var(--resource-space-4);
+  border-bottom: 1px solid var(--color-divider);
+  background: var(--color-surface-container-low);
+}
+
+.resource-config-section-head h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--resource-space-2);
+  font-size: var(--resource-font-detail);
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+
+/* 中文副标题：与英文主标题同一行，字号更小、颜色更浅 */
+.resource-config-section-sub {
+  font-size: var(--resource-font-caption);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.resource-config-section-body {
+  padding: var(--resource-space-4);
+}
+
+.resource-config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--resource-space-4);
+}
+
+@container editor (min-width: 36rem) {
+  .resource-config-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.resource-config-term {
+  display: block;
+  font-size: var(--resource-font-caption);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+}
+
+/* 只读提示词正文：无底色，等宽字体保留换行，长行折行而非横向滚动 */
+.resource-config-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--resource-font-caption);
+  line-height: 1.6;
+  color: var(--color-on-surface);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .resource-editor-footer {
@@ -828,6 +893,12 @@
   padding-block: 0;
 }
 
+/* 已收录街区卡片吸顶（标题不吸顶）：页面底色盖住下方滚过的明细。
+   不额外加下内边距：与下方内容的距离统一由 --resource-stack-gap 决定 */
+.resource-poi-streets {
+  background: var(--color-surface);
+}
+
 .resource-poi-page .resource-street-card {
   width: min(100%, var(--resource-workbench-rail));
 }
@@ -864,10 +935,13 @@
 }
 
 /* 一级维度卡片：头部 + 展开后的二级表格都包在同一张卡片内 */
+/* 搭配 .resource-scroll-card 使用时，吸顶遮罩按这里的内边距画出卡片顶部圆角；
+   内部的二级表格不再单独加遮罩，否则会在白色卡片里画出底色缺角 */
 .resource-dimension-card {
+  --resource-content-padding: var(--resource-space-4);
   display: flow-root;
   min-width: 0;
-  padding: var(--resource-space-4);
+  padding: var(--resource-content-padding);
   border: 1px solid var(--color-divider);
   border-radius: var(--resource-radius-panel);
   background: var(--color-surface-container-lowest);
@@ -927,26 +1001,6 @@
 
 .resource-annotation-tools .resource-stat-grid {
   flex: 1 1 auto;
-}
-
-.resource-settings-group {
-  display: flow-root;
-}
-
-.resource-settings-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--resource-space-4);
-  width: 100%;
-  padding: var(--resource-space-2) 0;
-  text-align: left;
-}
-
-.resource-settings-items {
-  border: 1px solid var(--color-divider);
-  border-radius: var(--resource-radius-panel);
-  background: var(--color-surface-container-lowest);
 }
 
 .resource-settings-row {
@@ -1023,7 +1077,6 @@
 @media (max-width: 39.999rem) {
   .resource-subpage {
     --resource-font-page: 1.5rem;
-    --resource-stack-gap: var(--resource-space-4);
     --resource-selector-card-width: 13rem;
   }
 
@@ -1040,7 +1093,7 @@
   .resource-master-list,
   .resource-content-card,
   .resource-tool-rail,
-  .resource-settings-items {
+  .resource-dimension-card {
     border-color: var(--color-outline);
   }
 

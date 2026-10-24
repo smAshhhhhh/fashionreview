@@ -1,4 +1,4 @@
-"""分析中心显示配置 API（资源中心「分析管理」）。
+"""分析中心显示配置 API（资源中心「展示与流程配置」）。
 
 - GET /analytics-config              全部显示区块配置
 - PUT /analytics-config/{block_key}  更新某区块的启用状态

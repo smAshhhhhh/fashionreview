@@ -244,7 +244,7 @@ INSERT INTO ai_prompt_template (id, stage, dim_code, name, system_prompt, user_t
 注意：types 必须覆盖全部类型，code 必须与上面给出的完全一致；各类型匹配度相互独立，不要求加和为 1。', '{street_name}=评价对象；{location}=城市/区(可空)；{type_block}=类型定义清单', 1);
 
 -- =========================================================
--- 分析中心显示配置（资源中心「分析管理」可配，默认全部启用）
+-- 分析中心显示配置（资源中心「展示与流程配置」可配，默认全部启用）
 -- block_key 与前端 /analytics 区块一一对应；前端按 enabled 条件渲染。
 -- =========================================================
 INSERT INTO analytics_display_config (block_key, block_group, name, description, enabled, sort_no) VALUES
