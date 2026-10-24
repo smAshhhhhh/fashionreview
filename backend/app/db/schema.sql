@@ -13,16 +13,32 @@ SET NAMES utf8mb4;
 -- 切换模板 = 改 metric_template.is_active；历史评价按 metric_id 隔离，不受切换影响。
 -- =========================================================
 
--- 1.0 指标体系模板（版本）
+-- 0.1 街区类型（AI 给出匹配度，用户选定后用该类型下启用的指标模板评分）
+CREATE TABLE street_type (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    code        VARCHAR(50)  NOT NULL COMMENT '稳定编码，如 WATER_TOWN',
+    name        VARCHAR(100) NOT NULL COMMENT '类型名称，如 水乡古巷型',
+    description TEXT         NULL COMMENT '类型定义，也是 AI 匹配的判断依据',
+    sort_no     INT          NOT NULL DEFAULT 0,
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_street_type_code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='街区类型';
+
+-- 1.0 指标体系模板（版本）。按街区类型分组，NULL=通用；每组内恒一个启用模板
 CREATE TABLE metric_template (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
     name        VARCHAR(100) NOT NULL COMMENT '模板名，如 模板一',
     description VARCHAR(500) NULL COMMENT '模板说明',
-    is_active   TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否为当前启用模板（全表恒一行为 1）',
+    street_type_id BIGINT    NULL COMMENT '所属街区类型；NULL=通用',
+    is_active   TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否为所在分组的启用模板（每组恒一行为 1）',
+    is_deleted  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '软删除标记：1=已删除，列表与启用均排除，历史评价仍可还原维度名',
     sort_no     INT          NOT NULL DEFAULT 0,
     update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_tpl_street_type FOREIGN KEY (street_type_id) REFERENCES street_type (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指标体系模板（版本）';
 
 -- 1.1 一级维度
@@ -100,6 +116,7 @@ CREATE TABLE street (
 CREATE TABLE street_evaluation (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
     street_id   BIGINT       NOT NULL,
+    street_type_id BIGINT    NULL COMMENT '用户选定的街区类型；NULL=未选（用通用模板）',
     task_no     VARCHAR(64)  NULL COMMENT '任务编号，如 TASK202606001',
     total_score DECIMAL(2,1) NULL COMMENT '综合时尚度分 1.0~5.0',
     ai_summary  TEXT         NULL COMMENT '街区画像/AI 报告',
@@ -109,7 +126,8 @@ CREATE TABLE street_evaluation (
     PRIMARY KEY (id),
     UNIQUE KEY uk_task_no (task_no),
     KEY idx_eval_street (street_id),
-    CONSTRAINT fk_eval_street FOREIGN KEY (street_id) REFERENCES street (id)
+    CONSTRAINT fk_eval_street FOREIGN KEY (street_id) REFERENCES street (id),
+    CONSTRAINT fk_eval_street_type FOREIGN KEY (street_type_id) REFERENCES street_type (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='街巷评价任务（表头）';
 
 -- 2.3 指标评分明细（核心业务表，每个三级指标一行，整数 1~5）
@@ -149,6 +167,7 @@ CREATE TABLE street_dimension_score (
     dim_level     TINYINT      NOT NULL COMMENT '聚合层级：1=一级 2=二级',
     ref_id        BIGINT       NOT NULL COMMENT 'dim_level=1 指向 fashion_dimension.id；=2 指向 fashion_sub_dimension.id',
     score         DECIMAL(2,1) NOT NULL COMMENT '加权平均分 1.0~5.0',
+    weight        DECIMAL(6,4) NULL COMMENT '本次评价实际生效的权重（历史数据为 NULL）',
     PRIMARY KEY (id),
     UNIQUE KEY uk_eval_dim (evaluation_id, dim_level, ref_id),
     CONSTRAINT fk_ds_eval FOREIGN KEY (evaluation_id) REFERENCES street_evaluation (id) ON DELETE CASCADE

@@ -32,7 +32,7 @@ export const RESOURCE_GROUPS = [
         href: "/resources/metrics",
         icon: "account_tree",
         title: "指标体系",
-        description: "维度与指标权重，模板版本管理",
+        description: "按街区类型分组管理维度与指标权重、模板版本",
       },
       {
         href: "/resources/prompts",

@@ -21,10 +21,13 @@ from app.schemas.evaluation import (
     ConfirmInfoOut,
     ConfirmLocationRequest,
     ConfirmLocationResult,
+    ConfirmTypeRequest,
+    ConfirmTypeResult,
     EvaluationResult,
     HistoryItemOut,
     HistoryPageOut,
     TextAnalyzeRequest,
+    TypeInfoOut,
 )
 from app.services import evaluation_service
 
@@ -141,6 +144,19 @@ def get_confirm_info(task_id: int) -> ConfirmInfoOut:
     return ConfirmInfoOut(**info)
 
 
+def _task_action_http_error(exc: ValueError) -> HTTPException:
+    """确认地点 / 确认类型的错误码：不存在 404，状态已变 409，其余输入问题 400。
+
+    409 专指「任务已被另一次请求推进或已结束」，前端据此直接切回时间线。
+    """
+    detail = str(exc)
+    if detail == "任务不存在":
+        return HTTPException(status_code=404, detail=detail)
+    if isinstance(exc, evaluation_service.TaskStateConflict):
+        return HTTPException(status_code=409, detail=detail)
+    return HTTPException(status_code=400, detail=detail)
+
+
 @router.post("/confirm/{task_id}", response_model=ConfirmLocationResult)
 def confirm_location(
     task_id: int, req: ConfirmLocationRequest
@@ -156,16 +172,40 @@ def confirm_location(
     try:
         result = evaluation_service.confirm_location(task_id, req.street)
     except ValueError as exc:
-        # 任务不存在与状态不符都抛 ValueError，按文案区分状态码
-        detail = str(exc)
-        if detail == "任务不存在":
-            raise HTTPException(status_code=404, detail=detail) from exc
-        raise HTTPException(status_code=409, detail=detail) from exc
+        raise _task_action_http_error(exc) from exc
     except RuntimeError as exc:  # 配置类错误，如未设置 API Key
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"确认失败：{exc}") from exc
     return ConfirmLocationResult(**result)
+
+
+@router.get("/type/{task_id}", response_model=TypeInfoOut)
+def get_type_info(task_id: int) -> TypeInfoOut:
+    """取待选街区类型详情（7 种类型按匹配度降序）。仅 awaiting_type 可查。"""
+    try:
+        info = evaluation_service.get_type_info(task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if info is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return TypeInfoOut(**info)
+
+
+@router.post("/type/{task_id}", response_model=ConfirmTypeResult)
+def confirm_type(task_id: int, req: ConfirmTypeRequest) -> ConfirmTypeResult:
+    """选定街区类型并继续评分。状态转移是原子的：重复提交只有一次生效，其余 409。"""
+    try:
+        result = evaluation_service.confirm_type(task_id, req.street_type_id)
+    except evaluation_service.StreetTypeNotFound as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _task_action_http_error(exc) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"确认类型失败：{exc}") from exc
+    return ConfirmTypeResult(**result)
 
 
 @router.get("/history", response_model=list[HistoryItemOut])

@@ -32,12 +32,15 @@ export default function MetricBreakdown({
   metrics,
   showReason,
   imageAttributes = [],
+  templateSource,
 }: {
   dimensions: DimensionScoreResult[];
   subDimensions: SubDimensionScoreResult[];
   metrics: MetricScoreResult[];
   /** 是否展示三级指标的 AI 评分依据 */
   showReason: boolean;
+  /** 评测所用指标模板；为空时不显示信息按钮 */
+  templateSource?: { group: string; name: string; deleted: boolean } | null;
   /**
    * 图片属性标签（照片点评匹配人工标注库所得），按 metric_id 挂到对应三级指标行。
    * 文字点评、或「图片属性」区块关闭时为空数组，此时渲染结果与接入本功能前一致。
@@ -103,9 +106,35 @@ export default function MetricBreakdown({
 
   return (
     <section aria-labelledby={`${uid}-title`} className="min-w-0 space-y-4">
-      <h2 id={`${uid}-title`} className="text-xl font-black text-on-surface">
-        多维指标明细
-      </h2>
+      <div className="flex items-center gap-1">
+        <h2 id={`${uid}-title`} className="text-xl font-black text-on-surface">
+          多维指标明细
+        </h2>
+        {templateSource && (
+          /* 评测模板来源：悬浮 / 聚焦时显示 */
+          <span className="group relative inline-flex">
+            <button
+              type="button"
+              aria-label="查看评测模板来源"
+              aria-describedby={`${uid}-template`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:text-primary focus-visible:text-primary"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
+                info
+              </span>
+            </button>
+            <span
+              id={`${uid}-template`}
+              role="tooltip"
+              className="pointer-events-none invisible absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-lg bg-inverse-surface px-3 py-1.5 text-xs text-inverse-on-surface opacity-0 shadow-md transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+            >
+              {templateSource.deleted
+                ? "该模板已被删除"
+                : `${templateSource.group}-${templateSource.name}`}
+            </span>
+          </span>
+        )}
+      </div>
 
       {/* 维度切换 tab */}
       <div

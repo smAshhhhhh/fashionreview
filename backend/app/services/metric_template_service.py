@@ -1,8 +1,11 @@
 """指标体系模板服务：版本（模板）管理 + 维度内容编辑。
 
 模型为「复制式」：每个模板拥有自己完整一套 5/25/75 维度树。
-- 切换模板（activate）只改 metric_template.is_active，影响后续 AI 点评与新评价；
+- 模板按街区类型分组（street_type_id，NULL=通用），各组相互独立、各有一个启用模板。
+  点评选定类型后用该组的启用模板评分，未选类型用通用组。
+- 切换模板（activate）只改同组的 is_active，影响该组后续 AI 点评与新评价；
   历史评价按 metric_id 隔离，维度名不变。
+- 新建模板（create_blank）给出标准体系名称 + 同级平均权重，不复制任何现有模板。
 - 编辑被历史评价引用过的模板（in_use）时，强制「另存为新模板」——
   service 层不在原模板上落更新，而是先克隆再改，保护历史维度名。
 """
@@ -15,6 +18,7 @@ import pymysql
 
 from app.db import repository as repo
 from app.db.session import connection_scope
+from app.services.standard_metric_tree import STANDARD_TREE
 
 
 def list_templates() -> list[dict[str, Any]]:
@@ -77,36 +81,59 @@ def _nest_tree(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-def create_blank() -> int:
-    """新建空骨架模板：克隆当前启用模板的结构，名称留作占位待用户改。
+def _equal_split(n: int) -> list[float]:
+    """n 等分的权重（4 位小数），末项补差使和恰为 1，例如 3 → 0.3333/0.3333/0.3334。"""
+    if n <= 0:
+        return []
+    base = round(1 / n, 4)
+    return [base] * (n - 1) + [round(1 - base * (n - 1), 4)]
 
-    「从 0 开始填」在固定 5/25/75 结构下落地为：复制一份当前结构作为骨架，
-    用户在编辑页逐项改名即可，省去前端自行拼 105 行的复杂度。
+
+def build_equal_tree() -> list[tuple]:
+    """标准 5/25/75 体系，同级权重平均分配（insert_template_tree 的入参结构）。"""
+    dim_w = _equal_split(len(STANDARD_TREE))
+    tree = []
+    for (dcode, dname, subs), dw in zip(STANDARD_TREE, dim_w):
+        sub_w = _equal_split(len(subs))
+        sub_nodes = []
+        for (scode, sname, metrics), sw in zip(subs, sub_w):
+            metric_w = _equal_split(len(metrics))
+            sub_nodes.append((
+                scode, sname, sw,
+                [(mcode, mname, mdesc, mw) for (mcode, mname, mdesc), mw in zip(metrics, metric_w)],
+            ))
+        tree.append((dcode, dname, dw, sub_nodes))
+    return tree
+
+
+def create_blank(street_type_id: int | None = None) -> int:
+    """在指定分组（None=通用）新建模板：标准体系名称 + 同级权重平均分配。
+
+    与当前选中或启用的模板无关，避免新建出一份带着别人调过权重的副本。
     """
     with connection_scope() as conn:
-        active_id = repo.get_active_template_id(conn)
-        # 命名：模板N（N = 现有数量 + 1）
-        existing = repo.list_templates(conn)
-        new_no = len(existing) + 1
+        if street_type_id is not None and repo.get_street_type(conn, street_type_id) is None:
+            raise ValueError("街区类型不存在")
+        new_no = repo.count_templates_in_group(conn, street_type_id) + 1
         new_id = repo.create_template(
-            conn, f"模板{new_no}", "新建模板（复制自当前启用模板，待编辑）",
-            sort_no=new_no,
+            conn, f"模板{new_no}", "新建模板：标准指标体系，权重平均分配",
+            sort_no=new_no, street_type_id=street_type_id,
         )
-        repo.clone_template_tree(conn, active_id, new_id)
+        repo.insert_template_tree(conn, new_id, build_equal_tree())
     return new_id
 
 
 def clone_from(src_template_id: int, name: str | None = None) -> int | None:
-    """从指定模板克隆一份新模板。源不存在返回 None。"""
+    """从指定模板克隆一份新模板（留在源模板的分组内）。源不存在返回 None。"""
     with connection_scope() as conn:
         src = repo.get_template(conn, src_template_id)
         if src is None:
             return None
-        existing = repo.list_templates(conn)
-        new_no = len(existing) + 1
+        new_no = repo.count_templates_in_group(conn, src["street_type_id"]) + 1
         new_name = name or f"{src['name']} 副本"
         new_id = repo.create_template(
-            conn, new_name, f"克隆自「{src['name']}」", sort_no=new_no
+            conn, new_name, f"克隆自「{src['name']}」",
+            sort_no=new_no, street_type_id=src["street_type_id"],
         )
         repo.clone_template_tree(conn, src_template_id, new_id)
     return new_id
@@ -114,9 +141,8 @@ def clone_from(src_template_id: int, name: str | None = None) -> int | None:
 
 def update_meta(template_id: int, name: str, description: str | None) -> dict[str, Any] | None:
     with connection_scope() as conn:
-        affected = repo.update_template_meta(conn, template_id, name, description)
-        if affected == 0:
-            return None
+        repo.update_template_meta(conn, template_id, name, description)
+        # 名称/说明未变时受影响行数为 0，不能据此判定不存在
         return repo.get_template(conn, template_id)
 
 
@@ -130,9 +156,10 @@ def activate(template_id: int) -> dict[str, Any] | None:
 
 
 def delete(template_id: int) -> dict[str, str] | None:
-    """删除模板。返回 None=成功；返回 {"error": ...} = 被拒绝原因。
+    """软删除模板。返回 None=成功；返回 {"error": ...} = 被拒绝原因。
 
-    拒绝条件：模板不存在 / 为当前启用模板 / 已被历史评价引用。
+    只打删除标记、保留维度树：被历史评价引用的模板也能删，历史结果仍能还原
+    当时的维度名与权重。拒绝条件只剩：模板不存在 / 为所在分组的启用模板。
     """
     with connection_scope() as conn:
         meta = repo.get_template(conn, template_id)
@@ -140,9 +167,9 @@ def delete(template_id: int) -> dict[str, str] | None:
             return {"error": "not_found"}
         if meta["is_active"] == 1:
             return {"error": "active"}
-        if repo.template_in_use(conn, template_id):
-            return {"error": "in_use"}
-        repo.delete_template(conn, template_id)
+        if repo.soft_delete_template(conn, template_id) == 0:
+            # 校验与更新之间被并发启用或删除
+            return {"error": "active"}
     return None
 
 
@@ -158,10 +185,10 @@ class WeightSumError(ValueError):
 
 
 # 同级权重和的容差。通例是和恰为 1（如三级 0.5/0.3/0.2、一级 5 个 0.2），
-# 但等分时除不尽：3 个 0.3333 和为 0.9999（DECIMAL(6,4) 存不下 1/3）。
-# 故留 0.001 的余量只为放过这类等分舍入；对不等权的情形没有任何放松 ——
-# 0.9 / 1.1 这类真错填差值达 0.1，是容差的 100 倍，照样拦住。
-WEIGHT_SUM_TOLERANCE = 0.001
+# 但等分时除不尽：3 个 0.3333 和为 0.9999（DECIMAL(6,4) 存不下 1/3），差 0.0001。
+# 界面按 0.1% 步进输入，手填的组合计必是 0.1% 的整数倍，错填至少差 0.001。
+# 容差取两者之间的 0.0005：放过等分舍入，拦住哪怕 0.1% 的错填。
+WEIGHT_SUM_TOLERANCE = 0.0005
 
 
 def _check_weight_group(
@@ -245,12 +272,12 @@ def save_tree(
             _apply_tree_updates(conn, template_id, dims)
             return {"template": repo.get_template(conn, template_id), "is_new": False}
 
-        # 另存为新模板：先按源结构克隆，再把改动按「源 id → 新 id」映射后写入新模板
-        existing = repo.list_templates(conn)
-        new_no = len(existing) + 1
+        # 另存为新模板（留在原分组）：先按源结构克隆，再把改动按「源 id → 新 id」映射后写入
+        new_no = repo.count_templates_in_group(conn, meta["street_type_id"]) + 1
         nm = new_name or f"{meta['name']} v{new_no}"
         new_id = repo.create_template(
-            conn, nm, f"由「{meta['name']}」编辑另存", sort_no=new_no
+            conn, nm, f"由「{meta['name']}」编辑另存",
+            sort_no=new_no, street_type_id=meta["street_type_id"],
         )
         repo.clone_template_tree(conn, template_id, new_id)
         # 克隆出的新树 id 全新，需把 dims 里的源 id 映射到新 id（按 code 对齐）

@@ -4,6 +4,8 @@
 
   文本输入
     → ① 街巷识别（LLM）           落 ai_analysis_task / ai_analysis_result
+    → ①.3 街区类型匹配（开关）      LLM 给 7 种类型打匹配度，停在 awaiting_type
+                                  等用户选定，评分按该类型的一级权重聚合
     → ①.5 图片属性匹配（仅照片）   照片与人工标注库比向量，Top-1 的图片属性
                                   落 evaluation_image_match / _attribute
     → ② 取画像事实               读 street_profile（无则为空，后续接 POI/RAG）
@@ -56,6 +58,28 @@ _cancel_lock = threading.Lock()
 
 class _TaskCancelled(Exception):
     """任务被用户取消的内部信号。"""
+
+
+class StreetTypeNotFound(Exception):
+    """确认类型时传入的 street_type_id 不存在（API 转 400）。"""
+
+
+class TaskStateConflict(ValueError):
+    """任务已不处于预期的等待态：已被另一次请求推进，或已取消/结束（API 转 409）。
+
+    与其他 ValueError（如地点缺失，属输入问题）分开，前端据此判断「已有人处理过，
+    切回时间线即可」还是「需要提示用户改输入」。
+    """
+
+
+def _raise_transition_lost(conn: Any, task_id: int, waiting_label: str) -> None:
+    """条件 UPDATE 未命中时，区分任务不存在与状态不符并抛出。"""
+    task = repo.get_ai_task(conn, task_id)
+    if task is None:
+        raise ValueError("任务不存在")
+    raise TaskStateConflict(
+        f"任务当前状态为 {task['status']}，不处于{waiting_label}状态"
+    )
 
 
 class StreetNotRecognized(Exception):
@@ -233,6 +257,74 @@ def recognize_street_from_image(
         "raw": resp.text,
     }
     return _assert_recognized(recog) if assert_confidence else recog
+
+
+# ──────────────── ①.3 街区类型匹配 ────────────────
+
+def _clamp_unit(value: Any) -> float:
+    """匹配度收敛到 0~1，非数值视为 0。"""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if v != v:  # NaN
+        return 0.0
+    return round(max(0.0, min(1.0, v)), 4)
+
+
+def normalize_type_candidates(
+    data: Any, street_types: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """把模型返回整理成与 street_types 同序的 [{code, match_score, reason}]。
+
+    未知 code 丢弃、重复 code 取第一条、缺失的类型补 0；一条有效结果都没有时
+    返回空列表，前端据此提示「AI 未能给出判断」。
+    """
+    items = data.get("types") if isinstance(data, dict) else None
+    known = {t["code"] for t in street_types}
+    by_code: dict[str, dict[str, Any]] = {}
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        code = item.get("code")
+        if code not in known or code in by_code:
+            continue
+        by_code[code] = {
+            "code": code,
+            "match_score": _clamp_unit(item.get("match_score")),
+            "reason": str(item.get("reason") or "").strip(),
+        }
+    if not by_code:
+        return []
+    return [
+        by_code.get(t["code"], {"code": t["code"], "match_score": 0.0, "reason": ""})
+        for t in street_types
+    ]
+
+
+def classify_street_type(
+    street_name: str,
+    city: str | None,
+    district: str | None,
+    street_types: list[dict[str, Any]],
+    task_id: int,
+) -> list[dict[str, Any]]:
+    location = " · ".join(p for p in (city, district) if p)
+    variables = {
+        "street_name": street_name,
+        "location": f"（{location}）" if location else "",
+        "type_block": pb.build_type_block(street_types),
+    }
+    with connection_scope() as conn:
+        rp = pb.render_template(conn, "classify", variables=variables)
+    # 判断类型要知道街区的业态与历史，联网开启时对该阶段强制联网
+    resp = chat(
+        rp.system, rp.user, model=rp.model,
+        temperature=rp.temperature if rp.temperature is not None else 0.3,
+        forced_search=True,
+    )
+    _log_prompt(task_id, "classify", resp.prompt_text, resp.text, resp.model, resp.token_usage)
+    return normalize_type_candidates(resp.parse_json(), street_types)
 
 
 # ──────────────── ①.5 图片属性匹配（仅照片点评） ────────────────
@@ -619,7 +711,7 @@ def _run_recognize_phase(
         # check_cancel 之后，无条件写会把 cancelled 复活成待确认态，
         # 用户就会看到一个已取消任务的确认卡。
         with connection_scope() as conn:
-            moved = repo.set_task_awaiting_confirm(conn, task_id)
+            moved = repo.set_task_awaiting(conn, task_id, "awaiting_confirm")
         if not moved:
             logger.info("任务 %s 在置待确认前已终止，不再进入确认态", task_id)
             return
@@ -745,19 +837,36 @@ def _parse_raw_response(raw: Any) -> dict[str, Any]:
 def confirm_location(task_id: int, street: str | None = None) -> dict[str, Any]:
     """用户确认地点，继续点评。立即返回，评分在后台跑。
 
+    原子状态转移：awaiting_confirm → analyzing 用一条条件 UPDATE 完成，只有拿到
+    affected=1 的那一次请求才提交后台任务。重复点击、多标签页同时提交、与取消并发时
+    都不会跑两遍，也不会把 cancelled 改回 analyzing。
+
     :param street: None/空 = 采用 AI 识别结果（已规范化，直接进评分）；
         非空 = 用户改写的地点，归一化放到后台（见 _run_confirm_override_phase），
         走的仍是 recognize_street() 这条与文字点评一致的归一化路径。
-    :raises ValueError: 任务不存在或不处于 awaiting_confirm
+    :raises TaskStateConflict: 任务不处于 awaiting_confirm
+    :raises ValueError: 任务不存在 / 采用识别结果但未识别出地点
     """
+    override = (street or "").strip()
+    street_name = ""
+    city: str | None = None
+    district: str | None = None
     with connection_scope() as conn:
-        task = repo.get_ai_task(conn, task_id)
-        if task is None:
-            raise ValueError("任务不存在")
-        if task["status"] != "awaiting_confirm":
-            raise ValueError(f"任务当前状态为 {task['status']}，不处于待确认状态")
-        result = repo.get_ai_result_by_task(conn, task_id)
+        if not repo.transition_task_status(conn, task_id, "awaiting_confirm", "analyzing"):
+            _raise_transition_lost(conn, task_id, "待确认")
+        task = repo.get_ai_task(conn, task_id) or {}
+        result = repo.get_ai_result_by_task(conn, task_id) or {}
         image_url = task.get("image_url")
+        if not override:
+            recog_raw = _parse_raw_response(result.get("raw_response"))
+            street_name = (
+                result.get("recognized_street") or recog_raw.get("street_name") or ""
+            ).strip()
+            city = result.get("recognized_city") or recog_raw.get("city")
+            district = recog_raw.get("district")
+            if not street_name:
+                # 抛出即回滚上面的状态转移，任务仍停在待确认
+                raise ValueError("未能识别出地点，请直接输入地点名称或重新上传照片")
 
     # 由 rel_url 还原磁盘路径供图片属性匹配使用（abs_path 不入库，
     # 与 annotation_import_service._run_embedding_job 的还原方式一致）
@@ -765,11 +874,8 @@ def confirm_location(task_id: int, street: str | None = None) -> dict[str, Any]:
     if image_url:
         image_path = str(Path(get_settings().upload_dir) / Path(image_url).name)
 
-    override = (street or "").strip()
     if override:
         # 归一化要调 LLM，放后台跑，避免确认卡冻住等待
-        with connection_scope() as conn:
-            repo.update_ai_task(conn, task_id, status="analyzing")
         progress.update_progress(
             task_id,
             progress.STAGE_RECOGNIZE[1],
@@ -782,20 +888,9 @@ def confirm_location(task_id: int, street: str | None = None) -> dict[str, Any]:
         logger.info("任务 %s 用户改写地点为「%s」，后台归一化中", task_id, override)
         return {"task_id": task_id, "status": "analyzing"}
 
-    # 采用 AI 识别结果：已规范化过，直接进评分
-    recog_raw = _parse_raw_response((result or {}).get("raw_response"))
-    street_name = (
-        (result or {}).get("recognized_street") or recog_raw.get("street_name") or ""
-    ).strip()
-    city = (result or {}).get("recognized_city") or recog_raw.get("city")
-    district = recog_raw.get("district")
-    if not street_name:
-        raise ValueError("未能识别出地点，请直接输入地点名称或重新上传照片")
-
-    with connection_scope() as conn:
-        repo.update_ai_task(conn, task_id, status="analyzing")
+    # 采用 AI 识别结果：已规范化过，直接进后续阶段
     _task_executor.submit(
-        _run_scoring_phase, task_id, street_name, city, district, image_path
+        _after_location, task_id, street_name, city, district, image_path
     )
     logger.info(
         "任务 %s 已确认 AI 识别的地点：街区=%s，城市=%s，继续评分",
@@ -848,7 +943,7 @@ def _run_confirm_override_phase(
         "任务 %s 地点归一化完成：「%s」→ %s / %s",
         task_id, override, recog["street_name"], recog.get("city"),
     )
-    _run_scoring_phase(
+    _after_location(
         task_id,
         recog["street_name"],
         recog.get("city"),
@@ -883,7 +978,7 @@ def _back_to_awaiting_confirm(task_id: int, message: str) -> None:
     )
     with connection_scope() as conn:
         # 条件更新：期间若被取消，不把 cancelled 复活
-        moved = repo.set_task_awaiting_confirm(conn, task_id)
+        moved = repo.set_task_awaiting(conn, task_id, "awaiting_confirm")
     if not moved:
         logger.info("任务 %s 已终止，不再退回待确认态", task_id)
     _clear_cancel_flag(task_id)
@@ -958,8 +1053,8 @@ def _run_pipeline(
     # 注意：识别成功的分支不在此清取消标志 —— 紧接着要调 _run_scoring_phase，
     # 它的 finally 会清。这里提前清会让「识别期间点的取消」对评分阶段失效。
 
-    # ② 之后的全部阶段（建街巷 → 评分 → 报告），与确认流程共用
-    _run_scoring_phase(
+    # ② 之后的全部阶段（类型选择 → 建街巷 → 评分 → 报告），与确认流程共用
+    _after_location(
         task_id,
         street_name,
         recog.get("city"),
@@ -968,6 +1063,277 @@ def _run_pipeline(
         confidence=recog.get("confidence"),
         t_start=t_start,
     )
+
+
+def _upsert_recognized_location(
+    conn: Any,
+    task_id: int,
+    street_name: str,
+    city: str | None,
+    district: str | None,
+    confidence: float | None,
+    street_id: int | None,
+) -> None:
+    """把最终采用的地点写进 ai_analysis_result：无行则插入，有行则覆盖。
+
+    有行的情形：照片确认流程第一段已写过 AI 的识别结果，或类型选择前已先落了
+    地点。覆盖地点名与 raw_response 是必要的 —— 用户改写了地点时，留着 AI 的
+    原始猜测会与实际评分的街区不一致，追溯时误导；确认类型也靠这里读回地点。
+    """
+    existing = repo.get_ai_result_by_task(conn, task_id)
+    if confidence is None and existing is not None:
+        confidence = existing.get("confidence")
+        confidence = float(confidence) if confidence is not None else None
+    raw = json.dumps(
+        {
+            "street_name": street_name,
+            "city": city,
+            "district": district,
+            "confidence": confidence,
+        },
+        ensure_ascii=False,
+    )
+    if existing is None:
+        repo.create_ai_result(
+            conn, task_id,
+            recognized_street=street_name,
+            recognized_city=city,
+            confidence=confidence,
+            matched_street_id=street_id,
+            raw_response=raw,
+        )
+    else:
+        repo.update_ai_result_street(
+            conn, task_id,
+            street_id=street_id,
+            recognized_street=street_name,
+            recognized_city=city,
+            raw_response=raw,
+        )
+
+
+# 街区类型选择开关（同属 flow 分组）
+STREET_TYPE_BLOCK = "street_type_select"
+
+
+def _after_location(
+    task_id: int,
+    street_name: str,
+    city: str | None,
+    district: str | None,
+    image_path: str | None = None,
+    *,
+    confidence: float | None = None,
+    t_start: float | None = None,
+) -> None:
+    """地点既定后的分发：类型选择开启则先匹配类型并暂停，否则直接评分。
+
+    关闭开关等于回到接入类型选择之前的代码路径（与照片确认开关同一取舍）。
+    """
+    if display_config_service.is_enabled(STREET_TYPE_BLOCK):
+        _run_classify_phase(task_id, street_name, city, district, image_path, confidence=confidence)
+    else:
+        _run_scoring_phase(
+            task_id, street_name, city, district, image_path,
+            confidence=confidence, t_start=t_start,
+        )
+
+
+def _run_classify_phase(
+    task_id: int,
+    street_name: str,
+    city: str | None,
+    district: str | None,
+    image_path: str | None = None,
+    *,
+    confidence: float | None = None,
+) -> None:
+    """类型匹配：落地点 → LLM 给 7 种类型打匹配度 → 置 awaiting_type 等用户选。
+
+    与识别阶段一样**不建 street / street_evaluation**，评分阶段再建。
+    匹配失败不判 failed：候选写空照样进入选择卡，由用户手动选。
+    """
+    try:
+        check_cancel(task_id)
+        with connection_scope() as conn:
+            _upsert_recognized_location(
+                conn, task_id, street_name, city, district, confidence, street_id=None
+            )
+            street_types = repo.list_street_types(conn)
+        if not street_types:
+            # 没配置任何类型时卡片无从选择，直接按模板权重评分
+            logger.warning("任务 %s 未配置街区类型，跳过类型选择", task_id)
+            _run_scoring_phase(task_id, street_name, city, district, image_path)
+            return
+
+        progress.set_stage(task_id, progress.STAGE_CLASSIFY)
+        candidates: list[dict[str, Any]] = []
+        try:
+            candidates = classify_street_type(
+                street_name, city, district, street_types, task_id
+            )
+        except Exception as exc:  # noqa: BLE001 - 匹配失败交给用户手动选
+            logger.warning(
+                "任务 %s 街区类型匹配失败（%s: %s），由用户手动选择",
+                task_id, type(exc).__name__, exc, exc_info=True,
+            )
+        top = max(candidates, key=lambda c: c["match_score"], default=None)
+        logger.info(
+            "任务 %s 类型匹配完成：最高=%s(%s)",
+            task_id, top and top["code"], top and top["match_score"],
+        )
+
+        check_cancel(task_id)
+        with connection_scope() as conn:
+            repo.update_ai_result_type_candidates(conn, task_id, candidates)
+        progress.update_progress(
+            task_id,
+            progress.STAGE_AWAIT_TYPE[1],
+            progress.STAGE_AWAIT_TYPE[0],
+            progress.STAGE_AWAIT_TYPE[2],
+        )
+        # 条件更新：取消可能落在最后一次 check_cancel 之后，不把 cancelled 复活
+        with connection_scope() as conn:
+            moved = repo.set_task_awaiting(conn, task_id, "awaiting_type")
+        if not moved:
+            logger.info("任务 %s 在置待选类型前已终止，不再进入选择态", task_id)
+            return
+        logger.info("任务 %s 等待用户选择街区类型", task_id)
+    except _TaskCancelled:
+        logger.info("任务 %s 已取消，类型匹配阶段提前结束", task_id)
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="cancelled",
+                current_stage="cancelled", stage_message="分析已取消",
+            )
+    except Exception as exc:  # noqa: BLE001 - 后台任务统一兜底
+        logger.exception(
+            "任务 %s 类型匹配阶段失败（%s: %s）", task_id, type(exc).__name__, exc
+        )
+        with connection_scope() as conn:
+            repo.update_ai_task(
+                conn, task_id, status="failed",
+                stage_message="类型匹配失败", error_message=str(exc)[:500],
+            )
+    finally:
+        # 本段是一次独立的后台执行，结束即清；确认类型后若要再取消会重新置标志
+        _clear_cancel_flag(task_id)
+
+
+def _parse_type_candidates(raw: Any) -> list[dict[str, Any]]:
+    """type_candidates 可能是 list（驱动已解码）或 str，统一成 list。"""
+    if isinstance(raw, (str, bytes)):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+    return [c for c in raw if isinstance(c, dict)] if isinstance(raw, list) else []
+
+
+def get_type_info(task_id: int) -> dict[str, Any] | None:
+    """取待选类型详情：地点 + 全部类型（按匹配度降序，附权重）+ 推荐项。
+
+    :return: 任务不存在返回 None
+    :raises ValueError: 任务不处于 awaiting_type
+    """
+    with connection_scope() as conn:
+        task = repo.get_ai_task(conn, task_id)
+        if task is None:
+            return None
+        if task["status"] != "awaiting_type":
+            raise ValueError(f"任务当前状态为 {task['status']}，不处于待选类型状态")
+        result = repo.get_ai_result_by_task(conn, task_id) or {}
+        street_types = repo.list_street_types(conn)
+        dimensions = repo.list_active_dimensions(conn)
+        # 各类型启用模板的一级权重，选择卡上展示「选这个类型会怎么算分」
+        group_weights = repo.fetch_active_dimension_weights(conn)
+
+    recog = _parse_raw_response(result.get("raw_response"))
+    by_code = {
+        c.get("code"): c for c in _parse_type_candidates(result.get("type_candidates"))
+    }
+    has_candidates = bool(by_code)
+    types = []
+    for t in street_types:
+        c = by_code.get(t["code"])
+        types.append({
+            "id": t["id"],
+            "code": t["code"],
+            "name": t["name"],
+            "description": t.get("description"),
+            "weights": group_weights.get(t["id"], {}),
+            "match_score": float(c["match_score"]) if c else None,
+            "reason": (c.get("reason") or None) if c else None,
+        })
+    # 稳定排序：匹配度相同（或都没有）时保持 sort_no 顺序
+    types.sort(key=lambda x: -(x["match_score"] or 0.0))
+    recommended = types[0]["id"] if has_candidates and types else None
+    return {
+        "task_id": task_id,
+        "image_url": task.get("image_url"),
+        "street": result.get("recognized_street") or recog.get("street_name"),
+        "city": result.get("recognized_city") or recog.get("city"),
+        "district": recog.get("district"),
+        "has_candidates": has_candidates,
+        "recommended_type_id": recommended,
+        "dimensions": [{"code": d["code"], "name": d["name"]} for d in dimensions],
+        "types": types,
+    }
+
+
+def confirm_type(task_id: int, street_type_id: int) -> dict[str, Any]:
+    """用户选定街区类型，继续评分。立即返回，评分在后台跑。
+
+    原子状态转移：awaiting_type → analyzing 用一条条件 UPDATE 完成，只有拿到
+    affected=1 的那一次请求才提交评分。重复点击、多标签页同时提交、与取消并发时
+    都不会评两次，也不会把 cancelled 改回 analyzing。
+
+    :raises StreetTypeNotFound: street_type_id 不存在（不碰任务状态）
+    :raises TaskStateConflict: 任务不处于 awaiting_type
+    :raises ValueError: 任务不存在 / 缺少地点
+    """
+    with connection_scope() as conn:
+        street_type = repo.get_street_type(conn, street_type_id)
+        if street_type is None:
+            raise StreetTypeNotFound("街区类型不存在")
+        if not repo.transition_task_status(conn, task_id, "awaiting_type", "analyzing"):
+            _raise_transition_lost(conn, task_id, "待选类型")
+        result = repo.get_ai_result_by_task(conn, task_id) or {}
+        recog = _parse_raw_response(result.get("raw_response"))
+        street_name = (
+            result.get("recognized_street") or recog.get("street_name") or ""
+        ).strip()
+        if not street_name:
+            # 抛出即回滚上面的状态转移，任务仍停在待选类型
+            raise ValueError("未找到待评分的地点，请重新发起点评")
+        city = result.get("recognized_city") or recog.get("city")
+        district = recog.get("district")
+        task = repo.get_ai_task(conn, task_id) or {}
+        image_url = task.get("image_url")
+
+    image_path: str | None = None
+    if image_url:
+        image_path = str(Path(get_settings().upload_dir) / Path(image_url).name)
+
+    progress.update_progress(
+        task_id,
+        progress.STAGE_AWAIT_TYPE[1],
+        progress.STAGE_CLASSIFY[0],
+        f"已选定「{street_type['name']}」，继续评分",
+    )
+    _task_executor.submit(
+        _run_scoring_phase, task_id, street_name, city, district, image_path,
+        street_type_id=street_type_id,
+    )
+    logger.info(
+        "任务 %s 已选定街区类型：%s（%s），继续评分",
+        task_id, street_type["name"], street_type["code"],
+    )
+    return {
+        "task_id": task_id,
+        "status": "analyzing",
+        "street_type_id": street_type_id,
+    }
 
 
 def _run_scoring_phase(
@@ -979,16 +1345,20 @@ def _run_scoring_phase(
     *,
     confidence: float | None = None,
     t_start: float | None = None,
+    street_type_id: int | None = None,
 ) -> None:
     """地点既定之后的全部阶段：建街巷/评价 → 图片属性 → 画像 → 评分 → 报告。
 
-    两条路径共用：
-    - _run_pipeline（文字点评、照片确认开关关闭）识别完直接调用
-    - confirm_location（照片确认流程）在用户确认地点后提交为独立后台任务
+    三条路径共用：
+    - _after_location（类型选择关闭时）识别 / 地点确认后直接调用
+    - confirm_type 在用户选定类型后提交为独立后台任务
+    - _run_classify_phase 在未配置任何类型时兜底调用
 
-    :param confidence: 识别置信度，仅用于落 ai_analysis_result；确认流程里该行
-        已由第一段写好，此时传 None 表示只回填 matched_street_id 而不重复插入。
+    :param confidence: 识别置信度，仅用于落 ai_analysis_result；该行已存在时
+        传 None 表示沿用原值，只回填 matched_street_id。
     :param t_start: 计时起点；确认流程中第二段独立计时。
+    :param street_type_id: 用户选定的街区类型，用该类型分组下启用的指标模板评分；
+        None 时用通用分组的启用模板。
     """
     evaluation_id: int | None = None
     if t_start is None:
@@ -999,41 +1369,23 @@ def _run_scoring_phase(
         with connection_scope() as conn:
             street_id = repo.get_or_create_street(conn, street_name, city, district)
             evaluation_id = repo.create_evaluation(
-                conn, street_id, task_no=None, source="ai", status="analyzing"
+                conn, street_id, task_no=None, source="ai", status="analyzing",
+                street_type_id=street_type_id,
             )
             repo.update_ai_task(conn, task_id, evaluation_id=evaluation_id)
-            existing = repo.get_ai_result_by_task(conn, task_id)
-            if existing is None:
-                repo.create_ai_result(
-                    conn, task_id,
-                    recognized_street=street_name,
-                    recognized_city=city,
-                    confidence=confidence,
-                    matched_street_id=street_id,
-                    raw_response=json.dumps(
-                        {
-                            "street_name": street_name,
-                            "city": city,
-                            "district": district,
-                            "confidence": confidence,
-                        },
-                        ensure_ascii=False,
-                    ),
-                )
-            else:
-                # 确认流程：第一段已写过识别结果，这里只回填最终采用的 street_id，
-                # 并把用户改写后的地点覆盖进去（否则留着 AI 的原始猜测会误导追溯）
-                repo.update_ai_result_street(
-                    conn, task_id,
-                    street_id=street_id,
-                    recognized_street=street_name,
-                    recognized_city=city,
-                )
+            _upsert_recognized_location(
+                conn, task_id, street_name, city, district, confidence, street_id
+            )
             profile_facts = retriever.get_retriever().retrieve(
                 conn, street_id, street_name
             )
-            metric_tree = repo.fetch_metric_tree(conn)
+            template_id = repo.get_active_template_id(conn, street_type_id)
+            metric_tree = repo.fetch_metric_tree(conn, template_id)
             has_cover = bool(repo.get_street_cover_url(conn, street_id))
+        logger.info(
+            "任务 %s 使用指标模板 %s 评分（街区类型=%s）",
+            task_id, template_id, street_type_id or "通用",
+        )
 
         # 文字点评没有上传图：用高德 POI 照片作街道封面（事务外请求，失败不影响评分）
         if (
@@ -1212,6 +1564,13 @@ def delete_evaluations(evaluation_ids: list[int]) -> int:
         return repo.delete_evaluations(conn, ids)
 
 
+def _stored_weight(row: dict[str, Any], fallback: dict[int, Any]) -> float | None:
+    """维度分行记下的实际权重优先；历史数据（NULL）回退模板当前权重。"""
+    if row.get("weight") is not None:
+        return float(row["weight"])
+    return fallback.get(row["ref_id"])
+
+
 def get_result(evaluation_id: int) -> dict[str, Any] | None:
     """查询评价结果，组装为响应字典。
 
@@ -1244,6 +1603,8 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
             if with_cover else None
         )
         image_attr_rows = repo.fetch_evaluation_image_attributes(conn, evaluation_id)
+        street_type = repo.get_evaluation_street_type(conn, evaluation_id)
+        template = repo.get_evaluation_template(conn, evaluation_id)
         settings = get_settings()
         similar_rows = (
             similar_street_service.find_similar_streets(
@@ -1278,7 +1639,7 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
                 "dim_id": r["ref_id"],
                 "dim_name": dim_name.get(r["ref_id"], ""),
                 "score": float(r["score"]),
-                "weight": dim_weight.get(r["ref_id"]),
+                "weight": _stored_weight(r, dim_weight),
             }
             for r in dim_rows
         ]
@@ -1293,7 +1654,7 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
                 "sub_name": sub_name.get(r["ref_id"], ""),
                 "dim_id": sub_dim.get(r["ref_id"], 0),
                 "score": float(r["score"]),
-                "weight": sub_weight.get(r["ref_id"]),
+                "weight": _stored_weight(r, sub_weight),
             }
             for r in sub_rows
         ]
@@ -1349,6 +1710,19 @@ def get_result(evaluation_id: int) -> dict[str, Any] | None:
         "summary": (evaluation["ai_summary"] if "ai_summary" in blocks else None),
         "image_url": (image_url if "header_image" in blocks else None),
         "enabled_blocks": sorted(blocks),
+        "street_type": (
+            {"code": street_type["code"], "name": street_type["name"]}
+            if street_type else None
+        ),
+        # 评测所用模板：分组名（通用 / 类型名）+ 模板名；模板软删除后只标记 deleted
+        "template_source": (
+            {
+                "group": template["group_name"] or "通用",
+                "name": template["name"],
+                "deleted": bool(template["is_deleted"]),
+            }
+            if template else None
+        ),
         "dimension_scores": dimension_scores,
         "sub_dimension_scores": sub_dimension_scores,
         "metric_scores": metric_scores,

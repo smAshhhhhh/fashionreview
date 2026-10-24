@@ -33,6 +33,19 @@ export function parseEvaluationResult(
     !optionalText(value.image_url) ||
     !Array.isArray(value.enabled_blocks) ||
     !value.enabled_blocks.every(text) ||
+    !(
+      value.street_type == null ||
+      (record(value.street_type) &&
+        text(value.street_type.code) &&
+        text(value.street_type.name))
+    ) ||
+    !(
+      value.template_source == null ||
+      (record(value.template_source) &&
+        text(value.template_source.group) &&
+        text(value.template_source.name) &&
+        typeof value.template_source.deleted === "boolean")
+    ) ||
     !rows(
       value.dimension_scores,
       (r) =>

@@ -162,6 +162,27 @@
   overflow-wrap: anywhere;
 }
 
+/* 带操作按钮的标题：左侧标题 + 当前项，右侧一列「操作按钮在上、浏览箭头在下」 */
+.resource-master-heading--with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--resource-space-3);
+}
+
+.resource-master-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.resource-master-side {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--resource-space-1);
+}
+
 .resource-master-controls {
   display: flex;
   flex-shrink: 0;
@@ -248,8 +269,11 @@
   background: var(--resource-selection);
 }
 
+/* 模板卡片：两行内容（名称 / 日期 + 操作），收紧内边距与行距，去掉中间留白 */
 .resource-master-items .resource-template-card {
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: var(--resource-space-1);
+  padding: var(--resource-space-2) var(--resource-space-3);
 }
 
 .resource-template-select {
@@ -269,28 +293,98 @@
   outline-offset: -3px;
 }
 
+/* 卡片内容让点击穿透到整卡的选择按钮，内嵌按钮单独接收点击 */
 .resource-template-summary {
   pointer-events: none;
 }
 
-.resource-template-actions {
+.resource-template-summary button {
+  position: relative;
+  pointer-events: auto;
+}
+
+/* 名称单行省略、按钮不收缩：重命名按钮紧跟名称，名称过长时停在最右侧 */
+.resource-template-name {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: var(--resource-space-1);
+  min-width: 0;
+}
+
+/* 底部一行：左侧创建时间，右侧启用圆圈 + 删除 */
+.resource-template-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--resource-space-2);
-  margin-top: var(--resource-space-1);
 }
 
-.resource-template-actions > button {
+.resource-template-date {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.resource-template-icons {
   position: relative;
-  flex: 0 0 auto;
-  border-color: transparent;
-  background: transparent;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0;
 }
 
-.resource-template-actions > button:first-child:not(:last-child) {
-  margin-right: auto;
-  padding-inline: 0;
+/* 卡片内的纯图标按钮：无圆形底、无边框，只有图标本身；悬停只变色 */
+.resource-template-icon {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--resource-radius-field);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color var(--resource-duration) var(--resource-ease);
+}
+
+.resource-template-icon:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 0;
+}
+
+.resource-template-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 启用中：实心圆圈勾，状态展示而非可点击操作 */
+.resource-template-icon[aria-pressed="true"] {
+  color: var(--color-primary);
+}
+
+.resource-template-icon[aria-pressed="true"]:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .resource-template-icon:hover:not(:disabled) {
+    color: var(--color-primary);
+  }
+
+  .resource-template-icon--danger:hover:not(:disabled) {
+    color: var(--color-error);
+  }
 }
 
 .resource-content-card {
@@ -769,17 +863,18 @@
   border-radius: inherit;
 }
 
-.resource-subdimension-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--resource-space-3);
+/* 一级维度卡片：头部 + 展开后的二级表格都包在同一张卡片内 */
+.resource-dimension-card {
+  display: flow-root;
+  min-width: 0;
+  padding: var(--resource-space-4);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--resource-radius-panel);
+  background: var(--color-surface-container-lowest);
 }
 
-.resource-subdimension-name {
-  flex: 1 1 12rem;
-  min-width: 0;
-  overflow-wrap: anywhere;
+.resource-dimension-card > .resource-dimension-content:not([hidden]) {
+  margin-top: var(--resource-space-4);
 }
 
 .resource-annotation-heading,
@@ -934,10 +1029,6 @@
 
   .resource-document {
     padding-top: var(--resource-space-4);
-  }
-
-  .resource-subdimension-name {
-    flex-basis: 100%;
   }
 
   .resource-back-link {

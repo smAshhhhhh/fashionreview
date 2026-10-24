@@ -109,6 +109,10 @@ export interface EvaluationResult {
   image_url?: string | null;
   /** 启用中的展示区块 block_key（后端按「分析管理」配置过滤后下发），前端据此渲染 */
   enabled_blocks: string[];
+  /** 用户选定的街区类型；未选（开关关闭或历史记录）为 null */
+  street_type?: { code: string; name: string } | null;
+  /** 评测所用指标模板：分组名（通用 / 类型名）+ 模板名；deleted=true 表示模板已删除 */
+  template_source?: { group: string; name: string; deleted: boolean } | null;
   dimension_scores: DimensionScoreResult[];
   sub_dimension_scores: SubDimensionScoreResult[];
   metric_scores: MetricScoreResult[];

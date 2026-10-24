@@ -2,6 +2,7 @@
 
 三类 Prompt：
 - 地点识别（recognize）：从用户文本中提取评价对象（街巷或具体场所）+ 城市
+- 类型匹配（classify）：给评价对象与 7 种街区类型逐一打匹配度 0~1
 - 指标评分（score）：按一级维度分批，让模型对该批三级指标各打 1~5 整数
 - 报告生成（report）：依据各维度得分写综合画像
 
@@ -90,6 +91,14 @@ def build_score_prompt(
     )
 
 
+# ──────────────── 街区类型匹配 ────────────────
+
+CLASSIFY_SYSTEM = (
+    "你是一名城市街区类型研判专家。依据给定的街区类型定义，"
+    "判断评价对象与每种类型的匹配度。只返回 JSON，不要多余文字。"
+)
+
+
 # ──────────────── 报告生成 ────────────────
 
 REPORT_SYSTEM = (
@@ -174,6 +183,14 @@ def build_dim_block(dimension_scores: list[dict[str, Any]]) -> str:
     return "\n".join(f"- {d['dim_name']}：{d['score']} 分" for d in dimension_scores)
 
 
+def build_type_block(street_types: list[dict[str, Any]]) -> str:
+    """把街区类型定义渲染成给模型阅读的清单文本。"""
+    return "\n".join(
+        f"- code={t['code']}｜{t['name']}：{t.get('description') or ''}"
+        for t in street_types
+    )
+
+
 # ──────────────── 模板渲染（DB 可配 + 硬编码兜底） ────────────────
 
 # 硬编码默认模板：表里查不到对应 (stage, dim_code) 时回退使用，
@@ -207,6 +224,21 @@ _DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             "  ]\n"
             "}}\n"
             "注意：scores 必须覆盖本批全部指标，code 必须与上面给出的完全一致。"
+        ),
+    },
+    "classify": {
+        "system": CLASSIFY_SYSTEM,
+        "user": (
+            "评价对象：{street_name}{location}\n\n"
+            "【街区类型定义】\n{type_block}\n\n"
+            "请逐一评估该评价对象与以上每种类型的匹配度，返回如下 JSON：\n"
+            "{{\n"
+            '  "types": [\n'
+            '    {{"code": "类型code", "match_score": 0~1 的匹配度数字, "reason": "30字以内的判断依据"}}\n'
+            "  ]\n"
+            "}}\n"
+            "注意：types 必须覆盖全部类型，code 必须与上面给出的完全一致；"
+            "各类型匹配度相互独立，不要求加和为 1。"
         ),
     },
     "report": {

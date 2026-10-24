@@ -7,11 +7,14 @@ export default function ResourceMasterList({
   label,
   value,
   description,
+  action,
   children,
 }: {
   label: string;
   value: string;
   description?: ReactNode;
+  /** 标题右侧的操作按钮（如「新建模板」），浏览箭头随之移到它下方 */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   const listId = useId();
@@ -66,45 +69,64 @@ export default function ResourceMasterList({
     });
   };
 
+  const controls = (!edges.start || !edges.end) && (
+    <div className="resource-master-controls">
+      {([-1, 1] as const).map((direction) => (
+        <button
+          key={direction}
+          type="button"
+          aria-label={`向${direction < 0 ? "左" : "右"}浏览${label}`}
+          aria-controls={listId}
+          disabled={direction < 0 ? edges.start : edges.end}
+          onClick={() => scrollList(direction)}
+          className="resource-button resource-button--icon resource-button--quiet"
+        >
+          <span
+            aria-hidden="true"
+            className="material-symbols-outlined resource-icon"
+          >
+            {direction < 0 ? "chevron_left" : "chevron_right"}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+  const title = (
+    <div className="resource-master-title">
+      <p className="resource-caption text-on-surface-variant">
+        当前：{value}
+      </p>
+      {description && (
+        <p className="resource-caption text-on-surface-variant">
+          {description}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <>
-      <div className="resource-master-heading">
-        <div className="resource-carousel-heading">
-          <p className="resource-list-heading">{label}</p>
-          {(!edges.start || !edges.end) && (
-            <div className="resource-master-controls">
-              {([-1, 1] as const).map((direction) => (
-                <button
-                  key={direction}
-                  type="button"
-                  aria-label={`向${direction < 0 ? "左" : "右"}浏览${label}`}
-                  aria-controls={listId}
-                  disabled={direction < 0 ? edges.start : edges.end}
-                  onClick={() => scrollList(direction)}
-                  className="resource-button resource-button--icon resource-button--quiet"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="material-symbols-outlined resource-icon"
-                  >
-                    {direction < 0 ? "chevron_left" : "chevron_right"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+      {action ? (
+        /* 带操作按钮：右侧一列，操作按钮在上、浏览箭头在下 */
+        <div className="resource-master-heading resource-master-heading--with-action">
+          <div className="resource-master-text">
+            <p className="resource-list-heading">{label}</p>
+            {title}
+          </div>
+          <div className="resource-master-side">
+            {action}
+            {controls}
+          </div>
         </div>
-        <div className="resource-master-title">
-          <p className="resource-caption text-on-surface-variant">
-            当前：{value}
-          </p>
-          {description && (
-            <p className="resource-caption text-on-surface-variant">
-              {description}
-            </p>
-          )}
+      ) : (
+        <div className="resource-master-heading">
+          <div className="resource-carousel-heading">
+            <p className="resource-list-heading">{label}</p>
+            {controls}
+          </div>
+          {title}
         </div>
-      </div>
+      )}
       <div
         role="group"
         aria-label={label}

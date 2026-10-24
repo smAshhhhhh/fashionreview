@@ -85,7 +85,7 @@ CREATE TABLE ai_analysis_task (
     text_input  TEXT         NULL COMMENT '文本输入内容',
     image_url   VARCHAR(500) NULL COMMENT '上传图片地址（MinIO）',
     evaluation_id BIGINT     NULL COMMENT '关联的评价任务（street_evaluation）',
-    status      ENUM('pending','analyzing','awaiting_confirm','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
+    status      ENUM('pending','analyzing','awaiting_confirm','awaiting_type','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
     progress      INT          NOT NULL DEFAULT 0 COMMENT '进度百分比 0~100',
     current_stage VARCHAR(100) NULL COMMENT '当前阶段标识，如 space_score',
     stage_message VARCHAR(500) NULL COMMENT '当前阶段文案，前端展示',
@@ -106,6 +106,7 @@ CREATE TABLE ai_analysis_result (
     confidence        DECIMAL(5,4) NULL COMMENT '识别置信度 0~1',
     matched_street_id BIGINT       NULL COMMENT '匹配到的 street.id',
     raw_response      JSON         NULL COMMENT '模型原始返回',
+    type_candidates   JSON         NULL COMMENT 'AI 街区类型匹配结果 [{code, match_score, reason}]',
     create_time       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_ai_result_task (task_id),
@@ -132,7 +133,7 @@ CREATE TABLE ai_prompt_log (
 -- 与 ai_prompt_log（运行时拼好的最终 prompt 留痕）不同：
 -- 本表存「带占位符的母版」，运行时取出再 .format() 填值。
 -- 定位键 (stage, dim_code)：
---   recognize / report —— dim_code 为 NULL，各 1 条
+--   recognize / classify / report —— dim_code 为 NULL，各 1 条
 --   score              —— 按一级维度 code（SPACE/BUSINESS/CULTURE/VITALITY/INFLUENCE）各 1 条
 -- 占位符用 Python str.format：模板正文若需字面大括号需写 {{ }}。
 
@@ -147,7 +148,6 @@ CREATE TABLE ai_prompt_template (
     model         VARCHAR(100) NULL COMMENT '可选，覆盖默认模型',
     temperature   DECIMAL(3,2) NULL COMMENT '可选，覆盖默认温度',
     placeholders  VARCHAR(500) NULL COMMENT '可用占位符说明，提示前端',
-    enabled       TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否启用',
     version       INT          NOT NULL DEFAULT 1 COMMENT '当前版本号',
     remark        VARCHAR(500) NULL COMMENT '备注',
     update_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

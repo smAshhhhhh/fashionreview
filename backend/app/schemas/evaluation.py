@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -141,6 +142,88 @@ class ConfirmLocationResult(BaseModel):
     district: str | None = None
 
 
+# ──────────────── 街区类型选择 ────────────────
+
+class DimensionLabelOut(BaseModel):
+    """当前启用模板的一级维度（类型权重按 code 对应）。"""
+
+    code: str
+    name: str
+
+
+class TypeOptionOut(BaseModel):
+    """选择卡上的一个街区类型。match_score 为 None 表示 AI 未给出匹配度。"""
+
+    id: int
+    code: str
+    name: str
+    description: str | None = None
+    weights: dict[str, float] = {}
+    match_score: float | None = None
+    reason: str | None = None
+
+
+class TypeInfoOut(BaseModel):
+    """待选类型详情：types 已按匹配度降序。"""
+
+    task_id: int
+    image_url: str | None = None
+    street: str | None = None
+    city: str | None = None
+    district: str | None = None
+    has_candidates: bool = False
+    recommended_type_id: int | None = None
+    dimensions: list[DimensionLabelOut] = []
+    types: list[TypeOptionOut] = []
+
+
+class ConfirmTypeRequest(BaseModel):
+    street_type_id: int = Field(..., ge=1, description="用户选定的街区类型 id")
+
+
+class ConfirmTypeResult(BaseModel):
+    task_id: int
+    status: str
+    street_type_id: int
+
+
+class StreetTypeOut(BaseModel):
+    """街区类型（指标体系页的分组）。权重由该类型分组下的指标模板承载。"""
+
+    id: int
+    code: str
+    name: str
+    description: str | None = None
+    sort_no: int = 0
+
+
+class StreetTypeUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = Field(None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("类型名称不能留空")
+        return value.strip()
+
+
+class StreetTypeTag(BaseModel):
+    """结果页展示的类型标签。"""
+
+    code: str
+    name: str
+
+
+class TemplateSourceOut(BaseModel):
+    """评价所用的指标模板来源。deleted=True 表示该模板已被（软）删除。"""
+
+    group: str
+    name: str
+    deleted: bool = False
+
+
 class TaskProgressOut(BaseModel):
     """任务进度（SSE / 轮询）。"""
 
@@ -167,6 +250,8 @@ class EvaluationResult(BaseModel):
     summary: str | None = None
     image_url: str | None = None  # 上传原图相对路径；文字任务为街道封面（高德图片 URL）或 None
     enabled_blocks: list[str] = []  # 启用中的展示区块 block_key，前端据此渲染
+    street_type: StreetTypeTag | None = None  # 用户选定的街区类型；未选为 None
+    template_source: TemplateSourceOut | None = None  # 评测所用模板；无评分明细为 None
     dimension_scores: list[DimensionScoreOut] = []
     sub_dimension_scores: list[SubDimensionScoreOut] = []
     metric_scores: list[MetricScoreOut] = []
@@ -213,7 +298,6 @@ class PromptTemplateOut(BaseModel):
     model: str | None = None
     temperature: float | None = None
     placeholders: str | None = None
-    enabled: int
     version: int
     remark: str | None = None
 
@@ -226,7 +310,6 @@ class PromptTemplateUpdate(BaseModel):
     user_template: str | None = None
     model: str | None = Field(None, max_length=100)
     temperature: float | None = Field(None, ge=0, le=2)
-    enabled: int | None = Field(None, ge=0, le=1)
     change_note: str | None = Field(None, max_length=500, description="本次变更说明，记入历史")
 
     @field_validator("name", "user_template")
@@ -235,13 +318,6 @@ class PromptTemplateUpdate(BaseModel):
         # 省略字段仍是部分更新；显式空值不能覆盖数据库中的必填内容。
         if value is None or not value.strip():
             raise ValueError("模板名称和用户模板不能留空")
-        return value
-
-    @field_validator("enabled")
-    @classmethod
-    def nonnull_enabled(cls, value: int | None) -> int:
-        if value is None:
-            raise ValueError("启用状态不能留空")
         return value
 
 
@@ -284,13 +360,15 @@ class DisplayConfigUpdate(BaseModel):
 # ──────────────── 指标体系模板（版本） ────────────────
 
 class MetricTemplateOut(BaseModel):
-    """模板列表项：元信息 + 各级计数 + 是否被历史评价引用。"""
+    """模板列表项：元信息 + 所属分组 + 各级计数 + 是否被历史评价引用。"""
 
     id: int
     name: str
     description: str | None = None
+    street_type_id: int | None = None  # 所属街区类型；None=通用
     is_active: int
     sort_no: int = 0
+    create_time: datetime | None = None
     dim_count: int = 0
     sub_count: int = 0
     metric_count: int = 0
@@ -303,8 +381,10 @@ class MetricTemplateMeta(BaseModel):
     id: int
     name: str
     description: str | None = None
+    street_type_id: int | None = None
     is_active: int
     sort_no: int = 0
+    create_time: datetime | None = None
 
 
 class MetricNodeOut(BaseModel):
@@ -346,20 +426,30 @@ class MetricTemplateTreeOut(BaseModel):
 
 
 class MetricTemplateCreate(BaseModel):
-    """克隆/重命名时的入参。"""
+    """新建模板入参。"""
 
     name: str | None = Field(None, max_length=100)
     description: str | None = Field(None, max_length=500)
+    street_type_id: int | None = Field(
+        None, description="新模板所属街区类型；为空=通用。仅新建时生效，克隆时沿用源模板分组"
+    )
     source_template_id: int | None = Field(
-        None, description="克隆来源模板 id；为空则新建空骨架（复制当前启用模板结构）"
+        None, description="克隆来源模板 id；为空则新建标准体系、权重平均分配的模板"
     )
 
 
 class MetricTemplateMetaUpdate(BaseModel):
     """更新模板名称/说明。"""
 
-    name: str = Field(..., max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
     description: str | None = Field(None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("模板名称不能留空")
+        return value.strip()
 
 
 # 维度树保存入参（与 MetricTemplateTreeOut.tree 同构，但只取可编辑字段）

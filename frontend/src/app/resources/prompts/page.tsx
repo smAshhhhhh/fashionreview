@@ -26,10 +26,11 @@ import {
 
 const STAGE_LABEL: Record<string, string> = {
   recognize: "街巷识别",
+  classify: "类型匹配",
   score: "维度评分",
   report: "报告生成",
 };
-const STAGE_ORDER = ["recognize", "score", "report"];
+const STAGE_ORDER = ["recognize", "classify", "score", "report"];
 
 export default function PromptsPage() {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
@@ -179,23 +180,11 @@ export default function PromptsPage() {
                               v{t.version}
                             </span>
                           </div>
-                          <div className={`
-                            mt-1 flex items-center gap-1.5 resource-caption
-                            text-on-surface-variant
-                          `}>
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${t.enabled === 1
-                                  ? "bg-primary"
-                                  : "bg-surface-container-highest"
-                                }`}
-                            />
-                            {t.enabled === 1 ? "已启用" : "已停用"}
-                            {t.dim_code && (
-                              <span className="ml-1 font-mono">
-                                · {t.dim_code}
-                              </span>
-                            )}
-                          </div>
+                          {t.dim_code && (
+                            <p className="mt-1 resource-caption font-mono text-on-surface-variant">
+                              {t.dim_code}
+                            </p>
+                          )}
                         </button>
                       );
                     })}
@@ -242,20 +231,6 @@ export default function PromptsPage() {
                     setDirty(false);
                     setEditorRevision((value) => value + 1);
                   }}
-                  onToggled={async (updated) => {
-                    setTemplates((items) =>
-                      items.map((item) =>
-                        item.id === updated.id ? updated : item,
-                      ),
-                    );
-                    try {
-                      await reload(selected.id);
-                    } catch {
-                      setError(
-                        "启用状态已更新，但列表刷新失败。请重新加载后核对。",
-                      );
-                    }
-                  }}
                   onError={setError}
                   onClearNotice={() => setNotice(null)}
                 />
@@ -288,7 +263,6 @@ function PromptEditor({
   template,
   onSaved,
   onRolledBack,
-  onToggled,
   onError,
   onClearNotice,
   onDirtyChange,
@@ -296,7 +270,6 @@ function PromptEditor({
   template: PromptTemplate;
   onSaved: (updated: PromptTemplate) => Promise<void>;
   onRolledBack: (updated: PromptTemplate) => Promise<void>;
-  onToggled: (updated: PromptTemplate) => Promise<void>;
   onError: (msg: string | null) => void;
   onClearNotice: () => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -312,7 +285,6 @@ function PromptEditor({
   );
   const [changeNote, setChangeNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [enabledBusy, setEnabledBusy] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -338,24 +310,8 @@ function PromptEditor({
     [template.placeholders],
   );
 
-  const toggleEnabled = async () => {
-    if (enabledBusy || saving || historyBusy) return;
-    setEnabledBusy(true);
-    onError(null);
-    try {
-      const updated = await updatePrompt(template.id, {
-        enabled: template.enabled === 1 ? 0 : 1,
-      });
-      await onToggled(updated);
-    } catch (e: unknown) {
-      onError(e instanceof Error ? e.message : "切换启用状态失败");
-    } finally {
-      setEnabledBusy(false);
-    }
-  };
-
   const handleSave = async () => {
-    if (saving || enabledBusy || historyBusy) return;
+    if (saving || historyBusy) return;
     setFieldError(null);
     setSubmitted(true);
     onError(null);
@@ -407,7 +363,7 @@ function PromptEditor({
 
   return (
     <div className="resource-editor resource-editor--sections @container/editor">
-      {/* 头部：名称 + 阶段/版本 + 启用开关 */}
+      {/* 头部：名称 + 阶段/版本 */}
       <div className="resource-detail-header">
         <div className="min-w-0">
           <p className="resource-caption text-on-surface-variant mb-1">
@@ -418,22 +374,6 @@ function PromptEditor({
             {template.name}
           </h2>
         </div>
-        <label className="flex min-h-11 items-center gap-2 cursor-pointer shrink-0 self-start select-none">
-          <span className="resource-caption font-semibold text-on-surface-variant">
-            {template.enabled === 1 ? "已启用" : "已停用"}
-          </span>
-          <span className="relative inline-flex items-center">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={template.enabled === 1}
-              aria-label={`启用模板：${template.name}`}
-              disabled={enabledBusy || saving || historyBusy}
-              onChange={toggleEnabled}
-            />
-            <div className="resource-switch" />
-          </span>
-        </label>
       </div>
 
       {/* 可用占位符 */}
@@ -459,7 +399,7 @@ function PromptEditor({
       )}
 
       <fieldset
-        disabled={saving || enabledBusy || historyBusy}
+        disabled={saving || historyBusy}
         className="resource-panel resource-scroll-card resource-scroll-card--padded min-w-0"
       >
         <legend className="sr-only">Prompt 模板内容</legend>
@@ -614,7 +554,7 @@ function PromptEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || enabledBusy || historyBusy}
+            disabled={saving || historyBusy}
             className="resource-button resource-button--primary"
           >
             {saving && (
@@ -631,7 +571,7 @@ function PromptEditor({
       </fieldset>
       {/* 版本历史（独立面板） */}
       <HistoryPanel
-        disabled={saving || enabledBusy}
+        disabled={saving}
         onBusyChange={setHistoryBusy}
         templateId={template.id}
         onRolledBack={onRolledBack}

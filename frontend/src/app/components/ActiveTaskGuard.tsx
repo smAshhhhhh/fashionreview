@@ -90,7 +90,8 @@ export default function ActiveTaskGuard({
           snap.status === "analyzing" ||
           // 等待确认地点：任务未结束，只是在等用户决定。若按「已结束」清账放行，
           // 用户回首页就把待确认的任务丢了，照片白传、识别白跑。
-          snap.status === "awaiting_confirm"
+          snap.status === "awaiting_confirm" ||
+          snap.status === "awaiting_type"
         ) {
           // 仍在跑：回到进度页，replace 不留历史栈
           setPhase("redirecting");

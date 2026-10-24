@@ -100,6 +100,7 @@ function ResultView({ data }: { data: EvaluationResult }) {
         streetName={data.street}
         totalScore={data.total_score}
         imageUrl={show("header_image") ? data.image_url : null}
+        streetType={data.street_type?.name}
         showScore={show("total_score")}
       />
       {(showRadar || showReport) && (
@@ -125,6 +126,7 @@ function ResultView({ data }: { data: EvaluationResult }) {
           subDimensions={data.sub_dimension_scores}
           metrics={data.metric_scores}
           showReason={show("metric_reason")}
+          templateSource={data.template_source}
           imageAttributes={show("image_attribute") ? data.image_attributes : []}
         />
       )}

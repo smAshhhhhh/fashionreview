@@ -7,6 +7,7 @@ from app.api.v1.evaluation import router as evaluation_router
 from app.api.v1.metric_template import router as metric_template_router
 from app.api.v1.prompt import router as prompt_router
 from app.api.v1.resource_poi import router as resource_poi_router
+from app.api.v1.street_type import router as street_type_router
 from app.api.v1.task import router as task_router
 
 api_router = APIRouter()
@@ -16,3 +17,4 @@ api_router.include_router(task_router)
 api_router.include_router(analytics_config_router)
 api_router.include_router(metric_template_router)
 api_router.include_router(resource_poi_router)
+api_router.include_router(street_type_router)

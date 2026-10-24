@@ -6,6 +6,7 @@ import {
   confirmLocation,
   fetchConfirmInfo,
   replaceConfirmImage,
+  TaskActionError,
   type ConfirmInfo,
 } from "../../lib/api";
 
@@ -72,6 +73,11 @@ export default function LocationConfirmCard({
       await confirmLocation(taskId, override);
       onConfirmed();
     } catch (e) {
+      if (e instanceof TaskActionError && e.status === 409) {
+        // 另一次提交已推进了任务（或任务已结束）：切回时间线以后端状态为准
+        onConfirmed();
+        return;
+      }
       setError(e instanceof Error ? e.message : "确认失败，请重试");
       setBusy(false);
     }

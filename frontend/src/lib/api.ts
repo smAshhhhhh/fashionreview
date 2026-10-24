@@ -60,12 +60,14 @@ export interface TaskProgress {
   task_id: number;
   /**
    * awaiting_confirm = 照片点评识别出地点后暂停，等用户确认/改地点/换图。
-   * 它**不是终态**（确认后继续评分），但 SSE 会在此断开，前端需在确认成功后重连。
+   * awaiting_type = 地点已定、AI 已给出类型匹配度，等用户选定街区类型。
+   * 二者都**不是终态**（操作后继续评分），但 SSE 会在此断开，前端需在操作成功后重连。
    */
   status:
     | "pending"
     | "analyzing"
     | "awaiting_confirm"
+    | "awaiting_type"
     | "completed"
     | "failed"
     | "cancelled";
@@ -160,6 +162,7 @@ export async function fetchTaskProgress(
       "pending",
       "analyzing",
       "awaiting_confirm",
+      "awaiting_type",
       "completed",
       "failed",
       "cancelled",
@@ -241,7 +244,24 @@ export async function fetchConfirmInfo(taskId: number): Promise<ConfirmInfo> {
 }
 
 /**
+ * 确认地点 / 确认类型失败的错误，带 HTTP 状态码。
+ *
+ * 409 表示任务已被另一次请求推进（或已结束）—— 不是用户输入有误，调用方应
+ * 直接切回时间线，以后端状态为准。
+ */
+export class TaskActionError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
  * 确认地点并继续点评。
+ *
+ * 后端用条件 UPDATE 做原子状态转移：重复提交只有一次生效，其余返回 409。
  *
  * @param street 省略/空 = 采用 AI 识别结果；非空 = 用户改写的地点，
  *   后端会调文字识别把它规范化（与文字点评同一条归一化路径）。
@@ -257,7 +277,79 @@ export async function confirmLocation(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `确认地点失败 (${res.status})`);
+    throw new TaskActionError(
+      body?.detail || `确认地点失败 (${res.status})`,
+      res.status,
+    );
+  }
+  return res.json();
+}
+
+/* ──────────────── 街区类型选择 ──────────────── */
+
+/** 当前启用模板的一级维度，类型权重按 code 对应。 */
+export interface DimensionLabel {
+  code: string;
+  name: string;
+}
+
+/** 选择卡上的一个街区类型。match_score 为 null 表示 AI 未给出匹配度。 */
+export interface StreetTypeOption {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  /** {dim_code: 0~1} */
+  weights: Record<string, number>;
+  /** 匹配度 0~1 */
+  match_score: number | null;
+  reason: string | null;
+}
+
+/** 待选类型详情：types 已按匹配度降序。 */
+export interface TypeInfo {
+  task_id: number;
+  image_url: string | null;
+  street: string | null;
+  city: string | null;
+  district: string | null;
+  /** false = AI 未能给出判断，需用户手动选 */
+  has_candidates: boolean;
+  recommended_type_id: number | null;
+  dimensions: DimensionLabel[];
+  types: StreetTypeOption[];
+}
+
+/** 取待选类型详情。任务状态不符时后端返回 409。 */
+export async function fetchTypeInfo(taskId: number): Promise<TypeInfo> {
+  const res = await fetch(`${API_BASE}/analyze/type/${taskId}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `查询街区类型失败 (${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * 选定街区类型并继续评分。
+ *
+ * 后端用条件 UPDATE 做原子状态转移：重复提交只有一次生效，其余返回 409。
+ */
+export async function confirmStreetType(
+  taskId: number,
+  streetTypeId: number,
+): Promise<{ task_id: number; status: string; street_type_id: number }> {
+  const res = await fetch(`${API_BASE}/analyze/type/${taskId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ street_type_id: streetTypeId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new TaskActionError(
+      body?.detail || `确认街区类型失败 (${res.status})`,
+      res.status,
+    );
   }
   return res.json();
 }
@@ -392,8 +484,6 @@ export interface PromptTemplate {
   temperature: number | null;
   /** 可用占位符说明，供前端提示 */
   placeholders: string | null;
-  /** 0 / 1 */
-  enabled: number;
   version: number;
   remark: string | null;
 }
@@ -420,7 +510,6 @@ export interface PromptTemplateUpdate {
   user_template?: string;
   model?: string | null;
   temperature?: number | null;
-  enabled?: number;
   /** 本次变更说明，记入历史（选填） */
   change_note?: string | null;
 }
@@ -507,16 +596,50 @@ export async function updateAnalyticsConfig(
   return res.json();
 }
 
+/* ──────────────── 街区类型（指标体系页的模板分组） ──────────────── */
+
+/** 街区类型。各类型的维度权重由该类型分组下的指标模板承载。 */
+export interface StreetType {
+  id: number;
+  code: string;
+  name: string;
+  /** 类型定义，也是 AI 匹配的判断依据 */
+  description: string | null;
+  sort_no: number;
+}
+
+export async function listStreetTypes(): Promise<StreetType[]> {
+  const res = await resourceFetch(`${API_BASE}/street-types`);
+  return res.json();
+}
+
+/** 更新类型名称 / 定义。 */
+export async function updateStreetType(
+  id: number,
+  body: { name: string; description: string | null },
+): Promise<StreetType> {
+  const res = await resourceFetch(`${API_BASE}/street-types/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
 /* ──────────────── 指标体系模板（版本） ──────────────── */
 
-/** 模板列表项：元信息 + 各级计数 + 是否被历史评价引用。 */
+/** 模板列表项：元信息 + 所属分组 + 各级计数 + 是否被历史评价引用。 */
 export interface MetricTemplate {
   id: number;
   name: string;
   description: string | null;
-  /** 1=当前启用模板 */
+  /** 所属街区类型；null=通用 */
+  street_type_id: number | null;
+  /** 1=所在分组的启用模板 */
   is_active: number;
   sort_no: number;
+  /** 本地时间 ISO 字符串，如 2026-10-01T00:49:08 */
+  create_time: string | null;
   dim_count: number;
   sub_count: number;
   metric_count: number;
@@ -529,8 +652,10 @@ export interface MetricTemplateMeta {
   id: number;
   name: string;
   description: string | null;
+  street_type_id: number | null;
   is_active: number;
   sort_no: number;
+  create_time: string | null;
 }
 
 /** 三级指标节点。 */
@@ -587,10 +712,14 @@ export async function getMetricTemplateTree(
   return res.json();
 }
 
-/** 新建模板：传 sourceTemplateId 为克隆，否则新建空骨架（复制当前启用模板结构）。 */
+/**
+ * 新建模板：传 sourceTemplateId 为克隆（留在源模板分组）；
+ * 否则在 streetTypeId 分组（null=通用）新建标准体系、权重平均分配的模板。
+ */
 export async function createMetricTemplate(opts?: {
   name?: string;
   description?: string;
+  streetTypeId?: number | null;
   sourceTemplateId?: number;
 }): Promise<MetricTemplateMeta> {
   const res = await resourceFetch(`${API_BASE}/metric-templates`, {
@@ -599,6 +728,7 @@ export async function createMetricTemplate(opts?: {
     body: JSON.stringify({
       name: opts?.name ?? null,
       description: opts?.description ?? null,
+      street_type_id: opts?.streetTypeId ?? null,
       source_template_id: opts?.sourceTemplateId ?? null,
     }),
   });

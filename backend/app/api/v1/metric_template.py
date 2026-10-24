@@ -1,12 +1,12 @@
 """指标体系模板（版本）API（资源中心「指标体系」）。
 
-- GET    /metric-templates                 模板列表（带计数与是否被引用）
+- GET    /metric-templates                 模板列表（带分组、创建时间、计数与是否被引用）
 - GET    /metric-templates/{id}/tree        模板详情（嵌套维度树）
-- POST   /metric-templates                  新建：空骨架 或 克隆来源模板
+- POST   /metric-templates                  新建：标准体系平均权重 或 克隆来源模板
 - PUT    /metric-templates/{id}             更新模板名称/说明
 - PUT    /metric-templates/{id}/tree        保存维度树内容（已用则另存为新模板）
-- POST   /metric-templates/{id}/activate    启用该模板（影响后续 AI 点评与新评价）
-- DELETE /metric-templates/{id}             删除模板（启用中/已被引用则拒绝）
+- POST   /metric-templates/{id}/activate    启用该模板（只影响所在分组的后续点评）
+- DELETE /metric-templates/{id}             软删除模板（启用中则拒绝；被历史引用也可删，历史结果不受影响）
 """
 
 from __future__ import annotations
@@ -47,7 +47,10 @@ def create_template(body: MetricTemplateCreate) -> MetricTemplateMeta:
         if new_id is None:
             raise HTTPException(status_code=404, detail="来源模板不存在")
     else:
-        new_id = svc.create_blank()
+        try:
+            new_id = svc.create_blank(body.street_type_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     meta = svc.get_tree(new_id)
     return MetricTemplateMeta(**meta["template"])
 
@@ -101,6 +104,4 @@ def delete(template_id: int) -> dict[str, str]:
         raise HTTPException(status_code=404, detail="模板不存在")
     if reason == "active":
         raise HTTPException(status_code=409, detail="当前启用模板不可删除，请先切换到其他模板")
-    if reason == "in_use":
-        raise HTTPException(status_code=409, detail="该模板已被历史评价引用，不可删除")
     raise HTTPException(status_code=400, detail="删除失败")

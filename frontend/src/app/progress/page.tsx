@@ -6,6 +6,7 @@ import Sidebar from "../components/Sidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
 import ProgressStep from "../components/ProgressStep";
 import LocationConfirmCard from "../components/LocationConfirmCard";
+import StreetTypeSelectCard from "../components/StreetTypeSelectCard";
 import { ACTIVE_TASK_KEY } from "../components/ActiveTaskGuard";
 import type { ProgressStage, ProgressStatus, ProgressTone } from "../types";
 import {
@@ -27,12 +28,18 @@ import {
 // 全并发、as_completed 谁先回谁先计数，所以第 2 个完成的完全可能是 dim_sort 里的第 5 个。
 const SCORING_TOTAL_FALLBACK = 5;
 
-const STAGES: ProgressStage[] = [
+const STAGES_WITH_TYPE: ProgressStage[] = [
   {
     stage: "recognize",
     progress: 10,
     titles: { pending: "识别街巷", active: "正在识别街巷", done: "街巷识别完成" },
     detail: "定位地理坐标与街道轮廓",
+  },
+  {
+    stage: "classify",
+    progress: 13,
+    titles: { pending: "匹配街区类型", active: "正在匹配街区类型", done: "街区类型已确定" },
+    detail: "AI 给出匹配度，由你选定类型",
   },
   {
     stage: "profile",
@@ -65,9 +72,20 @@ const STAGES: ProgressStage[] = [
   },
 ];
 
+// 「街区类型选择」开关关闭时链路不经过类型节点：只在确实走到该阶段后才显示它，
+// 否则时间线会宣布一个从未发生的「街区类型已确定」
+const STAGES_PLAIN = STAGES_WITH_TYPE.filter((s) => s.stage !== "classify");
+const TYPE_STAGES = new Set(["classify", "await_type"]);
+const CLASSIFY_INDEX = STAGES_WITH_TYPE.findIndex((s) => s.stage === "classify");
+
+// 没有独立节点的后端阶段，归到它所在的节点上
+const STAGE_ALIAS: Record<string, string> = {
+  await_type: "classify",
+  match_image: "profile",
+};
+
 const VIEWPORT_HEIGHT = 520; // 时间线可视区高度（px）
-const FIRST_SCORING_INDEX = STAGES.findIndex((s) => s.stage === "scoring");
-const SCORING_NODE_COUNT = STAGES.filter((s) => s.stage === "scoring").length;
+const SCORING_NODE_COUNT = STAGES_PLAIN.filter((s) => s.stage === "scoring").length;
 
 /** 已完成的维度数：优先用后端权威名单，缺失时按 20+N*13 反推。 */
 function doneCountOf(detail: ScoringDetail | null, p: number): number {
@@ -87,23 +105,26 @@ function doneCountOf(detail: ScoringDetail | null, p: number): number {
  * active，于是节点一边转 sync 一边宣布自己已完成，且上方打勾数比文案少一个。
  */
 function activeIndexFrom(
+  stages: ProgressStage[],
   stage: string | null,
   detail: ScoringDetail | null,
   p: number,
 ): number {
-  if (stage === "done") return STAGES.length - 1;
+  if (stage === "done") return stages.length - 1;
   if (stage === "scoring") {
     const done = doneCountOf(detail, p);
+    const firstScoring = stages.findIndex((s) => s.stage === "scoring");
     // 5 个都完成但后端还没写 report 那一帧：让报告节点先亮，避免最后一个
     // 评分节点既显示真实维度名又在转圈
-    return Math.min(FIRST_SCORING_INDEX + done, STAGES.length - 1);
+    return Math.min(firstScoring + done, stages.length - 1);
   }
-  const byStage = STAGES.findIndex((s) => s.stage === stage);
+  const nodeStage = (stage && STAGE_ALIAS[stage]) ?? stage;
+  const byStage = stages.findIndex((s) => s.stage === nodeStage);
   if (byStage >= 0) return byStage;
   // 首帧前 current_stage 为 null，或后端新增了前端不认识的阶段：退回阈值反推
   let idx = 0;
-  for (let i = 0; i < STAGES.length; i++) {
-    if (p >= STAGES[i].progress) idx = i;
+  for (let i = 0; i < stages.length; i++) {
+    if (p >= stages[i].progress) idx = i;
   }
   return idx;
 }
@@ -141,6 +162,14 @@ function AnalysisProgressInner() {
   // 照片地点待确认：后端 status=awaiting_confirm 时在时间线位置渲染确认卡。
   // 单独用一个 state 而不是只看 stage，是因为确认成功后要立刻切回时间线并重连 SSE。
   const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  // 等待选择街区类型：status=awaiting_type 时渲染类型选择卡
+  const [awaitingType, setAwaitingType] = useState(false);
+  // 本任务是否经过类型选择阶段（一旦见到即保持），决定时间线是否含类型节点。
+  // ref 供订阅 effect 内读取最新值，state 供渲染
+  const typedRef = useRef(false);
+  const [withType, setWithType] = useState(false);
+  const stages = withType ? STAGES_WITH_TYPE : STAGES_PLAIN;
+  const awaiting = awaitingConfirm || awaitingType;
   // 确认后重连 SSE 的触发器：自增即重跑订阅 effect
   const [resubscribe, setResubscribe] = useState(0);
 
@@ -160,8 +189,18 @@ function AnalysisProgressInner() {
     // 返回 true 表示已进入终态（completed/failed），调用方据此决定是否还需连 SSE。
     const applyProgress = (data: TaskProgress): boolean => {
       const detail = data.stage_detail ?? null;
+      if (
+        data.status === "awaiting_type" ||
+        (data.current_stage && TYPE_STAGES.has(data.current_stage))
+      ) {
+        typedRef.current = true;
+        setWithType(true);
+      }
+      const list = typedRef.current ? STAGES_WITH_TYPE : STAGES_PLAIN;
       setStage(data.current_stage);
-      setCurrentIndex(activeIndexFrom(data.current_stage, detail, data.progress));
+      setCurrentIndex(
+        activeIndexFrom(list, data.current_stage, detail, data.progress),
+      );
       // 只在评分阶段接受名单：其余阶段后端不写这一列，若沿用旧值，报告阶段会
       // 把评分名单继续渲染进节点标题
       if (data.current_stage === "scoring") setScoring(detail);
@@ -185,7 +224,7 @@ function AnalysisProgressInner() {
         // 这里显式兜底把时间线推到末节点，否则跳转前的 800ms 里最后一个节点
         // 仍在转 sync
         setStage("done");
-        setCurrentIndex(STAGES.length - 1);
+        setCurrentIndex(list.length - 1);
         const eid = data.evaluation_id;
         setTimeout(() => {
           router.push(eid ? `/analytics?eid=${eid}` : "/analytics");
@@ -209,10 +248,18 @@ function AnalysisProgressInner() {
         // 返回 true 让调用方停止订阅：后端此时也会收尾关闭 SSE，等待可能持续
         // 几分钟，挂着连接无意义；确认成功后由 resubscribe 重连。
         setAwaitingConfirm(true);
+        setAwaitingType(false);
         return true;
       }
-      // 从确认态回到运行态（确认成功后重连的首帧）：收起确认卡
+      if (data.status === "awaiting_type") {
+        // 与待确认地点同理：不清 activeTask，停止订阅，选定后由 resubscribe 重连
+        setAwaitingType(true);
+        setAwaitingConfirm(false);
+        return true;
+      }
+      // 从等待态回到运行态（操作成功后重连的首帧）：收起卡片
       setAwaitingConfirm(false);
+      setAwaitingType(false);
       return false;
     };
 
@@ -253,7 +300,7 @@ function AnalysisProgressInner() {
     if (!el) return;
     const stepCenter = el.offsetTop + el.offsetHeight / 2;
     setOffsetY(VIEWPORT_HEIGHT / 2 - stepCenter);
-  }, [currentIndex]);
+  }, [currentIndex, stages]);
 
   const isDone = stage === "done";
 
@@ -282,7 +329,10 @@ function AnalysisProgressInner() {
       // 实时文案只贴给它真正描述的那个阶段：评分名单会让 active 先于 current_stage
       // 迈进下一节点，此时无条件覆盖会出现「正在生成评价报告 / 已完成 5/5 维度评分」
       detail:
-        status === "active" && activeMessage && s.stage === stage
+        status === "active" &&
+        activeMessage &&
+        stage &&
+        s.stage === (STAGE_ALIAS[stage] ?? stage)
           ? activeMessage
           : s.detail,
       tone: "normal" as ProgressTone,
@@ -333,19 +383,28 @@ function AnalysisProgressInner() {
     ? "缺少有效的任务 ID，请返回重新发起分析"
     : errorMsg;
 
-  /** 收起确认卡，时间线复位到第一阶段并重连 SSE（不等首帧，立刻可见）。 */
-  const restartTimeline = () => {
+  /** 收起等待卡，时间线复位到 index 节点并重连 SSE（不等首帧，立刻可见）。 */
+  const resumeTimeline = (list: ProgressStage[], index: number) => {
     setAwaitingConfirm(false);
+    setAwaitingType(false);
     setErrorMsg(null);
     setScoring(null); // 清上一轮评分名单，否则会渲进新一轮节点标题
     setActiveMessage(null);
-    setStage(STAGES[0].stage);
-    setCurrentIndex(0);
+    setStage(list[index].stage);
+    setCurrentIndex(index);
     setResubscribe((n) => n + 1);
   };
+  const restartTimeline = () => resumeTimeline(stages, 0);
 
   // 确认地点成功（采用识别结果 或 改写后在后台归一化）
   const handleConfirmed = restartTimeline;
+
+  // 选定类型：识别已完成，时间线从类型节点继续，不回到第一阶段
+  const handleTypeConfirmed = () => {
+    typedRef.current = true;
+    setWithType(true);
+    resumeTimeline(STAGES_WITH_TYPE, CLASSIFY_INDEX);
+  };
 
   // 换图已提交：仍是同一个 taskId，重新识别。
   // 不改 URL、不动 ACTIVE_TASK_KEY —— 任务没变，只是它的输入图换了。
@@ -356,21 +415,29 @@ function AnalysisProgressInner() {
       <Sidebar activeHref="/" />
 
       <main className="lg:ml-64 flex flex-col items-center min-h-screen justify-center">
-        {/* 待确认：抵消侧栏占位（lg:ml-64 的一半），让标题与卡片在整屏水平居中 */}
+        {/* 等待用户：抵消侧栏占位（lg:ml-64 的一半），让标题与卡片在整屏水平居中 */}
         <div
           className={`w-full max-w-200 px-4 flex flex-col py-12 ${
-            awaitingConfirm ? "items-center lg:-translate-x-32" : ""
+            awaiting ? "items-center lg:-translate-x-32" : ""
           }`}
         >
-          {/* 顶部标题：常规左对齐；待确认时与卡片同宽居中 */}
-          <div className={awaitingConfirm ? "mb-8 w-full max-w-105 text-center" : "mb-10"}>
-            <div className={`flex items-center gap-2 ${awaitingConfirm ? "relative justify-center" : ""}`}>
-              <h2 className={`text-3xl font-extrabold text-brand ${awaitingConfirm ? "px-10" : ""}`}>
+          {/* 顶部标题：常规左对齐；等待用户时与卡片同宽居中 */}
+          <div
+            className={
+              awaiting
+                ? "mb-8 w-full max-w-105 text-center"
+                : "mb-10"
+            }
+          >
+            <div className={`flex items-center gap-2 ${awaiting ? "relative justify-center" : ""}`}>
+              <h2 className={`text-3xl font-extrabold text-brand ${awaiting ? "px-10" : ""}`}>
                 {cancelled
                   ? `已取消分析「${title}」`
                   : awaitingConfirm
                     ? "请先确认照片所在地点"
-                    : `正在分析「${title}」`}
+                    : awaitingType
+                      ? "请选择街区类型"
+                      : `正在分析「${title}」`}
               </h2>
               {/* 取消入口：仅分析进行中展示，icon 紧跟标题 */}
               {!displayError && !cancelled && hasValidTask && (
@@ -381,7 +448,7 @@ function AnalysisProgressInner() {
                   aria-label="取消分析"
                   title="取消分析"
                   className={`shrink-0 flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-error transition-colors disabled:opacity-50 ${
-                    awaitingConfirm ? "absolute right-0 top-1/2 -translate-y-1/2" : ""
+                    awaiting ? "absolute right-0 top-1/2 -translate-y-1/2" : ""
                   }`}
                 >
                   <span className="material-symbols-outlined text-[22px]">
@@ -395,7 +462,9 @@ function AnalysisProgressInner() {
                 ? "本次分析已停止，你可以重新发起。"
                 : awaitingConfirm
                   ? "地点决定了后续全部评分，确认后再继续"
-                  : "系统正在多维度评估该街区的时尚度，请稍候"}
+                  : awaitingType
+                    ? "AI 已给出各类型的匹配度，最终类型由你决定"
+                    : "系统正在多维度评估该街区的时尚度，请稍候"}
             </p>
           </div>
 
@@ -423,6 +492,11 @@ function AnalysisProgressInner() {
               taskId={taskId}
               onConfirmed={handleConfirmed}
               onImageReplaced={handleImageReplaced}
+            />
+          ) : awaitingType && hasValidTask ? (
+            <StreetTypeSelectCard
+              taskId={taskId}
+              onConfirmed={handleTypeConfirmed}
             />
           ) : cancelled ? (
             /* 已取消态 */
@@ -463,7 +537,7 @@ function AnalysisProgressInner() {
                   transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
               >
-                {STAGES.map((s, i) => {
+                {stages.map((s, i) => {
                   const status = statusOf(i);
                   const node = resolveNode(s, status);
                   return (
@@ -478,7 +552,7 @@ function AnalysisProgressInner() {
                         detail={node.detail}
                         status={status}
                         tone={node.tone}
-                        isLast={i === STAGES.length - 1}
+                        isLast={i === stages.length - 1}
                       />
                     </div>
                   );

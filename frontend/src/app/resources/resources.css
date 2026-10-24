@@ -255,6 +255,15 @@
   font-size: var(--resource-icon-size);
 }
 
+/* 实心图标（如启用中的圆圈勾） */
+.resource-icon--filled {
+  font-variation-settings:
+    "FILL" 1,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
 .resource-field {
   min-width: 0;
   min-height: var(--resource-control-height);

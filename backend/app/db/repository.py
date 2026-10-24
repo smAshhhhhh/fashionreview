@@ -18,16 +18,20 @@ import pymysql
 # ──────────────────────────────────────────────
 
 def fetch_metric_tree(
-    conn: pymysql.connections.Connection, template_id: int | None = None
+    conn: pymysql.connections.Connection,
+    template_id: int | None = None,
+    *,
+    street_type_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """读取某模板的全部三级指标，连带其所属二级、一级的 id / name / weight。
 
     返回 75 行，每行包含指标本身与上层维度信息，供构造 Prompt 与聚合使用。
 
-    :param template_id: 限定模板；None 时取当前启用模板（get_active_template_id）。
+    :param template_id: 限定模板；None 时取 street_type_id 分组的启用模板。
+    :param street_type_id: 街区类型分组；None=通用。
     """
     if template_id is None:
-        template_id = get_active_template_id(conn)
+        template_id = get_active_template_id(conn, street_type_id)
     sql = """
         SELECT
             m.id            AS metric_id,
@@ -97,26 +101,38 @@ def fetch_dimension_name_map(
 # 指标体系模板（版本）
 # ──────────────────────────────────────────────
 
-def get_active_template_id(conn: pymysql.connections.Connection) -> int:
-    """当前启用模板 id；异常情况下回退最小 id（保证总能取到一套维度树）。"""
+def get_active_template_id(
+    conn: pymysql.connections.Connection, street_type_id: int | None = None
+) -> int:
+    """某分组（street_type_id，None=通用）的启用模板 id。
+
+    该分组没有启用模板时回退到组内最小 id；组内一个模板都没有时回退通用分组，
+    保证总能取到一套维度树。
+    """
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id FROM metric_template WHERE is_active = 1 "
-            "ORDER BY id LIMIT 1"
+            "SELECT id FROM metric_template WHERE street_type_id <=> %s AND is_deleted = 0 "
+            "ORDER BY is_active DESC, id LIMIT 1",
+            (street_type_id,),
         )
         row = cur.fetchone()
         if row:
             return row[0]
-        cur.execute("SELECT id FROM metric_template ORDER BY id LIMIT 1")
+        if street_type_id is not None:
+            return get_active_template_id(conn, None)
+        cur.execute(
+            "SELECT id FROM metric_template WHERE is_deleted = 0 ORDER BY id LIMIT 1"
+        )
         row = cur.fetchone()
         return row[0] if row else 1
 
 
 def list_templates(conn: pymysql.connections.Connection) -> list[dict[str, Any]]:
-    """模板列表，带各级维度计数与「是否被历史评价引用」。"""
+    """模板列表，带所属分组、创建时间、各级维度计数与「是否被历史评价引用」。"""
     sql = """
         SELECT
-            t.id, t.name, t.description, t.is_active, t.sort_no,
+            t.id, t.name, t.description, t.street_type_id, t.is_active, t.sort_no,
+            t.create_time,
             (SELECT COUNT(*) FROM fashion_dimension d WHERE d.template_id = t.id)       AS dim_count,
             (SELECT COUNT(*) FROM fashion_sub_dimension s WHERE s.template_id = t.id)   AS sub_count,
             (SELECT COUNT(*) FROM fashion_metric m WHERE m.template_id = t.id)          AS metric_count,
@@ -126,7 +142,8 @@ def list_templates(conn: pymysql.connections.Connection) -> list[dict[str, Any]]
                 WHERE m.template_id = t.id
             ) AS in_use
         FROM metric_template t
-        ORDER BY t.sort_no, t.id
+        WHERE t.is_deleted = 0
+        ORDER BY t.create_time, t.id
     """
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute(sql)
@@ -137,13 +154,26 @@ def list_templates(conn: pymysql.connections.Connection) -> list[dict[str, Any]]
     return rows
 
 
+def count_templates_in_group(
+    conn: pymysql.connections.Connection, street_type_id: int | None
+) -> int:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) FROM metric_template "
+            "WHERE street_type_id <=> %s AND is_deleted = 0",
+            (street_type_id,),
+        )
+        return int(cur.fetchone()[0])
+
+
 def get_template(
     conn: pymysql.connections.Connection, template_id: int
 ) -> dict[str, Any] | None:
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute(
-            "SELECT id, name, description, is_active, sort_no "
-            "FROM metric_template WHERE id = %s",
+            # 已软删除的模板对编辑 / 启用 / 克隆一律视为不存在
+            "SELECT id, name, description, street_type_id, is_active, sort_no, create_time "
+            "FROM metric_template WHERE id = %s AND is_deleted = 0",
             (template_id,),
         )
         row = cur.fetchone()
@@ -176,14 +206,53 @@ def create_template(
     name: str,
     description: str | None,
     sort_no: int = 0,
+    street_type_id: int | None = None,
 ) -> int:
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO metric_template (name, description, is_active, sort_no) "
-            "VALUES (%s, %s, 0, %s)",
-            (name, description, sort_no),
+            "INSERT INTO metric_template "
+            "(name, description, street_type_id, is_active, sort_no) "
+            "VALUES (%s, %s, %s, 0, %s)",
+            (name, description, street_type_id, sort_no),
         )
         return cur.lastrowid
+
+
+def insert_template_tree(
+    conn: pymysql.connections.Connection,
+    template_id: int,
+    tree: list[tuple[str, str, float, list[tuple[str, str, float, list[tuple[str, str, str | None, float]]]]]],
+) -> None:
+    """按给定结构为模板写入整棵维度树。
+
+    tree: [(dim_code, dim_name, dim_weight, [(sub_code, sub_name, sub_weight,
+           [(metric_code, metric_name, metric_desc, metric_weight), ...]), ...]), ...]
+    """
+    with conn.cursor() as cur:
+        for di, (dcode, dname, dweight, subs) in enumerate(tree, start=1):
+            cur.execute(
+                "INSERT INTO fashion_dimension (template_id, code, name, weight, sort_no) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (template_id, dcode, dname, dweight, di),
+            )
+            dim_id = cur.lastrowid
+            for si, (scode, sname, sweight, metrics) in enumerate(subs, start=1):
+                cur.execute(
+                    "INSERT INTO fashion_sub_dimension "
+                    "(template_id, dimension_id, code, name, weight, sort_no) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (template_id, dim_id, scode, sname, sweight, si),
+                )
+                sub_id = cur.lastrowid
+                cur.executemany(
+                    "INSERT INTO fashion_metric "
+                    "(template_id, sub_dimension_id, code, name, metric_desc, weight, sort_no) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    [
+                        (template_id, sub_id, mcode, mname, mdesc, mweight, mi)
+                        for mi, (mcode, mname, mdesc, mweight) in enumerate(metrics, start=1)
+                    ],
+                )
 
 
 def update_template_meta(
@@ -194,31 +263,46 @@ def update_template_meta(
 ) -> int:
     with conn.cursor() as cur:
         return cur.execute(
-            "UPDATE metric_template SET name = %s, description = %s WHERE id = %s",
+            "UPDATE metric_template SET name = %s, description = %s "
+            "WHERE id = %s AND is_deleted = 0",
             (name, description, template_id),
         )
 
 
 def activate_template(conn: pymysql.connections.Connection, template_id: int) -> int:
-    """启用指定模板：其余清零，目标置 1。返回目标受影响行数（0=模板不存在）。"""
+    """启用指定模板：同分组内其余清零，目标置 1。返回 1=成功，0=模板不存在。
+
+    分组之间互不影响：启用水乡古巷型的模板不会改动通用或其他类型的启用模板。
+    """
     with conn.cursor() as cur:
-        affected = cur.execute(
-            "UPDATE metric_template SET is_active = 1 WHERE id = %s", (template_id,)
+        cur.execute(
+            "SELECT street_type_id FROM metric_template "
+            "WHERE id = %s AND is_deleted = 0 FOR UPDATE",
+            (template_id,),
         )
-        if affected:
-            cur.execute(
-                "UPDATE metric_template SET is_active = 0 WHERE id <> %s", (template_id,)
-            )
-        return affected
+        row = cur.fetchone()
+        if row is None:
+            return 0
+        cur.execute(
+            "UPDATE metric_template SET is_active = (id = %s) WHERE street_type_id <=> %s",
+            (template_id, row[0]),
+        )
+        return 1
 
 
-def delete_template(conn: pymysql.connections.Connection, template_id: int) -> None:
-    """删除模板及其维度树（仅未被历史引用、且非启用模板时由 service 校验后调用）。"""
+def soft_delete_template(conn: pymysql.connections.Connection, template_id: int) -> int:
+    """软删除模板：只打标记，维度树保留。
+
+    被历史评价引用的模板也能删 —— 评分明细仍指向这些维度行，
+    fetch_dimension_name_map 不过滤删除标记，历史结果照常还原维度名。
+    条件 is_active = 0 兜底：启用中的模板不会被删掉。返回受影响行数。
+    """
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM fashion_metric WHERE template_id = %s", (template_id,))
-        cur.execute("DELETE FROM fashion_sub_dimension WHERE template_id = %s", (template_id,))
-        cur.execute("DELETE FROM fashion_dimension WHERE template_id = %s", (template_id,))
-        cur.execute("DELETE FROM metric_template WHERE id = %s", (template_id,))
+        return cur.execute(
+            "UPDATE metric_template SET is_deleted = 1 "
+            "WHERE id = %s AND is_deleted = 0 AND is_active = 0",
+            (template_id,),
+        )
 
 
 def clone_template_tree(
@@ -597,14 +681,16 @@ def create_evaluation(
     task_no: str | None,
     source: str = "ai",
     status: str = "analyzing",
+    street_type_id: int | None = None,
 ) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO street_evaluation (street_id, task_no, source, status)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO street_evaluation
+                (street_id, street_type_id, task_no, source, status)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (street_id, task_no, source, status),
+            (street_id, street_type_id, task_no, source, status),
         )
         return cur.lastrowid
 
@@ -873,18 +959,18 @@ def bulk_insert_dimension_scores(
     evaluation_id: int,
     rows: list[dict[str, Any]],
 ) -> None:
-    """rows: [{dim_level, ref_id, score}]"""
+    """rows: [{dim_level, ref_id, score, weight?}]"""
     if not rows:
         return
     with conn.cursor() as cur:
         cur.executemany(
             """
             INSERT INTO street_dimension_score
-                (evaluation_id, dim_level, ref_id, score)
-            VALUES (%s, %s, %s, %s)
+                (evaluation_id, dim_level, ref_id, score, weight)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             [
-                (evaluation_id, r["dim_level"], r["ref_id"], r["score"])
+                (evaluation_id, r["dim_level"], r["ref_id"], r["score"], r.get("weight"))
                 for r in rows
             ],
         )
@@ -1071,24 +1157,38 @@ def get_ai_task(
         return cur.fetchone()
 
 
-def set_task_awaiting_confirm(
-    conn: pymysql.connections.Connection, task_id: int
+def transition_task_status(
+    conn: pymysql.connections.Connection,
+    task_id: int,
+    from_status: str,
+    to_status: str,
 ) -> bool:
-    """把任务置为「等待确认地点」，仅当它仍是 analyzing 时生效。
+    """条件更新任务状态：仅当当前状态为 from_status 时改为 to_status。
 
-    条件更新而非无条件写：取消请求可能恰好落在识别阶段最后一次 check_cancel
-    之后：那时 DB 已被 request_cancel 改成 cancelled，无条件写会把它复活成待确认
-    态，用户就会看到一个已取消任务的确认卡。
+    单条 UPDATE ... WHERE status = from_status 是原子的，并发请求中只有一个能
+    拿到 affected=1，用它决定谁有资格继续推进任务。
 
-    :return: True 已置为待确认；False 任务已不是 analyzing（已取消/失败）
+    :return: True 转移成功；False 当前状态已不是 from_status（或任务不存在）
     """
     with conn.cursor() as cur:
         affected = cur.execute(
-            "UPDATE ai_analysis_task SET status = 'awaiting_confirm' "
-            "WHERE id = %s AND status = 'analyzing'",
-            (task_id,),
+            "UPDATE ai_analysis_task SET status = %s WHERE id = %s AND status = %s",
+            (to_status, task_id, from_status),
         )
     return affected > 0
+
+
+def set_task_awaiting(
+    conn: pymysql.connections.Connection, task_id: int, status: str
+) -> bool:
+    """把任务置为某个等待用户的状态（awaiting_confirm / awaiting_type），仅当它仍是 analyzing 时生效。
+
+    条件更新而非无条件写：取消请求可能恰好落在最后一次 check_cancel 之后，
+    那时 DB 已被 request_cancel 改成 cancelled，无条件写会把它复活成等待态。
+
+    :return: True 已置为等待态；False 任务已不是 analyzing（已取消/失败）
+    """
+    return transition_task_status(conn, task_id, "analyzing", status)
 
 
 def delete_ai_results_by_task(
@@ -1127,15 +1227,18 @@ def update_ai_result_street(
     conn: pymysql.connections.Connection,
     task_id: int,
     *,
-    street_id: int,
+    street_id: int | None,
     recognized_street: str | None = None,
     recognized_city: str | None = None,
+    raw_response: str | None = None,
 ) -> None:
     """回填识别结果最终采用的 street_id（可同时覆盖地点名）。
 
     确认流程里第一段先落识别结果、matched_street_id 留空；用户确认（可能改写了
     地点）后由第二段建 street 并回填。覆盖地点名是必要的 —— 否则表里留着 AI 的
     原始猜测，与实际评分的街区不一致，追溯时会误导。
+
+    street_id 为 None 时清空 matched_street_id（类型选择前地点已定、street 未建）。
     """
     sets = ["matched_street_id = %s"]
     params: list[Any] = [street_id]
@@ -1145,12 +1248,136 @@ def update_ai_result_street(
     if recognized_city is not None:
         sets.append("recognized_city = %s")
         params.append(recognized_city)
+    if raw_response is not None:
+        sets.append("raw_response = %s")
+        params.append(raw_response)
     params.append(task_id)
     with conn.cursor() as cur:
         cur.execute(
             f"UPDATE ai_analysis_result SET {', '.join(sets)} WHERE task_id = %s",
             params,
         )
+
+
+def update_ai_result_type_candidates(
+    conn: pymysql.connections.Connection,
+    task_id: int,
+    candidates: list[dict[str, Any]],
+) -> None:
+    """写入街区类型匹配结果 [{code, match_score, reason}]。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE ai_analysis_result SET type_candidates = %s WHERE task_id = %s",
+            (json.dumps(candidates, ensure_ascii=False), task_id),
+        )
+
+
+# ──────────────────────────────────────────────
+# 街区类型
+# ──────────────────────────────────────────────
+
+def list_active_dimensions(conn: pymysql.connections.Connection) -> list[dict[str, Any]]:
+    """通用分组启用模板的一级维度 [{code, name}]（按 sort_no），供类型选择卡展示维度名。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT code, name FROM fashion_dimension WHERE template_id = %s "
+            "ORDER BY sort_no, id",
+            (get_active_template_id(conn),),
+        )
+        return cur.fetchall()
+
+
+def fetch_active_dimension_weights(
+    conn: pymysql.connections.Connection,
+) -> dict[int | None, dict[str, float]]:
+    """各分组启用模板的一级权重 {street_type_id(None=通用): {dim_code: weight}}。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT t.street_type_id, d.code, d.weight FROM metric_template t "
+            "JOIN fashion_dimension d ON d.template_id = t.id "
+            "WHERE t.is_active = 1 AND t.is_deleted = 0"
+        )
+        rows = cur.fetchall()
+    result: dict[int | None, dict[str, float]] = {}
+    for r in rows:
+        result.setdefault(r["street_type_id"], {})[r["code"]] = float(r["weight"])
+    return result
+
+
+def list_street_types(conn: pymysql.connections.Connection) -> list[dict[str, Any]]:
+    """全部街区类型（按 sort_no）。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT id, code, name, description, sort_no FROM street_type "
+            "ORDER BY sort_no, id"
+        )
+        return cur.fetchall()
+
+
+def get_street_type(
+    conn: pymysql.connections.Connection, type_id: int
+) -> dict[str, Any] | None:
+    """单个街区类型；不存在返回 None。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT id, code, name, description, sort_no FROM street_type WHERE id = %s",
+            (type_id,),
+        )
+        return cur.fetchone()
+
+
+def update_street_type(
+    conn: pymysql.connections.Connection,
+    type_id: int,
+    name: str,
+    description: str | None,
+) -> bool:
+    """更新类型名称/定义。返回类型是否存在。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE street_type SET name = %s, description = %s WHERE id = %s",
+            (name, description, type_id),
+        )
+        # 名称/定义未变时 affected 为 0，需另判是否存在
+        cur.execute("SELECT 1 FROM street_type WHERE id = %s", (type_id,))
+        return cur.fetchone() is not None
+
+
+def get_evaluation_template(
+    conn: pymysql.connections.Connection, evaluation_id: int
+) -> dict[str, Any] | None:
+    """某次评价实际使用的指标模板 {name, group_name, is_deleted}；无评分明细返回 None。
+
+    经评分明细反查模板，且不过滤软删除：模板删除后历史结果仍要能说明来源。
+    group_name 为模板所属街区类型名，通用分组为 None。
+    """
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT t.name, t.is_deleted, st.name AS group_name "
+            "FROM street_metric_score ms "
+            "JOIN fashion_metric m ON m.id = ms.metric_id "
+            "JOIN metric_template t ON t.id = m.template_id "
+            "LEFT JOIN street_type st ON st.id = t.street_type_id "
+            "WHERE ms.evaluation_id = %s LIMIT 1",
+            (evaluation_id,),
+        )
+        row = cur.fetchone()
+    if row:
+        row["is_deleted"] = int(row["is_deleted"])
+    return row
+
+
+def get_evaluation_street_type(
+    conn: pymysql.connections.Connection, evaluation_id: int
+) -> dict[str, Any] | None:
+    """某次评价选定的街区类型 {id, code, name}；未选返回 None。"""
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT t.id, t.code, t.name FROM street_evaluation e "
+            "JOIN street_type t ON t.id = e.street_type_id WHERE e.id = %s",
+            (evaluation_id,),
+        )
+        return cur.fetchone()
 
 
 # ──────────────────────────────────────────────
@@ -1162,18 +1389,21 @@ def get_prompt_template(
     stage: str,
     dim_code: str | None = None,
 ) -> dict[str, Any] | None:
-    """按 (stage, dim_code) 取启用中的模板。dim_code 为 None 时匹配 NULL 行。"""
+    """按 (stage, dim_code) 取模板。dim_code 为 None 时匹配 NULL 行。
+
+    每个阶段的模板都是必需的，不设启用开关；查不到时由 prompt_builder 回退硬编码默认。
+    """
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         if dim_code is None:
             cur.execute(
                 "SELECT * FROM ai_prompt_template "
-                "WHERE stage = %s AND dim_code IS NULL AND enabled = 1 LIMIT 1",
+                "WHERE stage = %s AND dim_code IS NULL LIMIT 1",
                 (stage,),
             )
         else:
             cur.execute(
                 "SELECT * FROM ai_prompt_template "
-                "WHERE stage = %s AND dim_code = %s AND enabled = 1 LIMIT 1",
+                "WHERE stage = %s AND dim_code = %s LIMIT 1",
                 (stage, dim_code),
             )
         return cur.fetchone()
@@ -1234,7 +1464,7 @@ def update_prompt_template(
     new_version: int,
 ) -> None:
     """更新模板可编辑字段并设置新版本号。"""
-    allowed = {"name", "system_prompt", "user_template", "model", "temperature", "enabled"}
+    allowed = {"name", "system_prompt", "user_template", "model", "temperature"}
     sets: list[str] = []
     params: list[Any] = []
     for key, val in fields.items():

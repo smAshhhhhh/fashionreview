@@ -37,8 +37,8 @@ def aggregate(
     :param metric_scores: {metric_id: score(1~5)}
     :return: {
         "total_score": float,
-        "dimension_scores": [{dim_id, dim_name, score}],          # 一级，雷达图轴
-        "sub_dimension_scores": [{sub_id, sub_name, dim_id, score}],
+        "dimension_scores": [{dim_id, dim_name, score, weight}],          # 一级，雷达图轴
+        "sub_dimension_scores": [{sub_id, sub_name, dim_id, score, weight}],
     }
     """
     # 1) 按二级分组收集三级 (score, weight)
@@ -127,7 +127,12 @@ def aggregate(
     return {
         "total_score": total_score,
         "dimension_scores": [
-            {"dim_id": d["dim_id"], "dim_name": d["dim_name"], "score": d["score"]}
+            {
+                "dim_id": d["dim_id"],
+                "dim_name": d["dim_name"],
+                "score": d["score"],
+                "weight": d["dim_weight"],
+            }
             for d in dim_scores
         ],
         "sub_dimension_scores": [
@@ -136,6 +141,7 @@ def aggregate(
                 "sub_name": s["sub_name"],
                 "dim_id": s["dim_id"],
                 "score": s["score"],
+                "weight": s["sub_weight"],
             }
             for s in sub_scores
         ],
@@ -143,10 +149,19 @@ def aggregate(
 
 
 def build_dimension_rows(aggregated: dict[str, Any]) -> list[dict[str, Any]]:
-    """把聚合结果转成 street_dimension_score 入库行（dim_level 1=一级 2=二级）。"""
+    """把聚合结果转成 street_dimension_score 入库行（dim_level 1=一级 2=二级）。
+
+    weight 记下本次实际生效的权重，之后改类型权重不影响历史结果展示。
+    """
     rows: list[dict[str, Any]] = []
     for d in aggregated["dimension_scores"]:
-        rows.append({"dim_level": 1, "ref_id": d["dim_id"], "score": d["score"]})
+        rows.append({
+            "dim_level": 1, "ref_id": d["dim_id"],
+            "score": d["score"], "weight": d.get("weight"),
+        })
     for s in aggregated["sub_dimension_scores"]:
-        rows.append({"dim_level": 2, "ref_id": s["sub_id"], "score": s["score"]})
+        rows.append({
+            "dim_level": 2, "ref_id": s["sub_id"],
+            "score": s["score"], "weight": s.get("weight"),
+        })
     return rows

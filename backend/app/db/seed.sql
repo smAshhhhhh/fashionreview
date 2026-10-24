@@ -2,8 +2,19 @@
 -- 三级权重 1/3≈0.3333，二级/一级权重 1/5=0.2000
 SET NAMES utf8mb4;
 
--- 指标体系模板（版本）。模板一为默认启用模板；
+-- 街区类型（7 种）。须先于模板插入：metric_template.street_type_id 外键指向它
+INSERT INTO street_type (id, code, name, description, sort_no) VALUES
+  (1, 'WATER_TOWN', '水乡古巷型', '水乡古巷型以江南传统水乡聚落为空间基底，保留完整的河道、古桥、驳岸与临水民居肌理。业态以本土手工艺、传统茶肆、地方小吃及文化体验为主，强调“因水成街、因水成市”的历史格局与生活美学，如苏州山塘街。', 1),
+  (2, 'REPUBLICAN', '民国风情型', '民国风情型依托民国时期建筑遗存（如石库门、公馆、洋行、领事馆等），通过保护性修复与场景还原，营造具有历史叙事感的街区氛围。业态常融合复古商业、精品酒店、文化展览与特色餐饮，如南京颐和路。', 2),
+  (3, 'COMMERCIAL_WALK', '商业步行型', '商业步行型以规模化、连续性零售空间为主体，集中呈现现代消费品牌与复合业态，具备明确的步行化界面与商业标识系统。通常位于城市核心商圈，承载大众消费与旅游购物功能，如上海南京路步行街。', 3),
+  (4, 'CREATIVE_ART', '文创艺术型', '文创艺术型以创意产业为核心驱动力，通过对旧厂房、仓库、街区等存量空间的改造，吸引艺术家、设计师、独立品牌入驻。业态涵盖工作室、画廊、设计商店、艺术咖啡等，注重内容生产与文化事件，如常州运河五号。', 4),
+  (5, 'MARKET_LIFE', '市井烟火型', '市井烟火型以本地居民的日常生活需求为导向，保留高密度的社区商业与小规模经营业态，如早餐铺、菜市场、修理店、小吃摊等。空间呈现自发、混杂、高频率使用的特征，是社会网络与地域文化的日常载体，如苏州双塔市集。', 5),
+  (6, 'HERITAGE_TOURISM', '历史文旅型', '历史文旅型是在具有显著历史价值的建筑群或街区基础上，通过系统规划与业态植入，形成文化展示、旅游服务、休闲消费复合功能区。注重遗产解说、场景体验与节庆活动，如宁波老外滩。', 6),
+  (7, 'SPECIALTY', '特色专业型', '特色专业型则围绕某一特定商品类别或产业主题或街巷风格，形成高度集聚的专业化街区，如服装批发、家居建材、美食餐饮、古董交易和异国风情等。通常具备较强的行业辐射力与产业链特征，如杭州中国丝绸城。', 7);
+
+-- 指标体系模板（版本）。模板一为通用分组（street_type_id 为 NULL）的启用模板；
 -- 下方维度/指标行未显式给 template_id，由列 DEFAULT 1 归属模板一。
+-- 各街区类型的初始模板在文件末尾由模板一复制生成。
 INSERT INTO metric_template (id, name, description, is_active, sort_no) VALUES (1, '模板一', '默认指标体系：空间美学 / 商业业态 / 文化体验 / 活力人气 / 传播影响', 1, 1);
 
 -- 一级维度
@@ -117,7 +128,7 @@ INSERT INTO fashion_metric (id, sub_dimension_id, code, name, metric_desc, weigh
 INSERT INTO fashion_metric (id, sub_dimension_id, code, name, metric_desc, weight, sort_no) VALUES (74, 25, 'INFLUENCE_S5_M2', '行业奖项与认证', '查询是否获得过设计类、城市更新类、旅游类奖项', 0.3333, 2);
 INSERT INTO fashion_metric (id, sub_dimension_id, code, name, metric_desc, weight, sort_no) VALUES (75, 25, 'INFLUENCE_S5_M3', '学术研究/出版物引用', '观察是否有建筑、城市规划、社会学等领域的学者将街区作为研究案例', 0.3333, 3);
 
--- ============ AI Prompt 模板初始数据（7 条）============
+-- ============ AI Prompt 模板初始数据（8 条）============
 INSERT INTO ai_prompt_template (id, stage, dim_code, name, system_prompt, user_template, placeholders, version) VALUES (1, 'recognize', NULL, '街巷识别', '你是一名中国城市地点识别专家。根据用户输入，判断其指向的评价对象。评价对象可以是街巷/街区，也可以是具体的商场、购物中心、商业综合体、地标建筑或景区：用户指向具体场所时，保留该场所的规范名称，不要替换成它所在的街道或道路。只返回 JSON，不要多余文字。', '用户输入：{content}{city_hint}
 
 请识别并返回如下 JSON：
@@ -219,6 +230,18 @@ INSERT INTO ai_prompt_template (id, stage, dim_code, name, system_prompt, user_t
   "weaknesses": ["短板1", "短板2"],
   "suggestions": ["提升建议1", "提升建议2"]
 }}', '{street_name} {total_score} {dim_block}', 1);
+INSERT INTO ai_prompt_template (id, stage, dim_code, name, system_prompt, user_template, placeholders, version) VALUES (8, 'classify', NULL, '街区类型匹配', '你是一名城市街区类型研判专家。依据给定的街区类型定义，判断评价对象与每种类型的匹配度。只返回 JSON，不要多余文字。', '评价对象：{street_name}{location}
+
+【街区类型定义】
+{type_block}
+
+请逐一评估该评价对象与以上每种类型的匹配度，返回如下 JSON：
+{{
+  "types": [
+    {{"code": "类型code", "match_score": 0~1 的匹配度数字, "reason": "30字以内的判断依据"}}
+  ]
+}}
+注意：types 必须覆盖全部类型，code 必须与上面给出的完全一致；各类型匹配度相互独立，不要求加和为 1。', '{street_name}=评价对象；{location}=城市/区(可空)；{type_block}=类型定义清单', 1);
 
 -- =========================================================
 -- 分析中心显示配置（资源中心「分析管理」可配，默认全部启用）
@@ -236,4 +259,74 @@ INSERT INTO analytics_display_config (block_key, block_group, name, description,
   ('ai_summary',      'report',   'AI 街道画像',    'AI 生成的综合评价画像文本',                                 1, 1),
   ('similar_streets', 'report',   '相似审美节点',   '历史点评中维度画像最相似的街区',     1, 2),
   ('image_confirm_location', 'flow', '照片地点确认', '照片点评识别出地点后暂停，由用户确认或修改地点后再继续评分', 1, 1),
-  ('text_auto_cover', 'flow', '文字点评自动封面', '文字点评识别出地点后用高德 POI 照片作封面（需配置 AMAP_KEY）；关闭后文字点评不取图也不显示封面', 1, 2);
+  ('text_auto_cover', 'flow', '文字点评自动封面', '文字点评识别出地点后用高德 POI 照片作封面（需配置 AMAP_KEY）；关闭后文字点评不取图也不显示封面', 1, 2),
+  ('street_type_select', 'flow', '街区类型选择', '地点确定后由 AI 给出 7 种街区类型的匹配度，用户选定类型后用该类型下启用的指标模板评分；关闭后使用通用模板', 1, 3);
+
+-- =========================================================
+-- 各街区类型的初始模板：结构与名称复制模板一，一级权重按类型侧重，二、三级平均
+-- =========================================================
+INSERT INTO metric_template (name, description, is_active, sort_no, street_type_id)
+SELECT '模板一', CONCAT(t.name, '初始模板：一级权重按类型侧重，二、三级平均分配'), 1, 1, t.id
+FROM street_type t ORDER BY t.sort_no, t.id;
+
+INSERT INTO fashion_dimension (template_id, code, name, weight, sort_no)
+SELECT mt.id, d.code, d.name, w.weight, d.sort_no
+FROM metric_template mt
+JOIN street_type st ON st.id = mt.street_type_id
+JOIN (
+            SELECT 'WATER_TOWN' AS type_code, 'SPACE' AS dim_code, 0.2500 AS weight
+  UNION ALL SELECT 'WATER_TOWN', 'BUSINESS', 0.1500
+  UNION ALL SELECT 'WATER_TOWN', 'CULTURE', 0.3000
+  UNION ALL SELECT 'WATER_TOWN', 'VITALITY', 0.1500
+  UNION ALL SELECT 'WATER_TOWN', 'INFLUENCE', 0.1500
+  UNION ALL SELECT 'REPUBLICAN', 'SPACE', 0.3000
+  UNION ALL SELECT 'REPUBLICAN', 'BUSINESS', 0.1500
+  UNION ALL SELECT 'REPUBLICAN', 'CULTURE', 0.2500
+  UNION ALL SELECT 'REPUBLICAN', 'VITALITY', 0.1500
+  UNION ALL SELECT 'REPUBLICAN', 'INFLUENCE', 0.1500
+  UNION ALL SELECT 'COMMERCIAL_WALK', 'SPACE', 0.1500
+  UNION ALL SELECT 'COMMERCIAL_WALK', 'BUSINESS', 0.3000
+  UNION ALL SELECT 'COMMERCIAL_WALK', 'CULTURE', 0.1000
+  UNION ALL SELECT 'COMMERCIAL_WALK', 'VITALITY', 0.2500
+  UNION ALL SELECT 'COMMERCIAL_WALK', 'INFLUENCE', 0.2000
+  UNION ALL SELECT 'CREATIVE_ART', 'SPACE', 0.2000
+  UNION ALL SELECT 'CREATIVE_ART', 'BUSINESS', 0.2000
+  UNION ALL SELECT 'CREATIVE_ART', 'CULTURE', 0.2500
+  UNION ALL SELECT 'CREATIVE_ART', 'VITALITY', 0.1500
+  UNION ALL SELECT 'CREATIVE_ART', 'INFLUENCE', 0.2000
+  UNION ALL SELECT 'MARKET_LIFE', 'SPACE', 0.1000
+  UNION ALL SELECT 'MARKET_LIFE', 'BUSINESS', 0.2000
+  UNION ALL SELECT 'MARKET_LIFE', 'CULTURE', 0.2500
+  UNION ALL SELECT 'MARKET_LIFE', 'VITALITY', 0.3000
+  UNION ALL SELECT 'MARKET_LIFE', 'INFLUENCE', 0.1500
+  UNION ALL SELECT 'HERITAGE_TOURISM', 'SPACE', 0.2000
+  UNION ALL SELECT 'HERITAGE_TOURISM', 'BUSINESS', 0.1500
+  UNION ALL SELECT 'HERITAGE_TOURISM', 'CULTURE', 0.3000
+  UNION ALL SELECT 'HERITAGE_TOURISM', 'VITALITY', 0.1500
+  UNION ALL SELECT 'HERITAGE_TOURISM', 'INFLUENCE', 0.2000
+  UNION ALL SELECT 'SPECIALTY', 'SPACE', 0.1500
+  UNION ALL SELECT 'SPECIALTY', 'BUSINESS', 0.3500
+  UNION ALL SELECT 'SPECIALTY', 'CULTURE', 0.1000
+  UNION ALL SELECT 'SPECIALTY', 'VITALITY', 0.2000
+  UNION ALL SELECT 'SPECIALTY', 'INFLUENCE', 0.2000
+) w ON w.type_code = st.code
+JOIN fashion_dimension d ON d.template_id = 1 AND d.code = w.dim_code;
+
+INSERT INTO fashion_sub_dimension (template_id, dimension_id, code, name, weight, sort_no)
+SELECT mt.id, nd.id, s.code, s.name, 0.2000, s.sort_no
+FROM metric_template mt
+JOIN fashion_sub_dimension s ON s.template_id = 1
+JOIN fashion_dimension od ON od.id = s.dimension_id
+JOIN fashion_dimension nd ON nd.template_id = mt.id AND nd.code = od.code
+WHERE mt.street_type_id IS NOT NULL;
+
+INSERT INTO fashion_metric
+    (template_id, sub_dimension_id, code, name, metric_desc, weight,
+     score_mode, data_source, ai_extract_rule, sort_no)
+SELECT mt.id, ns.id, m.code, m.name, m.metric_desc, 0.3333,
+       m.score_mode, m.data_source, m.ai_extract_rule, m.sort_no
+FROM metric_template mt
+JOIN fashion_metric m ON m.template_id = 1
+JOIN fashion_sub_dimension os ON os.id = m.sub_dimension_id
+JOIN fashion_sub_dimension ns ON ns.template_id = mt.id AND ns.code = os.code
+WHERE mt.street_type_id IS NOT NULL;

@@ -13,10 +13,13 @@ export default function HeaderCard({
   streetName,
   totalScore,
   imageUrl,
+  streetType,
   showScore = true,
 }: {
   streetName: string;
   totalScore: number | null;
+  /** 用户选定的街区类型名，如「水乡古巷型」；未选不渲染标签 */
+  streetType?: string | null;
   /** 上传原图相对路径；为空时显示图标占位 */
   imageUrl?: string | null;
   /** 是否展示综合分（受分析管理配置控制） */
@@ -54,6 +57,11 @@ export default function HeaderCard({
               location_on
             </span>
             <span className="font-bold text-primary">AI 街巷时尚度评价</span>
+            {streetType && (
+              <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                {streetType}
+              </span>
+            )}
           </div>
           <h1 className="text-[31px] leading-tight font-black text-brand tracking-tight wrap-break-word">
             {streetName.trim() || "未命名街巷"}
